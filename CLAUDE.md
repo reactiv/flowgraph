@@ -168,6 +168,34 @@ docker-compose exec frontend npm run format:fix
 ### Pre-commit
 All checks run automatically on commit via pre-commit hooks configured in the containers.
 
+## Git Workflow
+
+### Commit After Completing TODOs
+- **Commit after each completed TODO item** - don't batch multiple unrelated changes
+- **Commit after completing a logical unit of work** - a feature, bugfix, or refactor
+- **Run tests and linting before committing** - ensure the codebase stays green
+- **Never commit broken code** - if tests fail, fix before committing
+
+### Commit Message Guidelines
+- Use imperative mood: "Add feature" not "Added feature"
+- First line: concise summary (50 chars or less)
+- Reference TODO items or issues when relevant
+
+### When to Commit
+| Scenario | Action |
+|----------|--------|
+| Completed a TODO item | Commit immediately |
+| Added a new file or module | Commit with related changes |
+| Fixed a bug | Commit the fix alone |
+| Refactored code | Commit refactor separately from features |
+| Made multiple unrelated changes | Split into separate commits |
+
+### Atomic Commits
+Keep commits focused and reversible:
+- One logical change per commit
+- Avoid mixing formatting changes with functional changes
+- If you need to say "and" in your commit message, consider splitting
+
 ## Phase 1 Focus
 
 1. **Template Library**: 5 diverse workflows using identical primitives
