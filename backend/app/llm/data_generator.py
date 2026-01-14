@@ -9,7 +9,7 @@ from typing import Any
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
-from app.models import EdgeCreate, EdgeType, NodeCreate, NodeType, WorkflowDefinition
+from app.models import WorkflowDefinition, NodeCreate, EdgeCreate, NodeType, EdgeType
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ PERSON_NAMES = [
 
 
 class DataGenerator:
-    """Generates realistic workflow data using Claude and rule-based generation."""
+    """Generates realistic workflow data using Claude."""
 
     def __init__(
         self, graph_store: GraphStore, llm_client: LLMClient | None = None
@@ -80,21 +80,17 @@ class DataGenerator:
 
         Args:
             graph_store: GraphStore instance for database operations
-            llm_client: Optional LLM client. If None, will try to create one.
+            llm_client: Optional LLM client. If None, will create one (requires API key).
+
+        Raises:
+            ValueError: If no ANTHROPIC_API_KEY is set and no client provided.
         """
         self.graph_store = graph_store
-        self._llm_client = llm_client
-        self._llm_available = True
+        self._llm_client = llm_client or get_client()
 
     @property
-    def llm_client(self) -> LLMClient | None:
-        """Lazily get LLM client, returning None if unavailable."""
-        if self._llm_client is None and self._llm_available:
-            try:
-                self._llm_client = get_client()
-            except ValueError:
-                logger.warning("LLM client unavailable - using rule-based generation only")
-                self._llm_available = False
+    def llm_client(self) -> LLMClient:
+        """Get the LLM client."""
         return self._llm_client
 
     async def seed_workflow(
@@ -128,7 +124,6 @@ class DataGenerator:
             "scale": config.scale,
             "nodes_created": node_count,
             "edges_created": edge_count,
-            "llm_used": self._llm_available and self._llm_client is not None,
         }
 
     async def _generate_graph_structure(
@@ -431,11 +426,7 @@ class DataGenerator:
     async def _populate_field_values(
         self, nodes: list[GeneratedNode], definition: WorkflowDefinition
     ) -> list[GeneratedNode]:
-        """Populate field values, optionally using LLM for summaries."""
-        if not self.llm_client:
-            logger.info("LLM not available, using rule-based generation only")
-            return self._populate_fields_without_llm(nodes, definition)
-
+        """Populate field values using LLM for summaries."""
         # Group nodes by type for batch processing
         nodes_by_type: dict[str, list[GeneratedNode]] = {}
         for node in nodes:
@@ -456,14 +447,9 @@ class DataGenerator:
             ]
 
             if summary_fields and len(type_nodes) > 0:
-                try:
-                    await self._generate_summaries_with_llm(
-                        type_nodes, type_def, summary_fields[0].key, definition
-                    )
-                except Exception as e:
-                    logger.warning(f"LLM summary generation failed: {e}")
-                    # Fall back to rule-based
-                    self._populate_summaries_without_llm(type_nodes, type_def)
+                await self._generate_summaries_with_llm(
+                    type_nodes, type_def, summary_fields[0].key, definition
+                )
 
         return nodes
 
@@ -526,10 +512,7 @@ class DataGenerator:
                     info[key] = node.properties[key]
             node_info.append(info)
 
-        type_name = type_def.display_name
-        workflow_name = definition.name
-        return f"""Generate brief, realistic summaries for the following {type_name} items \
-in a {workflow_name} workflow.
+        return f"""Generate brief, realistic summaries for the following {type_def.display_name} items in a {definition.name} workflow.
 
 Each summary should be 1-2 sentences describing the item's purpose or findings.
 
@@ -540,51 +523,6 @@ Return JSON in this exact format:
 {{"summaries": ["summary for item 1", "summary for item 2", ...]}}
 
 Generate {len(nodes)} summaries in the array, one for each item in order."""
-
-    def _populate_fields_without_llm(
-        self, nodes: list[GeneratedNode], definition: WorkflowDefinition
-    ) -> list[GeneratedNode]:
-        """Populate fields using rule-based generation only."""
-        for node in nodes:
-            type_def = self._get_node_type(definition, node.node_type)
-            if type_def:
-                self._populate_summaries_without_llm([node], type_def)
-        return nodes
-
-    def _populate_summaries_without_llm(
-        self, nodes: list[GeneratedNode], type_def: NodeType
-    ) -> None:
-        """Generate placeholder summaries without LLM."""
-        templates = {
-            "Sample": [
-                "Sample prepared using standard protocol.",
-                "Initial characterization complete.",
-                "Ready for analysis.",
-            ],
-            "Analysis": [
-                "Analysis completed successfully.",
-                "Results within expected parameters.",
-                "Measurements recorded.",
-            ],
-            "Hypothesis": [
-                "Hypothesis under investigation.",
-                "Preliminary evidence supports this hypothesis.",
-                "Further testing required.",
-            ],
-            "default": [
-                "Item created and ready for processing.",
-                "Standard workflow item.",
-                "Awaiting next steps.",
-            ],
-        }
-
-        type_templates = templates.get(type_def.type, templates["default"])
-
-        for node in nodes:
-            for field_def in type_def.fields:
-                if "summary" in field_def.key.lower() or "description" in field_def.key.lower():
-                    if node.properties.get(field_def.key) is None:
-                        node.properties[field_def.key] = random.choice(type_templates)
 
     async def _insert_into_db(
         self,

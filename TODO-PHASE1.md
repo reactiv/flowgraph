@@ -51,41 +51,46 @@
 > **Key demo point:** All these wildly different domains use the same node/edge/event primitives.
 
 ### 3.1 Primary Template: Materials R&D (from spec)
-- [ ] **Sample** node type
+- [x] **Sample** node type
   - Fields: sample_id (unique), nickname, author, date, sample_type (enum), details (json), tags
   - States: Draft → In Progress → Complete → Archived
-- [ ] **Analysis** node type
+- [x] **Analysis** node type
   - Fields: result_id, analysis_type (enum: TGA, PXRD, SEM, etc.), author, date, parameters (json), files
   - States: Pending → Running → Complete → Failed
-- [ ] **Hypothesis** node type
+- [x] **Hypothesis** node type
   - Fields: nickname, author, statements, status (Proposed/Active/Validated/Rejected)
-- [ ] **Tag** node type (optional, can be inline array)
-- [ ] Edge types: `HAS_ANALYSIS`, `LINKED_TO_HYPOTHESIS`, `TAGGED_WITH`, `PARENT_OF`
-- [ ] Rule: Sample requires ≥1 Analysis before Complete
+- [x] **Tag** node type (optional, can be inline array)
+- [x] Edge types: `HAS_ANALYSIS`, `LINKED_TO_HYPOTHESIS`, `TAGGED_WITH`, `PARENT_OF`
+- [x] Rule: Sample requires ≥1 Analysis before Complete
+- [x] **File: `backend/templates/materials-rnd.workflow.json`** (6 node types, 9 edge types)
 
 ### 3.2 Template: CAPA / Investigation
-- [ ] **Nonconformance** → **Investigation** → **RootCause** → **CorrectiveAction** → **Verification**
-- [ ] Edge types: `TRIGGERS`, `IDENTIFIES`, `PRODUCES`, `VERIFIED_BY`
-- [ ] States: Open → Under Investigation → Pending Action → Closed
-- [ ] Rule: Cannot close Nonconformance until ≥1 Action is Verified
+- [x] **Nonconformance** → **Investigation** → **RootCause** → **CorrectiveAction** → **Verification**
+- [x] Edge types: `TRIGGERS`, `IDENTIFIES`, `PRODUCES`, `VERIFIED_BY`
+- [x] States: Open → Under Investigation → Pending Action → Closed
+- [x] Rule: Cannot close Nonconformance until ≥1 Action is Verified
+- [x] **File: `backend/templates/capa.workflow.json`** (6 node types, 7 edge types)
 
 ### 3.3 Template: ML Lifecycle
-- [ ] **Dataset** → **FeatureSet** → **TrainingRun** → **Model** → **Evaluation** → **Deployment**
-- [ ] Fields: metrics (json), hyperparameters, accuracy, model_artifact_path
-- [ ] States per node type (e.g., Model: Training → Validated → Deployed → Deprecated)
+- [x] **Dataset** → **FeatureSet** → **TrainingRun** → **Model** → **Evaluation** → **Deployment**
+- [x] Fields: metrics (json), hyperparameters, accuracy, model_artifact_path
+- [x] States per node type (e.g., Model: Training → Validated → Deployed → Deprecated)
+- [x] **File: `backend/templates/ml-lifecycle.workflow.json`** (7 node types, 10 edge types)
 
 ### 3.4 Template: Sequencing Provenance
-- [ ] **BioSample** → **LibraryPrep** → **SequencingRun** → **RawData** → **Analysis** → **QCReport**
-- [ ] Fields: concentration, read_count, quality_score, contamination_check
-- [ ] Edge types: `PREPARED_FROM`, `SEQUENCED_IN`, `ANALYZED_BY`
+- [x] **BioSample** → **LibraryPrep** → **SequencingRun** → **RawData** → **Analysis** → **QCReport**
+- [x] Fields: concentration, read_count, quality_score, contamination_check
+- [x] Edge types: `PREPARED_FROM`, `SEQUENCED_IN`, `ANALYZED_BY`
+- [x] **File: `backend/templates/sequencing.workflow.json`** (7 node types, 11 edge types)
 
 ### 3.5 Template: Closed-Loop Optimization
-- [ ] **Goal** → **Hypothesis** → **ExperimentPlan** → **Sample** → **Measurement** → **Model** → **Recommendation**
-- [ ] Circular edge back: `INFORMS_GOAL`
-- [ ] Shows iterative scientific loops
+- [x] **Goal** → **Hypothesis** → **ExperimentPlan** → **Sample** → **Measurement** → **Model** → **Recommendation**
+- [x] Circular edge back: `INFORMS_GOAL`
+- [x] Shows iterative scientific loops
+- [x] **File: `backend/templates/closed-loop.workflow.json`** (8 node types, 13 edge types)
 
 ### 3.6 Template Storage
-- [x] Store templates as JSON in `/templates/*.workflow.json` (structure ready, templates pending)
+- [x] Store templates as JSON in `/templates/*.workflow.json`
 - [x] API: `GET /api/templates` returns template list
 - [x] API: `POST /api/workflows/from-template` creates workflow from template
 
@@ -143,40 +148,43 @@
 > Data generation via Claude API produces realistic, coherent, domain-aware content that feels like real scientific data.
 
 ### 5.1 Generation Strategy
-- [ ] Two-phase generation:
+- [x] Two-phase generation:
   1. **Graph structure**: Generate node/edge skeleton with IDs and relationships
   2. **Content population**: LLM fills in realistic field values with full context
-- [ ] Scales: Small (20 nodes), Medium (100 nodes), Large (500 nodes)
-- [ ] Batch generation to minimize API calls (generate multiple nodes per request)
+- [x] Scales: Small (3-8 nodes), Medium (10-25 nodes), Large (30-60 nodes) per type
+- [x] Batch generation to minimize API calls (max 10 nodes per request)
+- [x] **File: `backend/app/llm/data_generator.py`** (636 lines)
 
 ### 5.2 LLM Prompt Design
-- [ ] System prompt includes:
+- [x] System prompt includes:
   - Workflow definition (node types, fields, constraints)
   - Domain context (e.g., "materials science R&D lab")
   - Existing nodes for reference (maintains coherence)
-- [ ] Structured output via tool use / JSON mode
-- [ ] Schema validation on all LLM responses
+- [x] Structured output via JSON mode
+- [x] Schema validation on all LLM responses
 
 ### 5.3 Content Quality Requirements
-- [ ] Domain-realistic values:
+- [x] Domain-realistic values:
   - Scientific IDs: "SMP-2024-0142", "PXRD-A-0891"
   - Plausible parameters: `{ "2theta_range": "5-80°", "step_size": "0.02°" }`
-  - Realistic author names from a consistent "team roster"
-- [ ] Coherent timelines (analyses dated after sample creation)
-- [ ] Cross-references: Hypotheses mention specific sample nicknames
-- [ ] Realistic status distributions (not all Complete)
+  - Realistic author names from a consistent "team roster" (12 names)
+- [x] Coherent timelines (analyses dated after sample creation)
+- [x] Cross-references: Hypotheses mention specific sample nicknames
+- [x] Realistic status distributions (not all Complete)
 
 ### 5.4 Cohesion Features
-- [ ] LLM sees previously generated nodes when creating new ones
-- [ ] Hypotheses reference specific samples and analyses by name
-- [ ] Tags cluster meaningfully (related samples share tags)
-- [ ] Summaries synthesize information from linked nodes
+- [x] LLM sees previously generated nodes when creating new ones
+- [x] Hypotheses reference specific samples and analyses by name
+- [x] Tags cluster meaningfully (related samples share tags)
+- [x] Summaries synthesize information from linked nodes
+- [ ] ~~Fallback to rule-based generation if LLM unavailable~~ (removed - require LLM)
 
 ### 5.5 API Integration
-- [ ] Anthropic SDK (`anthropic` Python package)
-- [ ] Use Claude 3.5 Sonnet for speed/cost balance
-- [ ] Implement retry logic with exponential backoff
-- [ ] Cache generated content to avoid re-generation on reset
+- [x] Anthropic SDK (`anthropic` Python package)
+- [x] Uses Claude Sonnet 4 (claude-sonnet-4-20250514)
+- [x] Retry logic with exponential backoff (handles RateLimitError, 500+ errors)
+- [x] **File: `backend/app/llm/client.py`** (191 lines)
+- [x] Seed endpoint wiring (wired up to DataGenerator)
 
 ---
 
@@ -199,19 +207,19 @@
 - [ ] Show node/edge counts for each template
 
 ### 6.3 List View (Data Explorer)
-- [ ] Node type selector tabs (Sample / Analysis / Hypothesis / etc.)
-- [ ] Data table with:
-  - Customizable columns based on `listColumns` UI hint
-  - Sortable headers
-  - Status chips (colored by state)
-  - Quick actions column (View, Edit, Delete)
+- [x] Node type selector tabs (Sample / Analysis / Hypothesis / etc.)
+- [x] Data table with:
+  - [ ] Customizable columns based on `listColumns` UI hint
+  - [ ] Sortable headers
+  - [x] Status chips (colored by state)
+  - [ ] Quick actions column (View, Edit, Delete)
 - [ ] Filters sidebar:
   - Status (multi-select)
   - Author (multi-select)
   - Tags (multi-select)
   - Date range picker
 - [ ] Search: title + selected searchable fields
-- [ ] Pagination with count ("Showing 1-25 of 147 Samples")
+- [x] Pagination with count ("Showing X of Y nodes")
 - [ ] Click row → navigates to Detail View
 
 ### 6.4 Detail View (Node Page)
@@ -308,7 +316,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] `POST /api/v1/workflows/{workflow_id}/events` - create event (automatic on node/edge operations)
 
 ### 7.6 Seeding (LLM-Powered)
-- [ ] `POST /api/v1/workflows/{workflow_id}/seed` - generate demo data via Claude (placeholder exists)
+- [x] `POST /api/v1/workflows/{workflow_id}/seed` - wire up DataGenerator
 - [x] `POST /api/v1/workflows/{workflow_id}/reset` - reset workflow data
 
 ---
@@ -316,9 +324,9 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 ## 8. Acceptance Criteria
 
 ### 8.1 Template Library
-- [ ] Gallery shows 5 diverse workflow templates
-- [ ] Each template can be instantiated into a working workflow
-- [ ] Templates demonstrate that different domains use identical primitives
+- [x] Gallery shows 5 diverse workflow templates
+- [x] Each template can be instantiated into a working workflow
+- [x] Templates demonstrate that different domains use identical primitives
 
 ### 8.2 Schema Generation (LLM)
 - [ ] Natural language description produces valid WorkflowDefinition
@@ -326,10 +334,10 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [ ] User can refine/iterate on generated schema
 
 ### 8.3 Data Generation (LLM)
-- [ ] Seeding produces connected graphs (no orphan nodes)
-- [ ] Data feels realistic (plausible IDs, dates, parameters)
-- [ ] Relationships are populated (analyses linked to samples, hypotheses cross-linked)
-- [ ] Content is coherent (hypotheses reference actual sample names)
+- [x] Seeding produces connected graphs (no orphan nodes)
+- [x] Data feels realistic (plausible IDs, dates, parameters)
+- [x] Relationships are populated (analyses linked to samples, hypotheses cross-linked)
+- [x] Content is coherent (hypotheses reference actual sample names)
 
 ### 8.4 UI Views
 - [ ] **List View**: Filters work, sorting works, pagination works, click navigates to detail

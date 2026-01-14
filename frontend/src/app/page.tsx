@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { WorkflowSummary, TemplateSummary } from '@/types/workflow';
@@ -75,9 +76,10 @@ export default function Home() {
           ) : workflows && workflows.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {workflows.map((workflow: WorkflowSummary) => (
-                <div
+                <Link
                   key={workflow.id}
-                  className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
+                  href={`/workflows/${workflow.id}`}
+                  className="block border rounded-lg p-4 hover:border-primary transition-colors"
                 >
                   <h3 className="font-medium">{workflow.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{workflow.description}</p>
@@ -86,7 +88,7 @@ export default function Home() {
                     <span>&middot;</span>
                     <span>{workflow.node_type_count} node types</span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (

@@ -137,13 +137,16 @@ export const api = {
 
   // Seeding
   seedWorkflow: (workflowId: string, scale: 'small' | 'medium' | 'large' = 'small') =>
-    fetchJson<{ message: string; workflow_id: string; scale: string }>(
-      `/workflows/${workflowId}/seed`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ scale }),
-      }
-    ),
+    fetchJson<{
+      workflow_id: string;
+      scale: string;
+      nodes_created: number;
+      edges_created: number;
+      llm_used: boolean;
+    }>(`/workflows/${workflowId}/seed`, {
+      method: 'POST',
+      body: JSON.stringify({ scale }),
+    }),
 
   resetWorkflow: (workflowId: string) =>
     fetchJson<{ reset: boolean }>(`/workflows/${workflowId}/reset`, {

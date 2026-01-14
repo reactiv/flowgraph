@@ -10,13 +10,13 @@ from pydantic import BaseModel
 from app.db import graph_store
 from app.llm import DataGenerator, SeedConfig
 from app.models import (
-    Edge,
-    EdgeCreate,
-    Event,
+    WorkflowDefinition,
     Node,
     NodeCreate,
     NodeUpdate,
-    WorkflowDefinition,
+    Edge,
+    EdgeCreate,
+    Event,
 )
 from app.models.workflow import WorkflowSummary
 
@@ -245,33 +245,21 @@ class SeedRequest(BaseModel):
 
 @router.post("/workflows/{workflow_id}/seed")
 async def seed_workflow(workflow_id: str, request: SeedRequest) -> dict[str, Any]:
-    """Seed a workflow with demo data using AI-powered generation.
-
-    Generates realistic nodes and edges based on the workflow schema.
-    Uses Claude to generate summaries and descriptions when available,
-    falls back to rule-based generation otherwise.
-    """
+    """Seed a workflow with demo data using LLM-powered generation."""
     # Verify workflow exists
     workflow = await graph_store.get_workflow(workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    # Validate scale
-    if request.scale not in ["small", "medium", "large"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid scale. Must be 'small', 'medium', or 'large'",
-        )
-
-    # Create generator and seed the workflow
-    generator = DataGenerator(graph_store)
-    config = SeedConfig(scale=request.scale)
-
+    # Create the data generator and seed the workflow
     try:
-        result = await generator.seed_workflow(workflow_id, workflow, config)
-        return result
-    except Exception as e:
+        generator = DataGenerator(graph_store)
+    except ValueError as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to seed workflow: {str(e)}",
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY environment variable.",
         )
+
+    config = SeedConfig(scale=request.scale)
+    result = await generator.seed_workflow(workflow_id, workflow, config)
+    return result
