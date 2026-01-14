@@ -7,42 +7,42 @@
 ## 1. Foundation: Data Model & Storage
 
 ### 1.1 Core Schema (SQLite)
-- [ ] Create `workflow_definitions` table (id, name, version, definition_json, timestamps)
-- [ ] Create `nodes` table (id, workflow_id, type, title, status, properties_json, timestamps)
-- [ ] Create `edges` table (id, workflow_id, type, from_node_id, to_node_id, properties_json, timestamps)
-- [ ] Create `events` table (id, workflow_id, subject_node_id, event_type, payload_json, created_at)
-- [ ] Add indexes for snappy queries:
+- [x] Create `workflow_definitions` table (id, name, version, definition_json, timestamps)
+- [x] Create `nodes` table (id, workflow_id, type, title, status, properties_json, timestamps)
+- [x] Create `edges` table (id, workflow_id, type, from_node_id, to_node_id, properties_json, timestamps)
+- [x] Create `events` table (id, workflow_id, subject_node_id, event_type, payload_json, created_at)
+- [x] Add indexes for snappy queries:
   - `nodes(workflow_id, type, status, updated_at)`
   - `edges(workflow_id, from_node_id, type)`
   - `edges(workflow_id, to_node_id, type)`
   - `events(workflow_id, subject_node_id, created_at)`
 
 ### 1.2 GraphStore Interface
-- [ ] `createWorkflow(definition)` / `listWorkflows()` / `getWorkflow(id)`
-- [ ] `createNode(node)` / `getNode(id)` / `updateNode(id, patch)` / `queryNodes(filters, pagination)`
-- [ ] `createEdge(edge)` / `getNeighbors(nodeId, { depth, edgeTypes })`
-- [ ] `appendEvent(event)` / `getEvents(filters)`
-- [ ] `resetAndSeed(workflowId, recipe)`
+- [x] `createWorkflow(definition)` / `listWorkflows()` / `getWorkflow(id)`
+- [x] `createNode(node)` / `getNode(id)` / `updateNode(id, patch)` / `queryNodes(filters, pagination)`
+- [x] `createEdge(edge)` / `getNeighbors(nodeId, { depth, edgeTypes })`
+- [x] `appendEvent(event)` / `getEvents(filters)`
+- [x] `resetAndSeed(workflowId, recipe)` - reset done, seed is placeholder for LLM integration
 
 ---
 
 ## 2. Workflow Definition Schema
 
 ### 2.1 Pydantic Models (Backend) + TypeScript Types (Frontend)
-- [ ] `WorkflowDefinition` model with:
+- [x] `WorkflowDefinition` model with:
   - `workflowId`, `name`, `description`
   - `nodeTypes[]` with fields, states, UI hints
   - `edgeTypes[]` with from/to constraints
   - `rules[]` (optional constraints)
-- [ ] `FieldKind` enum: `string`, `number`, `datetime`, `enum`, `person`, `json`, `tag[]`, `file[]`
-- [ ] `NodeState` machine: `enabled`, `initial`, `values[]`, `transitions[]`
-- [ ] Pydantic validators for definitions (backend), Zod schemas (frontend)
+- [x] `FieldKind` enum: `string`, `number`, `datetime`, `enum`, `person`, `json`, `tag[]`, `file[]`
+- [x] `NodeState` machine: `enabled`, `initial`, `values[]`, `transitions[]`
+- [x] Pydantic validators for definitions (backend), TypeScript types (frontend)
 
 ### 2.2 UI Hints (First-Class)
-- [ ] `titleField`, `subtitleField` per node type
-- [ ] `defaultViews[]`: which views are enabled (list, detail, graph, kanban)
-- [ ] `listColumns[]`: recommended columns for list view
-- [ ] `quickActions[]`: e.g., "Create Analysis", "Link Hypothesis"
+- [x] `titleField`, `subtitleField` per node type
+- [x] `defaultViews[]`: which views are enabled (list, detail, graph, kanban)
+- [x] `listColumns[]`: recommended columns for list view
+- [x] `quickActions[]`: e.g., "Create Analysis", "Link Hypothesis"
 
 ---
 
@@ -85,9 +85,9 @@
 - [ ] Shows iterative scientific loops
 
 ### 3.6 Template Storage
-- [ ] Store templates as JSON in `/templates/*.workflow.json`
-- [ ] API: `GET /api/templates` returns template list
-- [ ] API: `POST /api/workflows/from-template` creates workflow from template
+- [x] Store templates as JSON in `/templates/*.workflow.json` (structure ready, templates pending)
+- [x] API: `GET /api/templates` returns template list
+- [x] API: `POST /api/workflows/from-template` creates workflow from template
 
 ---
 
@@ -282,34 +282,34 @@
 All endpoints prefixed with `/api/v1`. Pydantic models for request/response validation.
 
 ### 7.1 Templates
-- [ ] `GET /api/v1/templates` - list all templates
-- [ ] `GET /api/v1/templates/{template_id}` - get template definition
+- [x] `GET /api/v1/templates` - list all templates
+- [x] `GET /api/v1/templates/{template_id}` - get template definition
 
 ### 7.2 Workflows
-- [ ] `GET /api/v1/workflows` - list user's workflows
-- [ ] `POST /api/v1/workflows/from-template` - create from template
+- [x] `GET /api/v1/workflows` - list user's workflows
+- [x] `POST /api/v1/workflows/from-template` - create from template
 - [ ] `POST /api/v1/workflows/from-language` - create from natural language (LLM)
-- [ ] `GET /api/v1/workflows/{workflow_id}` - get workflow with definition
+- [x] `GET /api/v1/workflows/{workflow_id}` - get workflow with definition
 
 ### 7.3 Nodes
-- [ ] `GET /api/v1/workflows/{workflow_id}/nodes` - query with filters, pagination
-- [ ] `POST /api/v1/workflows/{workflow_id}/nodes` - create node
-- [ ] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}` - get single node
-- [ ] `PATCH /api/v1/workflows/{workflow_id}/nodes/{node_id}` - update node
-- [ ] `DELETE /api/v1/workflows/{workflow_id}/nodes/{node_id}` - delete node
+- [x] `GET /api/v1/workflows/{workflow_id}/nodes` - query with filters, pagination
+- [x] `POST /api/v1/workflows/{workflow_id}/nodes` - create node
+- [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}` - get single node
+- [x] `PATCH /api/v1/workflows/{workflow_id}/nodes/{node_id}` - update node
+- [x] `DELETE /api/v1/workflows/{workflow_id}/nodes/{node_id}` - delete node
 
 ### 7.4 Edges
-- [ ] `POST /api/v1/workflows/{workflow_id}/edges` - create edge
-- [ ] `DELETE /api/v1/workflows/{workflow_id}/edges/{edge_id}` - delete edge
-- [ ] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/neighbors` - get neighborhood
+- [x] `POST /api/v1/workflows/{workflow_id}/edges` - create edge
+- [x] `DELETE /api/v1/workflows/{workflow_id}/edges/{edge_id}` - delete edge
+- [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/neighbors` - get neighborhood
 
 ### 7.5 Events
-- [ ] `GET /api/v1/workflows/{workflow_id}/events` - query events with filters
-- [ ] `POST /api/v1/workflows/{workflow_id}/events` - create event (usually automatic)
+- [x] `GET /api/v1/workflows/{workflow_id}/events` - query events with filters
+- [x] `POST /api/v1/workflows/{workflow_id}/events` - create event (automatic on node/edge operations)
 
 ### 7.6 Seeding (LLM-Powered)
-- [ ] `POST /api/v1/workflows/{workflow_id}/seed` - generate demo data via Claude
-- [ ] `POST /api/v1/workflows/{workflow_id}/reset` - reset workflow data
+- [ ] `POST /api/v1/workflows/{workflow_id}/seed` - generate demo data via Claude (placeholder exists)
+- [x] `POST /api/v1/workflows/{workflow_id}/reset` - reset workflow data
 
 ---
 
