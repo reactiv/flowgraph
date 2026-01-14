@@ -1,0 +1,335 @@
+{
+  "workflowId": "ml_lifecycle_v1",
+  "name": "ML Lifecycle Workflow",
+  "description": "Machine Learning model lifecycle from dataset creation through training, evaluation, and deployment. Track experiments, model versions, and performance metrics.",
+  "tags": ["ML", "Data Science", "AI"],
+  "nodeTypes": [
+    {
+      "type": "Dataset",
+      "displayName": "Dataset",
+      "titleField": "name",
+      "subtitleField": "dataset_id",
+      "fields": [
+        {"key": "dataset_id", "label": "Dataset ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string"},
+        {"key": "owner", "label": "Owner", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "source", "label": "Data Source", "kind": "string"},
+        {"key": "row_count", "label": "Row Count", "kind": "number"},
+        {"key": "feature_count", "label": "Feature Count", "kind": "number"},
+        {"key": "schema", "label": "Schema", "kind": "json"},
+        {"key": "storage_location", "label": "Storage Location", "kind": "string"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "Processing", "Ready", "Deprecated", "Archived"],
+        "transitions": [
+          {"from": "Draft", "to": "Processing"},
+          {"from": "Processing", "to": "Ready"},
+          {"from": "Processing", "to": "Draft"},
+          {"from": "Ready", "to": "Deprecated"},
+          {"from": "Deprecated", "to": "Archived"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph"],
+        "primarySections": ["summary", "schema", "relationships", "events"],
+        "listColumns": ["dataset_id", "name", "owner", "row_count", "created_date"],
+        "quickActions": ["Create Feature Set", "Add Tag"]
+      }
+    },
+    {
+      "type": "FeatureSet",
+      "displayName": "Feature Set",
+      "titleField": "name",
+      "subtitleField": "feature_set_id",
+      "fields": [
+        {"key": "feature_set_id", "label": "Feature Set ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string"},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "features", "label": "Features", "kind": "json"},
+        {"key": "transformations", "label": "Transformations", "kind": "json"},
+        {"key": "feature_count", "label": "Feature Count", "kind": "number"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "Computing", "Ready", "Deprecated"],
+        "transitions": [
+          {"from": "Draft", "to": "Computing"},
+          {"from": "Computing", "to": "Ready"},
+          {"from": "Computing", "to": "Draft"},
+          {"from": "Ready", "to": "Deprecated"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "features", "relationships", "events"],
+        "listColumns": ["feature_set_id", "name", "author", "feature_count", "created_date"],
+        "quickActions": ["Start Training Run"]
+      }
+    },
+    {
+      "type": "TrainingRun",
+      "displayName": "Training Run",
+      "titleField": "run_name",
+      "subtitleField": "run_id",
+      "fields": [
+        {"key": "run_id", "label": "Run ID", "kind": "string", "required": true, "unique": true},
+        {"key": "run_name", "label": "Run Name", "kind": "string", "required": true},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "started_at", "label": "Started At", "kind": "datetime", "required": true},
+        {"key": "completed_at", "label": "Completed At", "kind": "datetime"},
+        {"key": "algorithm", "label": "Algorithm", "kind": "enum", "values": ["XGBoost", "RandomForest", "NeuralNetwork", "LinearRegression", "LogisticRegression", "SVM", "KNN", "Other"]},
+        {"key": "hyperparameters", "label": "Hyperparameters", "kind": "json"},
+        {"key": "compute_config", "label": "Compute Config", "kind": "json"},
+        {"key": "logs", "label": "Logs", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Queued",
+        "values": ["Queued", "Running", "Completed", "Failed", "Cancelled"],
+        "transitions": [
+          {"from": "Queued", "to": "Running"},
+          {"from": "Queued", "to": "Cancelled"},
+          {"from": "Running", "to": "Completed"},
+          {"from": "Running", "to": "Failed"},
+          {"from": "Running", "to": "Cancelled"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "hyperparameters", "relationships", "files", "events"],
+        "listColumns": ["run_id", "run_name", "algorithm", "author", "started_at"],
+        "quickActions": ["View Logs", "Create Model Artifact"]
+      }
+    },
+    {
+      "type": "ModelArtifact",
+      "displayName": "Model Artifact",
+      "titleField": "model_name",
+      "subtitleField": "version",
+      "fields": [
+        {"key": "artifact_id", "label": "Artifact ID", "kind": "string", "required": true, "unique": true},
+        {"key": "model_name", "label": "Model Name", "kind": "string", "required": true},
+        {"key": "version", "label": "Version", "kind": "string", "required": true},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "model_type", "label": "Model Type", "kind": "string"},
+        {"key": "framework", "label": "Framework", "kind": "enum", "values": ["PyTorch", "TensorFlow", "Scikit-learn", "XGBoost", "Keras", "Other"]},
+        {"key": "file_size_mb", "label": "File Size (MB)", "kind": "number"},
+        {"key": "storage_path", "label": "Storage Path", "kind": "string"},
+        {"key": "model_files", "label": "Model Files", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Created",
+        "values": ["Created", "Validated", "Staged", "Deployed", "Retired"],
+        "transitions": [
+          {"from": "Created", "to": "Validated"},
+          {"from": "Validated", "to": "Staged"},
+          {"from": "Staged", "to": "Deployed"},
+          {"from": "Deployed", "to": "Retired"},
+          {"from": "Staged", "to": "Created"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "relationships", "files", "events"],
+        "listColumns": ["artifact_id", "model_name", "version", "framework", "created_date"],
+        "quickActions": ["Run Evaluation", "Deploy"]
+      }
+    },
+    {
+      "type": "Evaluation",
+      "displayName": "Evaluation",
+      "titleField": "name",
+      "subtitleField": "evaluation_id",
+      "fields": [
+        {"key": "evaluation_id", "label": "Evaluation ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "evaluator", "label": "Evaluator", "kind": "person", "required": true},
+        {"key": "evaluation_date", "label": "Evaluation Date", "kind": "datetime", "required": true},
+        {"key": "eval_dataset", "label": "Evaluation Dataset", "kind": "string"},
+        {"key": "metrics", "label": "Metrics", "kind": "json"},
+        {"key": "accuracy", "label": "Accuracy", "kind": "number"},
+        {"key": "precision", "label": "Precision", "kind": "number"},
+        {"key": "recall", "label": "Recall", "kind": "number"},
+        {"key": "f1_score", "label": "F1 Score", "kind": "number"},
+        {"key": "notes", "label": "Notes", "kind": "string"},
+        {"key": "reports", "label": "Reports", "kind": "file[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Pending",
+        "values": ["Pending", "Running", "Complete", "Failed"],
+        "transitions": [
+          {"from": "Pending", "to": "Running"},
+          {"from": "Running", "to": "Complete"},
+          {"from": "Running", "to": "Failed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "metrics", "relationships", "files", "events"],
+        "listColumns": ["evaluation_id", "name", "accuracy", "f1_score", "evaluation_date"],
+        "quickActions": ["View Report"]
+      }
+    },
+    {
+      "type": "Deployment",
+      "displayName": "Deployment",
+      "titleField": "deployment_name",
+      "subtitleField": "deployment_id",
+      "fields": [
+        {"key": "deployment_id", "label": "Deployment ID", "kind": "string", "required": true, "unique": true},
+        {"key": "deployment_name", "label": "Deployment Name", "kind": "string", "required": true},
+        {"key": "deployed_by", "label": "Deployed By", "kind": "person", "required": true},
+        {"key": "deployed_at", "label": "Deployed At", "kind": "datetime", "required": true},
+        {"key": "environment", "label": "Environment", "kind": "enum", "required": true, "values": ["Development", "Staging", "Production"]},
+        {"key": "endpoint_url", "label": "Endpoint URL", "kind": "string"},
+        {"key": "compute_config", "label": "Compute Config", "kind": "json"},
+        {"key": "traffic_percentage", "label": "Traffic %", "kind": "number"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Deploying",
+        "values": ["Deploying", "Active", "Draining", "Terminated", "Failed"],
+        "transitions": [
+          {"from": "Deploying", "to": "Active"},
+          {"from": "Deploying", "to": "Failed"},
+          {"from": "Active", "to": "Draining"},
+          {"from": "Draining", "to": "Terminated"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "config", "relationships", "events"],
+        "listColumns": ["deployment_id", "deployment_name", "environment", "deployed_by", "deployed_at"],
+        "quickActions": ["View Metrics", "Rollback"]
+      }
+    },
+    {
+      "type": "Tag",
+      "displayName": "Tag",
+      "titleField": "name",
+      "fields": [
+        {"key": "tag_id", "label": "Tag ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "tag_type", "label": "Type", "kind": "enum", "values": ["USER", "SYSTEM"]},
+        {"key": "description", "label": "Description", "kind": "string"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["name", "tag_type", "description"],
+        "quickActions": []
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "DERIVED_FROM",
+      "displayName": "derived from",
+      "from": "FeatureSet",
+      "to": "Dataset",
+      "direction": "out"
+    },
+    {
+      "type": "USES_FEATURES",
+      "displayName": "uses features",
+      "from": "TrainingRun",
+      "to": "FeatureSet",
+      "direction": "out"
+    },
+    {
+      "type": "PRODUCES_MODEL",
+      "displayName": "produces",
+      "from": "TrainingRun",
+      "to": "ModelArtifact",
+      "direction": "out"
+    },
+    {
+      "type": "EVALUATES",
+      "displayName": "evaluates",
+      "from": "Evaluation",
+      "to": "ModelArtifact",
+      "direction": "out"
+    },
+    {
+      "type": "EVAL_USES_DATASET",
+      "displayName": "uses dataset",
+      "from": "Evaluation",
+      "to": "Dataset",
+      "direction": "out"
+    },
+    {
+      "type": "DEPLOYS_MODEL",
+      "displayName": "deploys",
+      "from": "Deployment",
+      "to": "ModelArtifact",
+      "direction": "out"
+    },
+    {
+      "type": "DATASET_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Dataset",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "MODEL_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "ModelArtifact",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "TRAINING_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "TrainingRun",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "PARENT_MODEL",
+      "displayName": "fine-tuned from",
+      "from": "ModelArtifact",
+      "to": "ModelArtifact",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "model_requires_evaluation_before_staged",
+      "when": {
+        "nodeType": "ModelArtifact",
+        "transitionTo": "Staged"
+      },
+      "requireEdges": [
+        {"edgeType": "EVALUATES", "minCount": 1}
+      ],
+      "message": "A Model Artifact must have at least 1 Evaluation before it can be Staged."
+    },
+    {
+      "id": "model_requires_deployment_before_deployed_status",
+      "when": {
+        "nodeType": "ModelArtifact",
+        "transitionTo": "Deployed"
+      },
+      "requireEdges": [
+        {"edgeType": "DEPLOYS_MODEL", "minCount": 1}
+      ],
+      "message": "A Model Artifact must have an active Deployment before it can be marked as Deployed."
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+{
+  "workflowId": "materials_rnd_v1",
+  "name": "Materials R&D Workflow",
+  "description": "Samples, analyses, and hypotheses with lineage and tags. Scientists create samples, run various analyses (PXRD, SEM, TGA, etc.), and link findings to hypotheses.",
+  "tags": ["R&D", "Materials", "Science"],
+  "nodeTypes": [
+    {
+      "type": "Sample",
+      "displayName": "Sample",
+      "titleField": "nickname",
+      "subtitleField": "sample_id",
+      "fields": [
+        {"key": "sample_id", "label": "Sample ID", "kind": "string", "required": true, "unique": true},
+        {"key": "nickname", "label": "Nickname", "kind": "string", "required": true},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "date", "label": "Date", "kind": "datetime", "required": true},
+        {"key": "sample_type", "label": "Type", "kind": "enum", "values": ["synth", "post_synth", "analysis", "commercial"]},
+        {"key": "details", "label": "Details", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"},
+        {"key": "summary", "label": "Summary", "kind": "string"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "In Progress", "Complete", "Archived"],
+        "transitions": [
+          {"from": "Draft", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"},
+          {"from": "In Progress", "to": "Draft"},
+          {"from": "Complete", "to": "Archived"},
+          {"from": "Complete", "to": "In Progress"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "board"],
+        "primarySections": ["summary", "relationships", "files", "events"],
+        "listColumns": ["sample_id", "nickname", "author", "sample_type", "date"],
+        "quickActions": ["Create Analysis", "Link Hypothesis", "Add Tag"]
+      }
+    },
+    {
+      "type": "Analysis",
+      "displayName": "Analysis",
+      "titleField": "result_id",
+      "subtitleField": "analysis_type",
+      "fields": [
+        {"key": "result_id", "label": "Result ID", "kind": "string", "required": true, "unique": true},
+        {"key": "analysis_type", "label": "Analysis Type", "kind": "enum", "required": true, "values": ["TGA", "PXRD", "SEM", "EDS", "CHN", "DERP", "SCAT", "3FLEX", "ADAPT"]},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "date", "label": "Date", "kind": "datetime", "required": true},
+        {"key": "parameters", "label": "Parameters", "kind": "json"},
+        {"key": "processed_results", "label": "Processed Results", "kind": "json"},
+        {"key": "files", "label": "Files", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"},
+        {"key": "summary", "label": "Summary", "kind": "string"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Pending",
+        "values": ["Pending", "In Progress", "Complete", "Failed", "Archived"],
+        "transitions": [
+          {"from": "Pending", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"},
+          {"from": "In Progress", "to": "Failed"},
+          {"from": "Complete", "to": "Archived"},
+          {"from": "Failed", "to": "In Progress"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph"],
+        "primarySections": ["summary", "parameters", "results", "relationships", "files", "events"],
+        "listColumns": ["result_id", "analysis_type", "author", "date"],
+        "quickActions": ["Link Hypothesis", "Add Tag", "Upload File"]
+      }
+    },
+    {
+      "type": "Hypothesis",
+      "displayName": "Hypothesis",
+      "titleField": "nickname",
+      "fields": [
+        {"key": "nickname", "label": "Title", "kind": "string", "required": true},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "details", "label": "Details", "kind": "json"},
+        {"key": "statements", "label": "Statements", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Proposed",
+        "values": ["Proposed", "Active", "Validated", "Rejected", "Dismissed"],
+        "transitions": [
+          {"from": "Proposed", "to": "Active"},
+          {"from": "Active", "to": "Validated"},
+          {"from": "Active", "to": "Rejected"},
+          {"from": "Proposed", "to": "Dismissed"},
+          {"from": "Active", "to": "Dismissed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "board"],
+        "primarySections": ["summary", "statements", "relationships", "events"],
+        "listColumns": ["nickname", "author"],
+        "quickActions": ["Link Sample", "Link Analysis", "Add Statement"]
+      }
+    },
+    {
+      "type": "Tag",
+      "displayName": "Tag",
+      "titleField": "name",
+      "fields": [
+        {"key": "tag_id", "label": "Tag ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "tag_type", "label": "Type", "kind": "enum", "values": ["USER", "SYSTEM"]},
+        {"key": "description", "label": "Description", "kind": "string"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["name", "tag_type", "description"],
+        "quickActions": []
+      }
+    },
+    {
+      "type": "InstrumentConfig",
+      "displayName": "Instrument Configuration",
+      "titleField": "name",
+      "subtitleField": "instrument_type",
+      "fields": [
+        {"key": "instrument_id", "label": "Instrument ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "instrument_type", "label": "Instrument Type", "kind": "string", "required": true},
+        {"key": "version_id", "label": "Version", "kind": "string"},
+        {"key": "sop_summary", "label": "SOP Summary", "kind": "string"},
+        {"key": "parameters", "label": "Parameters", "kind": "json"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Active",
+        "values": ["Active", "Deprecated", "Archived"],
+        "transitions": [
+          {"from": "Active", "to": "Deprecated"},
+          {"from": "Deprecated", "to": "Archived"},
+          {"from": "Deprecated", "to": "Active"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "parameters", "relationships"],
+        "listColumns": ["name", "instrument_type", "version_id"],
+        "quickActions": []
+      }
+    },
+    {
+      "type": "FamilyTree",
+      "displayName": "Family Tree",
+      "titleField": "root_sample_id",
+      "fields": [
+        {"key": "root_sample_id", "label": "Root Sample ID", "kind": "string", "required": true},
+        {"key": "data", "label": "Tree Data", "kind": "json"}
+      ],
+      "ui": {
+        "defaultViews": ["detail", "graph"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["root_sample_id"],
+        "quickActions": []
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "HAS_ANALYSIS",
+      "displayName": "has analysis",
+      "from": "Sample",
+      "to": "Analysis",
+      "direction": "out"
+    },
+    {
+      "type": "LINKED_TO_HYPOTHESIS",
+      "displayName": "linked to hypothesis",
+      "from": "Sample",
+      "to": "Hypothesis",
+      "direction": "out"
+    },
+    {
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "displayName": "linked to hypothesis",
+      "from": "Analysis",
+      "to": "Hypothesis",
+      "direction": "out"
+    },
+    {
+      "type": "TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Sample",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "ANALYSIS_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Analysis",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Hypothesis",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "PARENT_OF",
+      "displayName": "parent of",
+      "from": "Sample",
+      "to": "Sample",
+      "direction": "out"
+    },
+    {
+      "type": "BELONGS_TO_TREE",
+      "displayName": "belongs to tree",
+      "from": "Sample",
+      "to": "FamilyTree",
+      "direction": "out"
+    },
+    {
+      "type": "USES_CONFIG",
+      "displayName": "uses configuration",
+      "from": "Analysis",
+      "to": "InstrumentConfig",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "sample_requires_analysis_before_complete",
+      "when": {
+        "nodeType": "Sample",
+        "transitionTo": "Complete"
+      },
+      "requireEdges": [
+        {"edgeType": "HAS_ANALYSIS", "minCount": 1}
+      ],
+      "message": "A Sample must have at least 1 Analysis before it can be marked Complete."
+    },
+    {
+      "id": "hypothesis_requires_evidence_for_validation",
+      "when": {
+        "nodeType": "Hypothesis",
+        "transitionTo": "Validated"
+      },
+      "requireEdges": [
+        {"edgeType": "ANALYSIS_LINKED_TO_HYPOTHESIS", "minCount": 1}
+      ],
+      "message": "A Hypothesis must be linked to at least 1 Analysis before it can be Validated."
+    }
+  ]
+}

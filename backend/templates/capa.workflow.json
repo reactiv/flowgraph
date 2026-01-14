@@ -1,0 +1,281 @@
+{
+  "workflowId": "capa_v1",
+  "name": "CAPA / Investigation Workflow",
+  "description": "Corrective and Preventive Action workflow. A nonconformance triggers an investigation, which identifies root causes and produces corrective actions that must be verified before closure.",
+  "tags": ["QA", "Compliance", "Investigation"],
+  "nodeTypes": [
+    {
+      "type": "Nonconformance",
+      "displayName": "Nonconformance",
+      "titleField": "title",
+      "subtitleField": "nc_id",
+      "fields": [
+        {"key": "nc_id", "label": "NC ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string", "required": true},
+        {"key": "reported_by", "label": "Reported By", "kind": "person", "required": true},
+        {"key": "reported_date", "label": "Reported Date", "kind": "datetime", "required": true},
+        {"key": "severity", "label": "Severity", "kind": "enum", "values": ["Critical", "Major", "Minor", "Observation"]},
+        {"key": "category", "label": "Category", "kind": "enum", "values": ["Process", "Equipment", "Material", "Personnel", "Documentation", "Other"]},
+        {"key": "area_affected", "label": "Area Affected", "kind": "string"},
+        {"key": "immediate_action", "label": "Immediate Action Taken", "kind": "string"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Open",
+        "values": ["Open", "Under Investigation", "Pending Actions", "Pending Verification", "Closed"],
+        "transitions": [
+          {"from": "Open", "to": "Under Investigation"},
+          {"from": "Under Investigation", "to": "Pending Actions"},
+          {"from": "Pending Actions", "to": "Pending Verification"},
+          {"from": "Pending Verification", "to": "Closed"},
+          {"from": "Pending Verification", "to": "Pending Actions"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["nc_id", "title", "severity", "category", "reported_by", "reported_date"],
+        "quickActions": ["Start Investigation", "Add Tag"]
+      }
+    },
+    {
+      "type": "Investigation",
+      "displayName": "Investigation",
+      "titleField": "title",
+      "subtitleField": "investigation_id",
+      "fields": [
+        {"key": "investigation_id", "label": "Investigation ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "investigator", "label": "Lead Investigator", "kind": "person", "required": true},
+        {"key": "start_date", "label": "Start Date", "kind": "datetime", "required": true},
+        {"key": "target_completion", "label": "Target Completion", "kind": "datetime"},
+        {"key": "methodology", "label": "Methodology", "kind": "enum", "values": ["5 Why", "Fishbone", "Fault Tree", "FMEA", "Other"]},
+        {"key": "scope", "label": "Scope", "kind": "string"},
+        {"key": "findings", "label": "Findings", "kind": "string"},
+        {"key": "evidence", "label": "Evidence", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Planning",
+        "values": ["Planning", "In Progress", "Analysis", "Complete"],
+        "transitions": [
+          {"from": "Planning", "to": "In Progress"},
+          {"from": "In Progress", "to": "Analysis"},
+          {"from": "Analysis", "to": "Complete"},
+          {"from": "Analysis", "to": "In Progress"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph"],
+        "primarySections": ["summary", "findings", "relationships", "files", "events"],
+        "listColumns": ["investigation_id", "title", "investigator", "methodology", "start_date"],
+        "quickActions": ["Add Root Cause", "Upload Evidence"]
+      }
+    },
+    {
+      "type": "RootCause",
+      "displayName": "Root Cause",
+      "titleField": "description",
+      "fields": [
+        {"key": "rc_id", "label": "Root Cause ID", "kind": "string", "required": true, "unique": true},
+        {"key": "description", "label": "Description", "kind": "string", "required": true},
+        {"key": "category", "label": "Category", "kind": "enum", "values": ["Human Error", "Equipment Failure", "Process Gap", "Training Gap", "Design Flaw", "Material Defect", "External Factor"]},
+        {"key": "contributing_factors", "label": "Contributing Factors", "kind": "json"},
+        {"key": "evidence_summary", "label": "Evidence Summary", "kind": "string"},
+        {"key": "identified_by", "label": "Identified By", "kind": "person"},
+        {"key": "identified_date", "label": "Identified Date", "kind": "datetime"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Proposed",
+        "values": ["Proposed", "Confirmed", "Addressed"],
+        "transitions": [
+          {"from": "Proposed", "to": "Confirmed"},
+          {"from": "Confirmed", "to": "Addressed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["rc_id", "description", "category", "identified_by"],
+        "quickActions": ["Create CAPA Action"]
+      }
+    },
+    {
+      "type": "CAPAAction",
+      "displayName": "CAPA Action",
+      "titleField": "title",
+      "subtitleField": "action_id",
+      "fields": [
+        {"key": "action_id", "label": "Action ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "action_type", "label": "Action Type", "kind": "enum", "required": true, "values": ["Corrective", "Preventive", "Containment"]},
+        {"key": "description", "label": "Description", "kind": "string", "required": true},
+        {"key": "assigned_to", "label": "Assigned To", "kind": "person", "required": true},
+        {"key": "due_date", "label": "Due Date", "kind": "datetime", "required": true},
+        {"key": "completion_date", "label": "Completion Date", "kind": "datetime"},
+        {"key": "completion_notes", "label": "Completion Notes", "kind": "string"},
+        {"key": "attachments", "label": "Attachments", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Open",
+        "values": ["Open", "In Progress", "Completed", "Pending Verification", "Verified", "Overdue"],
+        "transitions": [
+          {"from": "Open", "to": "In Progress"},
+          {"from": "Open", "to": "Overdue"},
+          {"from": "In Progress", "to": "Completed"},
+          {"from": "In Progress", "to": "Overdue"},
+          {"from": "Completed", "to": "Pending Verification"},
+          {"from": "Pending Verification", "to": "Verified"},
+          {"from": "Pending Verification", "to": "In Progress"},
+          {"from": "Overdue", "to": "In Progress"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "relationships", "files", "events"],
+        "listColumns": ["action_id", "title", "action_type", "assigned_to", "due_date"],
+        "quickActions": ["Mark Complete", "Request Verification"]
+      }
+    },
+    {
+      "type": "Verification",
+      "displayName": "Verification",
+      "titleField": "title",
+      "subtitleField": "verification_id",
+      "fields": [
+        {"key": "verification_id", "label": "Verification ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "verifier", "label": "Verifier", "kind": "person", "required": true},
+        {"key": "verification_date", "label": "Verification Date", "kind": "datetime"},
+        {"key": "method", "label": "Verification Method", "kind": "enum", "values": ["Document Review", "Physical Inspection", "Audit", "Test/Retest", "Observation"]},
+        {"key": "result", "label": "Result", "kind": "enum", "values": ["Effective", "Partially Effective", "Not Effective"]},
+        {"key": "notes", "label": "Notes", "kind": "string"},
+        {"key": "evidence", "label": "Evidence", "kind": "file[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Scheduled",
+        "values": ["Scheduled", "In Progress", "Complete"],
+        "transitions": [
+          {"from": "Scheduled", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships", "files", "events"],
+        "listColumns": ["verification_id", "title", "verifier", "method", "result"],
+        "quickActions": ["Complete Verification"]
+      }
+    },
+    {
+      "type": "Tag",
+      "displayName": "Tag",
+      "titleField": "name",
+      "fields": [
+        {"key": "tag_id", "label": "Tag ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "tag_type", "label": "Type", "kind": "enum", "values": ["USER", "SYSTEM"]},
+        {"key": "description", "label": "Description", "kind": "string"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["name", "tag_type", "description"],
+        "quickActions": []
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "TRIGGERS",
+      "displayName": "triggers",
+      "from": "Nonconformance",
+      "to": "Investigation",
+      "direction": "out"
+    },
+    {
+      "type": "IDENTIFIES",
+      "displayName": "identifies",
+      "from": "Investigation",
+      "to": "RootCause",
+      "direction": "out"
+    },
+    {
+      "type": "ADDRESSES",
+      "displayName": "addresses",
+      "from": "CAPAAction",
+      "to": "RootCause",
+      "direction": "out"
+    },
+    {
+      "type": "PRODUCES",
+      "displayName": "produces",
+      "from": "Investigation",
+      "to": "CAPAAction",
+      "direction": "out"
+    },
+    {
+      "type": "VERIFIED_BY",
+      "displayName": "verified by",
+      "from": "CAPAAction",
+      "to": "Verification",
+      "direction": "out"
+    },
+    {
+      "type": "NC_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Nonconformance",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "ACTION_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "CAPAAction",
+      "to": "Tag",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "nc_requires_investigation_before_pending_actions",
+      "when": {
+        "nodeType": "Nonconformance",
+        "transitionTo": "Pending Actions"
+      },
+      "requireEdges": [
+        {"edgeType": "TRIGGERS", "minCount": 1}
+      ],
+      "message": "A Nonconformance must have at least 1 Investigation before moving to Pending Actions."
+    },
+    {
+      "id": "nc_requires_verified_action_before_close",
+      "when": {
+        "nodeType": "Nonconformance",
+        "transitionTo": "Closed"
+      },
+      "requireEdges": [
+        {"edgeType": "TRIGGERS", "minCount": 1}
+      ],
+      "message": "A Nonconformance cannot be closed without an Investigation."
+    },
+    {
+      "id": "investigation_requires_root_cause_before_complete",
+      "when": {
+        "nodeType": "Investigation",
+        "transitionTo": "Complete"
+      },
+      "requireEdges": [
+        {"edgeType": "IDENTIFIES", "minCount": 1}
+      ],
+      "message": "An Investigation must identify at least 1 Root Cause before it can be marked Complete."
+    }
+  ]
+}

@@ -1,0 +1,326 @@
+{
+  "workflowId": "sequencing_v1",
+  "name": "Sequencing Provenance Workflow",
+  "description": "Biological sequencing workflow tracking samples through preparation steps, sequencing runs, analysis, and quality control. Full provenance from biosample to final results.",
+  "tags": ["Bio", "Sequencing", "Lab"],
+  "nodeTypes": [
+    {
+      "type": "BioSample",
+      "displayName": "Biological Sample",
+      "titleField": "sample_name",
+      "subtitleField": "sample_id",
+      "fields": [
+        {"key": "sample_id", "label": "Sample ID", "kind": "string", "required": true, "unique": true},
+        {"key": "sample_name", "label": "Sample Name", "kind": "string", "required": true},
+        {"key": "organism", "label": "Organism", "kind": "string", "required": true},
+        {"key": "tissue_type", "label": "Tissue Type", "kind": "string"},
+        {"key": "collector", "label": "Collector", "kind": "person", "required": true},
+        {"key": "collection_date", "label": "Collection Date", "kind": "datetime", "required": true},
+        {"key": "storage_location", "label": "Storage Location", "kind": "string"},
+        {"key": "concentration_ng_ul", "label": "Concentration (ng/µL)", "kind": "number"},
+        {"key": "volume_ul", "label": "Volume (µL)", "kind": "number"},
+        {"key": "metadata", "label": "Metadata", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Received",
+        "values": ["Received", "In Prep", "Ready", "Sequenced", "Depleted", "Discarded"],
+        "transitions": [
+          {"from": "Received", "to": "In Prep"},
+          {"from": "In Prep", "to": "Ready"},
+          {"from": "Ready", "to": "Sequenced"},
+          {"from": "Sequenced", "to": "Depleted"},
+          {"from": "Received", "to": "Discarded"},
+          {"from": "In Prep", "to": "Discarded"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "board"],
+        "primarySections": ["summary", "metadata", "relationships", "events"],
+        "listColumns": ["sample_id", "sample_name", "organism", "collector", "collection_date"],
+        "quickActions": ["Start Prep", "Add Tag"]
+      }
+    },
+    {
+      "type": "PrepStep",
+      "displayName": "Preparation Step",
+      "titleField": "step_name",
+      "subtitleField": "prep_id",
+      "fields": [
+        {"key": "prep_id", "label": "Prep ID", "kind": "string", "required": true, "unique": true},
+        {"key": "step_name", "label": "Step Name", "kind": "string", "required": true},
+        {"key": "prep_type", "label": "Prep Type", "kind": "enum", "required": true, "values": ["DNA Extraction", "RNA Extraction", "Library Prep", "PCR Amplification", "Size Selection", "Cleanup", "QC Check"]},
+        {"key": "technician", "label": "Technician", "kind": "person", "required": true},
+        {"key": "performed_date", "label": "Performed Date", "kind": "datetime", "required": true},
+        {"key": "protocol_version", "label": "Protocol Version", "kind": "string"},
+        {"key": "kit_lot_number", "label": "Kit Lot Number", "kind": "string"},
+        {"key": "parameters", "label": "Parameters", "kind": "json"},
+        {"key": "notes", "label": "Notes", "kind": "string"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Planned",
+        "values": ["Planned", "In Progress", "Complete", "Failed"],
+        "transitions": [
+          {"from": "Planned", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"},
+          {"from": "In Progress", "to": "Failed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "parameters", "relationships", "events"],
+        "listColumns": ["prep_id", "step_name", "prep_type", "technician", "performed_date"],
+        "quickActions": ["Add QC Results"]
+      }
+    },
+    {
+      "type": "SequencingRun",
+      "displayName": "Sequencing Run",
+      "titleField": "run_name",
+      "subtitleField": "run_id",
+      "fields": [
+        {"key": "run_id", "label": "Run ID", "kind": "string", "required": true, "unique": true},
+        {"key": "run_name", "label": "Run Name", "kind": "string", "required": true},
+        {"key": "platform", "label": "Platform", "kind": "enum", "required": true, "values": ["Illumina NovaSeq", "Illumina MiSeq", "PacBio Sequel", "Oxford Nanopore", "Ion Torrent", "Other"]},
+        {"key": "operator", "label": "Operator", "kind": "person", "required": true},
+        {"key": "run_date", "label": "Run Date", "kind": "datetime", "required": true},
+        {"key": "flowcell_id", "label": "Flowcell ID", "kind": "string"},
+        {"key": "read_length", "label": "Read Length", "kind": "number"},
+        {"key": "total_reads", "label": "Total Reads (M)", "kind": "number"},
+        {"key": "q30_percent", "label": "Q30 %", "kind": "number"},
+        {"key": "run_parameters", "label": "Run Parameters", "kind": "json"},
+        {"key": "raw_data_path", "label": "Raw Data Path", "kind": "string"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Queued",
+        "values": ["Queued", "Running", "Complete", "Failed", "Cancelled"],
+        "transitions": [
+          {"from": "Queued", "to": "Running"},
+          {"from": "Running", "to": "Complete"},
+          {"from": "Running", "to": "Failed"},
+          {"from": "Queued", "to": "Cancelled"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "metrics", "relationships", "events"],
+        "listColumns": ["run_id", "run_name", "platform", "operator", "run_date", "q30_percent"],
+        "quickActions": ["View Metrics", "Start Analysis"]
+      }
+    },
+    {
+      "type": "Analysis",
+      "displayName": "Bioinformatics Analysis",
+      "titleField": "analysis_name",
+      "subtitleField": "analysis_id",
+      "fields": [
+        {"key": "analysis_id", "label": "Analysis ID", "kind": "string", "required": true, "unique": true},
+        {"key": "analysis_name", "label": "Analysis Name", "kind": "string", "required": true},
+        {"key": "analysis_type", "label": "Analysis Type", "kind": "enum", "required": true, "values": ["Alignment", "Variant Calling", "Assembly", "Annotation", "Expression Quantification", "Metagenomics", "Other"]},
+        {"key": "analyst", "label": "Analyst", "kind": "person", "required": true},
+        {"key": "started_at", "label": "Started At", "kind": "datetime", "required": true},
+        {"key": "completed_at", "label": "Completed At", "kind": "datetime"},
+        {"key": "pipeline_version", "label": "Pipeline Version", "kind": "string"},
+        {"key": "reference_genome", "label": "Reference Genome", "kind": "string"},
+        {"key": "parameters", "label": "Parameters", "kind": "json"},
+        {"key": "output_files", "label": "Output Files", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Queued",
+        "values": ["Queued", "Running", "Complete", "Failed"],
+        "transitions": [
+          {"from": "Queued", "to": "Running"},
+          {"from": "Running", "to": "Complete"},
+          {"from": "Running", "to": "Failed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "parameters", "relationships", "files", "events"],
+        "listColumns": ["analysis_id", "analysis_name", "analysis_type", "analyst", "started_at"],
+        "quickActions": ["View Results", "Generate QC Report"]
+      }
+    },
+    {
+      "type": "Result",
+      "displayName": "Result",
+      "titleField": "result_name",
+      "subtitleField": "result_id",
+      "fields": [
+        {"key": "result_id", "label": "Result ID", "kind": "string", "required": true, "unique": true},
+        {"key": "result_name", "label": "Result Name", "kind": "string", "required": true},
+        {"key": "result_type", "label": "Result Type", "kind": "enum", "values": ["VCF", "BAM", "FASTQ", "Counts Matrix", "Assembly", "Report", "Other"]},
+        {"key": "generated_date", "label": "Generated Date", "kind": "datetime", "required": true},
+        {"key": "file_path", "label": "File Path", "kind": "string"},
+        {"key": "file_size_gb", "label": "File Size (GB)", "kind": "number"},
+        {"key": "summary_stats", "label": "Summary Statistics", "kind": "json"},
+        {"key": "files", "label": "Files", "kind": "file[]"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "statistics", "relationships", "files"],
+        "listColumns": ["result_id", "result_name", "result_type", "generated_date", "file_size_gb"],
+        "quickActions": ["Download", "View Stats"]
+      }
+    },
+    {
+      "type": "QCReport",
+      "displayName": "QC Report",
+      "titleField": "report_name",
+      "subtitleField": "report_id",
+      "fields": [
+        {"key": "report_id", "label": "Report ID", "kind": "string", "required": true, "unique": true},
+        {"key": "report_name", "label": "Report Name", "kind": "string", "required": true},
+        {"key": "qc_type", "label": "QC Type", "kind": "enum", "values": ["FastQC", "MultiQC", "Qualimap", "Picard", "Custom"]},
+        {"key": "reviewer", "label": "Reviewer", "kind": "person"},
+        {"key": "generated_date", "label": "Generated Date", "kind": "datetime", "required": true},
+        {"key": "overall_status", "label": "Overall Status", "kind": "enum", "values": ["Pass", "Warning", "Fail"]},
+        {"key": "metrics", "label": "Metrics", "kind": "json"},
+        {"key": "notes", "label": "Notes", "kind": "string"},
+        {"key": "report_files", "label": "Report Files", "kind": "file[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Generated",
+        "values": ["Generated", "Under Review", "Approved", "Rejected"],
+        "transitions": [
+          {"from": "Generated", "to": "Under Review"},
+          {"from": "Under Review", "to": "Approved"},
+          {"from": "Under Review", "to": "Rejected"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "metrics", "relationships", "files", "events"],
+        "listColumns": ["report_id", "report_name", "qc_type", "overall_status", "generated_date"],
+        "quickActions": ["Approve", "Reject"]
+      }
+    },
+    {
+      "type": "Tag",
+      "displayName": "Tag",
+      "titleField": "name",
+      "fields": [
+        {"key": "tag_id", "label": "Tag ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "tag_type", "label": "Type", "kind": "enum", "values": ["USER", "SYSTEM"]},
+        {"key": "description", "label": "Description", "kind": "string"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["name", "tag_type", "description"],
+        "quickActions": []
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "PREPARED_FROM",
+      "displayName": "prepared from",
+      "from": "PrepStep",
+      "to": "BioSample",
+      "direction": "out"
+    },
+    {
+      "type": "PREP_CHAIN",
+      "displayName": "follows",
+      "from": "PrepStep",
+      "to": "PrepStep",
+      "direction": "out"
+    },
+    {
+      "type": "SEQUENCED_IN",
+      "displayName": "sequenced in",
+      "from": "BioSample",
+      "to": "SequencingRun",
+      "direction": "out"
+    },
+    {
+      "type": "ANALYZED_FROM_RUN",
+      "displayName": "analyzed from",
+      "from": "Analysis",
+      "to": "SequencingRun",
+      "direction": "out"
+    },
+    {
+      "type": "PRODUCES_RESULT",
+      "displayName": "produces",
+      "from": "Analysis",
+      "to": "Result",
+      "direction": "out"
+    },
+    {
+      "type": "QC_FOR_RUN",
+      "displayName": "QC for",
+      "from": "QCReport",
+      "to": "SequencingRun",
+      "direction": "out"
+    },
+    {
+      "type": "QC_FOR_SAMPLE",
+      "displayName": "QC for",
+      "from": "QCReport",
+      "to": "BioSample",
+      "direction": "out"
+    },
+    {
+      "type": "QC_FOR_ANALYSIS",
+      "displayName": "QC for",
+      "from": "QCReport",
+      "to": "Analysis",
+      "direction": "out"
+    },
+    {
+      "type": "SAMPLE_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "BioSample",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "RUN_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "SequencingRun",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "ANALYSIS_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Analysis",
+      "to": "Tag",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "sample_requires_prep_before_ready",
+      "when": {
+        "nodeType": "BioSample",
+        "transitionTo": "Ready"
+      },
+      "requireEdges": [
+        {"edgeType": "PREPARED_FROM", "minCount": 1}
+      ],
+      "message": "A BioSample must have at least 1 completed Prep Step before it can be marked Ready."
+    },
+    {
+      "id": "sample_requires_run_before_sequenced",
+      "when": {
+        "nodeType": "BioSample",
+        "transitionTo": "Sequenced"
+      },
+      "requireEdges": [
+        {"edgeType": "SEQUENCED_IN", "minCount": 1}
+      ],
+      "message": "A BioSample must be included in at least 1 Sequencing Run before it can be marked Sequenced."
+    }
+  ]
+}

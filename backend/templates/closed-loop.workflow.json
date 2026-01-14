@@ -1,0 +1,405 @@
+{
+  "workflowId": "closed_loop_optimization_v1",
+  "name": "Closed-Loop Optimization Workflow",
+  "description": "Scientific optimization workflow using AI-driven experiment design. Goals drive hypotheses, which inform experiment plans, leading to samples, measurements, models, and AI-generated recommendations for the next iteration.",
+  "tags": ["R&D", "AI", "Optimization"],
+  "nodeTypes": [
+    {
+      "type": "Goal",
+      "displayName": "Goal",
+      "titleField": "title",
+      "subtitleField": "goal_id",
+      "fields": [
+        {"key": "goal_id", "label": "Goal ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string", "required": true},
+        {"key": "owner", "label": "Owner", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "target_metric", "label": "Target Metric", "kind": "string"},
+        {"key": "target_value", "label": "Target Value", "kind": "number"},
+        {"key": "current_best", "label": "Current Best", "kind": "number"},
+        {"key": "optimization_direction", "label": "Optimization Direction", "kind": "enum", "values": ["Maximize", "Minimize", "Target"]},
+        {"key": "constraints", "label": "Constraints", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "Active", "Achieved", "Paused", "Abandoned"],
+        "transitions": [
+          {"from": "Draft", "to": "Active"},
+          {"from": "Active", "to": "Achieved"},
+          {"from": "Active", "to": "Paused"},
+          {"from": "Active", "to": "Abandoned"},
+          {"from": "Paused", "to": "Active"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "board"],
+        "primarySections": ["summary", "progress", "relationships", "events"],
+        "listColumns": ["goal_id", "title", "owner", "target_metric", "current_best"],
+        "quickActions": ["Create Hypothesis", "View Progress"]
+      }
+    },
+    {
+      "type": "Hypothesis",
+      "displayName": "Hypothesis",
+      "titleField": "title",
+      "subtitleField": "hypothesis_id",
+      "fields": [
+        {"key": "hypothesis_id", "label": "Hypothesis ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "statement", "label": "Statement", "kind": "string", "required": true},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "rationale", "label": "Rationale", "kind": "string"},
+        {"key": "predicted_outcome", "label": "Predicted Outcome", "kind": "string"},
+        {"key": "confidence_level", "label": "Confidence Level", "kind": "enum", "values": ["High", "Medium", "Low"]},
+        {"key": "source", "label": "Source", "kind": "enum", "values": ["Human", "AI Suggested", "Literature", "Prior Experiment"]},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Proposed",
+        "values": ["Proposed", "Under Test", "Supported", "Refuted", "Inconclusive", "Abandoned"],
+        "transitions": [
+          {"from": "Proposed", "to": "Under Test"},
+          {"from": "Proposed", "to": "Abandoned"},
+          {"from": "Under Test", "to": "Supported"},
+          {"from": "Under Test", "to": "Refuted"},
+          {"from": "Under Test", "to": "Inconclusive"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "board"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["hypothesis_id", "title", "author", "confidence_level", "source"],
+        "quickActions": ["Create Experiment Plan", "Add Evidence"]
+      }
+    },
+    {
+      "type": "ExperimentPlan",
+      "displayName": "Experiment Plan",
+      "titleField": "plan_name",
+      "subtitleField": "plan_id",
+      "fields": [
+        {"key": "plan_id", "label": "Plan ID", "kind": "string", "required": true, "unique": true},
+        {"key": "plan_name", "label": "Plan Name", "kind": "string", "required": true},
+        {"key": "planner", "label": "Planner", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "design_type", "label": "Design Type", "kind": "enum", "values": ["Full Factorial", "Fractional Factorial", "Response Surface", "Bayesian Optimization", "Random Search", "Custom"]},
+        {"key": "num_experiments", "label": "Number of Experiments", "kind": "number"},
+        {"key": "parameter_space", "label": "Parameter Space", "kind": "json"},
+        {"key": "experimental_conditions", "label": "Experimental Conditions", "kind": "json"},
+        {"key": "notes", "label": "Notes", "kind": "string"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "Approved", "In Progress", "Complete", "Cancelled"],
+        "transitions": [
+          {"from": "Draft", "to": "Approved"},
+          {"from": "Draft", "to": "Cancelled"},
+          {"from": "Approved", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"},
+          {"from": "In Progress", "to": "Cancelled"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "parameters", "relationships", "events"],
+        "listColumns": ["plan_id", "plan_name", "design_type", "planner", "num_experiments"],
+        "quickActions": ["Approve", "Create Sample"]
+      }
+    },
+    {
+      "type": "Sample",
+      "displayName": "Sample",
+      "titleField": "sample_name",
+      "subtitleField": "sample_id",
+      "fields": [
+        {"key": "sample_id", "label": "Sample ID", "kind": "string", "required": true, "unique": true},
+        {"key": "sample_name", "label": "Sample Name", "kind": "string", "required": true},
+        {"key": "creator", "label": "Creator", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "parameters", "label": "Synthesis Parameters", "kind": "json"},
+        {"key": "composition", "label": "Composition", "kind": "json"},
+        {"key": "batch_number", "label": "Batch Number", "kind": "string"},
+        {"key": "notes", "label": "Notes", "kind": "string"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Created",
+        "values": ["Created", "Characterized", "Archived", "Discarded"],
+        "transitions": [
+          {"from": "Created", "to": "Characterized"},
+          {"from": "Characterized", "to": "Archived"},
+          {"from": "Created", "to": "Discarded"},
+          {"from": "Characterized", "to": "Discarded"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph"],
+        "primarySections": ["summary", "parameters", "relationships", "events"],
+        "listColumns": ["sample_id", "sample_name", "creator", "batch_number", "created_date"],
+        "quickActions": ["Add Measurement", "Add Tag"]
+      }
+    },
+    {
+      "type": "Measurement",
+      "displayName": "Measurement",
+      "titleField": "measurement_name",
+      "subtitleField": "measurement_id",
+      "fields": [
+        {"key": "measurement_id", "label": "Measurement ID", "kind": "string", "required": true, "unique": true},
+        {"key": "measurement_name", "label": "Measurement Name", "kind": "string", "required": true},
+        {"key": "measurement_type", "label": "Measurement Type", "kind": "enum", "required": true, "values": ["Property", "Performance", "Stability", "Composition", "Structure", "Other"]},
+        {"key": "operator", "label": "Operator", "kind": "person", "required": true},
+        {"key": "measured_date", "label": "Measured Date", "kind": "datetime", "required": true},
+        {"key": "instrument", "label": "Instrument", "kind": "string"},
+        {"key": "metric_name", "label": "Metric Name", "kind": "string"},
+        {"key": "metric_value", "label": "Metric Value", "kind": "number"},
+        {"key": "metric_unit", "label": "Unit", "kind": "string"},
+        {"key": "raw_data", "label": "Raw Data", "kind": "json"},
+        {"key": "files", "label": "Data Files", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Recorded",
+        "values": ["Recorded", "Validated", "Flagged", "Archived"],
+        "transitions": [
+          {"from": "Recorded", "to": "Validated"},
+          {"from": "Recorded", "to": "Flagged"},
+          {"from": "Validated", "to": "Archived"},
+          {"from": "Flagged", "to": "Recorded"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "data", "relationships", "files", "events"],
+        "listColumns": ["measurement_id", "measurement_name", "measurement_type", "metric_value", "metric_unit"],
+        "quickActions": ["Validate", "Flag Issue"]
+      }
+    },
+    {
+      "type": "Model",
+      "displayName": "Surrogate Model",
+      "titleField": "model_name",
+      "subtitleField": "model_id",
+      "fields": [
+        {"key": "model_id", "label": "Model ID", "kind": "string", "required": true, "unique": true},
+        {"key": "model_name", "label": "Model Name", "kind": "string", "required": true},
+        {"key": "model_type", "label": "Model Type", "kind": "enum", "values": ["Gaussian Process", "Neural Network", "Random Forest", "Linear", "Custom"]},
+        {"key": "creator", "label": "Creator", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "target_property", "label": "Target Property", "kind": "string"},
+        {"key": "input_features", "label": "Input Features", "kind": "json"},
+        {"key": "training_data_count", "label": "Training Data Points", "kind": "number"},
+        {"key": "r2_score", "label": "R² Score", "kind": "number"},
+        {"key": "rmse", "label": "RMSE", "kind": "number"},
+        {"key": "hyperparameters", "label": "Hyperparameters", "kind": "json"},
+        {"key": "model_artifact", "label": "Model Artifact", "kind": "file[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Training",
+        "values": ["Training", "Trained", "Validated", "Active", "Superseded"],
+        "transitions": [
+          {"from": "Training", "to": "Trained"},
+          {"from": "Trained", "to": "Validated"},
+          {"from": "Validated", "to": "Active"},
+          {"from": "Active", "to": "Superseded"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "performance", "relationships", "files", "events"],
+        "listColumns": ["model_id", "model_name", "model_type", "r2_score", "training_data_count"],
+        "quickActions": ["Generate Recommendations", "Retrain"]
+      }
+    },
+    {
+      "type": "Recommendation",
+      "displayName": "AI Recommendation",
+      "titleField": "title",
+      "subtitleField": "recommendation_id",
+      "fields": [
+        {"key": "recommendation_id", "label": "Recommendation ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "generated_date", "label": "Generated Date", "kind": "datetime", "required": true},
+        {"key": "recommendation_type", "label": "Type", "kind": "enum", "values": ["Next Experiment", "Parameter Adjustment", "Stop Early", "Explore Region", "Exploit Best"]},
+        {"key": "suggested_parameters", "label": "Suggested Parameters", "kind": "json"},
+        {"key": "predicted_outcome", "label": "Predicted Outcome", "kind": "number"},
+        {"key": "uncertainty", "label": "Uncertainty", "kind": "number"},
+        {"key": "acquisition_score", "label": "Acquisition Score", "kind": "number"},
+        {"key": "rationale", "label": "Rationale", "kind": "string"},
+        {"key": "alternatives", "label": "Alternative Suggestions", "kind": "json"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Pending Review",
+        "values": ["Pending Review", "Accepted", "Rejected", "Partially Accepted", "Superseded"],
+        "transitions": [
+          {"from": "Pending Review", "to": "Accepted"},
+          {"from": "Pending Review", "to": "Rejected"},
+          {"from": "Pending Review", "to": "Partially Accepted"},
+          {"from": "Pending Review", "to": "Superseded"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "board"],
+        "primarySections": ["summary", "parameters", "relationships", "events"],
+        "listColumns": ["recommendation_id", "title", "recommendation_type", "predicted_outcome", "uncertainty"],
+        "quickActions": ["Accept", "Reject", "Create Experiment"]
+      }
+    },
+    {
+      "type": "Tag",
+      "displayName": "Tag",
+      "titleField": "name",
+      "fields": [
+        {"key": "tag_id", "label": "Tag ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "tag_type", "label": "Type", "kind": "enum", "values": ["USER", "SYSTEM"]},
+        {"key": "description", "label": "Description", "kind": "string"}
+      ],
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["name", "tag_type", "description"],
+        "quickActions": []
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "DRIVES",
+      "displayName": "drives",
+      "from": "Goal",
+      "to": "Hypothesis",
+      "direction": "out"
+    },
+    {
+      "type": "TESTS",
+      "displayName": "tests",
+      "from": "ExperimentPlan",
+      "to": "Hypothesis",
+      "direction": "out"
+    },
+    {
+      "type": "PRODUCES_SAMPLE",
+      "displayName": "produces",
+      "from": "ExperimentPlan",
+      "to": "Sample",
+      "direction": "out"
+    },
+    {
+      "type": "MEASURES",
+      "displayName": "measures",
+      "from": "Measurement",
+      "to": "Sample",
+      "direction": "out"
+    },
+    {
+      "type": "TRAINS_ON",
+      "displayName": "trained on",
+      "from": "Model",
+      "to": "Measurement",
+      "direction": "out"
+    },
+    {
+      "type": "FOR_GOAL",
+      "displayName": "for goal",
+      "from": "Model",
+      "to": "Goal",
+      "direction": "out"
+    },
+    {
+      "type": "GENERATED_BY",
+      "displayName": "generated by",
+      "from": "Recommendation",
+      "to": "Model",
+      "direction": "out"
+    },
+    {
+      "type": "SUGGESTS_FOR_GOAL",
+      "displayName": "suggests for",
+      "from": "Recommendation",
+      "to": "Goal",
+      "direction": "out"
+    },
+    {
+      "type": "RESULTED_IN",
+      "displayName": "resulted in",
+      "from": "Recommendation",
+      "to": "ExperimentPlan",
+      "direction": "out"
+    },
+    {
+      "type": "GOAL_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Goal",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Hypothesis",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "SAMPLE_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Sample",
+      "to": "Tag",
+      "direction": "out"
+    },
+    {
+      "type": "MEASUREMENT_TAGGED_WITH",
+      "displayName": "tagged with",
+      "from": "Measurement",
+      "to": "Tag",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "hypothesis_requires_experiment_before_resolved",
+      "when": {
+        "nodeType": "Hypothesis",
+        "transitionTo": "Supported"
+      },
+      "requireEdges": [
+        {"edgeType": "TESTS", "minCount": 1}
+      ],
+      "message": "A Hypothesis must have at least 1 Experiment Plan testing it before it can be marked Supported."
+    },
+    {
+      "id": "sample_requires_measurement_before_characterized",
+      "when": {
+        "nodeType": "Sample",
+        "transitionTo": "Characterized"
+      },
+      "requireEdges": [
+        {"edgeType": "MEASURES", "minCount": 1}
+      ],
+      "message": "A Sample must have at least 1 Measurement before it can be marked Characterized."
+    },
+    {
+      "id": "model_requires_training_data",
+      "when": {
+        "nodeType": "Model",
+        "transitionTo": "Trained"
+      },
+      "requireEdges": [
+        {"edgeType": "TRAINS_ON", "minCount": 1}
+      ],
+      "message": "A Model must be linked to at least 1 Measurement (training data) before it can be marked Trained."
+    }
+  ]
+}
