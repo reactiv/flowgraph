@@ -8,14 +8,15 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.db import graph_store
+from app.llm import DataGenerator, SeedConfig
 from app.models import (
-    WorkflowDefinition,
-    Node,
-    NodeCreate,
-    NodeUpdate,
     Edge,
     EdgeCreate,
     Event,
+    Node,
+    NodeCreate,
+    NodeUpdate,
+    WorkflowDefinition,
 )
 from app.models.workflow import WorkflowSummary
 
@@ -244,16 +245,33 @@ class SeedRequest(BaseModel):
 
 @router.post("/workflows/{workflow_id}/seed")
 async def seed_workflow(workflow_id: str, request: SeedRequest) -> dict[str, Any]:
-    """Seed a workflow with demo data (placeholder - LLM integration to come)."""
+    """Seed a workflow with demo data using AI-powered generation.
+
+    Generates realistic nodes and edges based on the workflow schema.
+    Uses Claude to generate summaries and descriptions when available,
+    falls back to rule-based generation otherwise.
+    """
     # Verify workflow exists
     workflow = await graph_store.get_workflow(workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    # TODO: Implement LLM-powered data generation
-    # For now, return a placeholder response
-    return {
-        "message": "Seeding not yet implemented - LLM integration coming soon",
-        "workflow_id": workflow_id,
-        "scale": request.scale,
-    }
+    # Validate scale
+    if request.scale not in ["small", "medium", "large"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid scale. Must be 'small', 'medium', or 'large'",
+        )
+
+    # Create generator and seed the workflow
+    generator = DataGenerator(graph_store)
+    config = SeedConfig(scale=request.scale)
+
+    try:
+        result = await generator.seed_workflow(workflow_id, workflow, config)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to seed workflow: {str(e)}",
+        )
