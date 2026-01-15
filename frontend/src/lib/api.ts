@@ -14,7 +14,12 @@ import type {
   Event,
   NodesResponse,
 } from '@/types/workflow';
-import type { ViewSubgraphResponse } from '@/types/view-templates';
+import type {
+  ViewSubgraphResponse,
+  ViewTemplate,
+  ViewTemplateCreate,
+  ViewTemplateUpdate,
+} from '@/types/view-templates';
 
 const API_BASE = '/api/v1';
 
@@ -122,6 +127,32 @@ export const api = {
     }),
 
   // Views
+  listViews: (workflowId: string) =>
+    fetchJson<ViewTemplate[]>(`/workflows/${workflowId}/views`),
+
+  createView: (workflowId: string, view: ViewTemplateCreate) =>
+    fetchJson<ViewTemplate>(`/workflows/${workflowId}/views`, {
+      method: 'POST',
+      body: JSON.stringify(view),
+    }),
+
+  updateView: (workflowId: string, viewId: string, update: ViewTemplateUpdate) =>
+    fetchJson<ViewTemplate>(`/workflows/${workflowId}/views/${viewId}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    }),
+
+  deleteView: (workflowId: string, viewId: string) =>
+    fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/views/${viewId}`, {
+      method: 'DELETE',
+    }),
+
+  generateView: (workflowId: string, description: string) =>
+    fetchJson<ViewTemplateCreate>(`/workflows/${workflowId}/views/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    }),
+
   getViewSubgraph: (
     workflowId: string,
     viewId: string,

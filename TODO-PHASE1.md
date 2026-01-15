@@ -298,6 +298,36 @@
   - [x] View selector in header
   - [x] Conditional rendering of ViewRenderer vs list view
 
+#### View CRUD (Backend)
+- [x] `ViewTemplateCreate`, `ViewTemplateUpdate` Pydantic models
+- [x] `GraphStore.add_view_template()` - create new view in workflow definition
+- [x] `GraphStore.update_view_template()` - update view name/description/icon
+- [x] `GraphStore.delete_view_template()` - remove view from workflow definition
+- [x] `GraphStore.list_view_templates()` - list all views for a workflow
+- [x] API endpoints:
+  - [x] `GET /api/v1/workflows/{workflow_id}/views` - list views
+  - [x] `POST /api/v1/workflows/{workflow_id}/views` - create view
+  - [x] `PUT /api/v1/workflows/{workflow_id}/views/{view_id}` - update view
+  - [x] `DELETE /api/v1/workflows/{workflow_id}/views/{view_id}` - delete view
+
+#### LLM View Generation (Backend)
+- [x] `ViewGenerator` class in `backend/app/llm/view_generator.py`
+- [x] System prompt for generating Kanban view configs from natural language
+- [x] Schema context builder (extracts node types, fields, values)
+- [x] Validation against workflow schema (rootType, field keys)
+- [x] `POST /api/v1/workflows/{workflow_id}/views/generate` endpoint
+
+#### View Management UI (Frontend)
+- [x] `ViewTemplateCreate` TypeScript type
+- [x] `api.listViews()`, `api.createView()`, `api.updateView()`, `api.deleteView()` methods
+- [x] `api.generateView()` method for LLM generation
+- [x] `CreateViewModal` - two-step modal: describe → generate → preview → save
+- [x] `EditViewModal` - edit view name and description
+- [x] `DeleteViewDialog` - confirmation dialog for deletion
+- [x] `ViewCard` - display view with name, description, type, style
+- [x] `ViewCardGrid` - grid layout with "Create View" card
+- [x] Integration into workflow detail page
+
 #### Pending (Phase 2-4)
 - [ ] CardsView component (grid, list, single, inline-chips layouts)
 - [ ] TreeView component (expand/collapse, depth lines)
@@ -343,7 +373,12 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/neighbors` - get neighborhood
 
 ### 7.5 Views (Semantic View Templates)
+- [x] `GET /api/v1/workflows/{workflow_id}/views` - list view templates
+- [x] `POST /api/v1/workflows/{workflow_id}/views` - create view template
 - [x] `GET /api/v1/workflows/{workflow_id}/views/{view_id}` - get traversed subgraph for view template
+- [x] `PUT /api/v1/workflows/{workflow_id}/views/{view_id}` - update view template
+- [x] `DELETE /api/v1/workflows/{workflow_id}/views/{view_id}` - delete view template
+- [x] `POST /api/v1/workflows/{workflow_id}/views/generate` - generate view from natural language (LLM)
 
 ### 7.6 Events
 - [x] `GET /api/v1/workflows/{workflow_id}/events` - query events with filters
@@ -449,7 +484,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │       ├── __init__.py
 │   │       ├── client.py          # Anthropic SDK wrapper
 │   │       ├── schema_generator.py # NL → WorkflowDefinition
-│   │       └── data_generator.py  # Schema → realistic instance data
+│   │       ├── data_generator.py  # Schema → realistic instance data
+│   │       └── view_generator.py  # NL → ViewTemplate
 │   ├── templates/                 # Built-in workflow JSON files
 │   │   ├── materials_rnd.workflow.json
 │   │   ├── capa.workflow.json
@@ -480,6 +516,11 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   ├── views/            # Semantic view components
 │   │   │   │   ├── ViewSelector.tsx
 │   │   │   │   ├── ViewRenderer.tsx
+│   │   │   │   ├── ViewCard.tsx        # View template card display
+│   │   │   │   ├── ViewCardGrid.tsx    # Grid of view cards
+│   │   │   │   ├── CreateViewModal.tsx # LLM-powered view creation
+│   │   │   │   ├── EditViewModal.tsx   # Edit view name/description
+│   │   │   │   ├── DeleteViewDialog.tsx # Delete confirmation
 │   │   │   │   ├── styles/       # KanbanView, CardsView, TreeView, etc.
 │   │   │   │   └── cards/        # NodeCard, StatusBadge
 │   │   │   ├── list-view/

@@ -108,6 +108,22 @@ export interface ViewTemplate {
   filters?: FilterConfig[];
 }
 
+export interface ViewTemplateCreate {
+  name: string;
+  description?: string;
+  icon?: string;
+  rootType: string;
+  edges?: EdgeTraversal[];
+  levels: Record<string, LevelConfig>;
+  filters?: FilterConfig[];
+}
+
+export interface ViewTemplateUpdate {
+  name?: string;
+  description?: string;
+  icon?: string;
+}
+
 // ==================== API Response Types ====================
 
 export interface LevelData {

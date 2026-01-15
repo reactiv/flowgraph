@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic import Field as PydanticField
 
 
@@ -77,6 +77,24 @@ class NodeType(BaseModel):
     ui: UIHints = UIHints()
 
     model_config = {"populate_by_name": True}
+
+    @model_validator(mode="after")
+    def inject_status_field(self) -> "NodeType":
+        """Inject 'status' as a first-class field when states are enabled."""
+        if self.states and self.states.enabled:
+            # Check if status field already exists
+            has_status = any(f.key == "status" for f in self.fields)
+            if not has_status:
+                status_field = Field(
+                    key="status",
+                    label="Status",
+                    kind=FieldKind.ENUM,
+                    required=True,
+                    values=self.states.values,
+                    default=self.states.initial,
+                )
+                self.fields.append(status_field)
+        return self
 
 
 class EdgeType(BaseModel):
@@ -263,6 +281,30 @@ class ViewTemplate(BaseModel):
     edges: list[EdgeTraversal] = []
     levels: dict[str, LevelConfig] = {}
     filters: list[FilterConfig] = []
+
+    model_config = {"populate_by_name": True}
+
+
+class ViewTemplateCreate(BaseModel):
+    """Request model for creating a new view template."""
+
+    name: str
+    description: str | None = None
+    icon: str | None = None
+    root_type: str = PydanticField(alias="rootType")
+    edges: list[EdgeTraversal] = []
+    levels: dict[str, LevelConfig] = {}
+    filters: list[FilterConfig] = []
+
+    model_config = {"populate_by_name": True}
+
+
+class ViewTemplateUpdate(BaseModel):
+    """Request model for updating an existing view template (partial updates)."""
+
+    name: str | None = None
+    description: str | None = None
+    icon: str | None = None
 
     model_config = {"populate_by_name": True}
 

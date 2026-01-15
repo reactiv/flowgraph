@@ -3,17 +3,29 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { Node } from '@/types/workflow';
-import { ViewSelector, ViewRenderer } from '@/components/views';
+import type { ViewTemplate, ViewTemplateCreate } from '@/types/view-templates';
+import { ViewRenderer } from '@/components/views';
+import { ViewCardGrid } from '@/components/views/ViewCardGrid';
+import { CreateViewModal } from '@/components/views/CreateViewModal';
+import { EditViewModal } from '@/components/views/EditViewModal';
+import { DeleteViewDialog } from '@/components/views/DeleteViewDialog';
 
 export default function WorkflowPage() {
   const params = useParams();
   const workflowId = params.id as string;
+  const queryClient = useQueryClient();
+
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
+
+  // Modal states
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ViewTemplate | null>(null);
+  const [deletingViewId, setDeletingViewId] = useState<string | null>(null);
 
   // Fetch workflow definition
   const {
@@ -23,6 +35,38 @@ export default function WorkflowPage() {
   } = useQuery({
     queryKey: ['workflow', workflowId],
     queryFn: () => api.getWorkflow(workflowId),
+  });
+
+  // Create view mutation
+  const createViewMutation = useMutation({
+    mutationFn: (view: ViewTemplateCreate) => api.createView(workflowId, view),
+    onSuccess: (newView) => {
+      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      setCreateModalOpen(false);
+      setSelectedViewId(newView.id);
+    },
+  });
+
+  // Delete view mutation
+  const deleteViewMutation = useMutation({
+    mutationFn: (viewId: string) => api.deleteView(workflowId, viewId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      setDeletingViewId(null);
+      if (selectedViewId === deletingViewId) {
+        setSelectedViewId(null);
+      }
+    },
+  });
+
+  // Update view mutation
+  const updateViewMutation = useMutation({
+    mutationFn: ({ viewId, update }: { viewId: string; update: { name?: string; description?: string } }) =>
+      api.updateView(workflowId, viewId, update),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      setEditingView(null);
+    },
   });
 
   // Fetch nodes (filtered by selected type) - only when in list view
@@ -72,22 +116,23 @@ export default function WorkflowPage() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b bg-white p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <Link href="/" className="text-sm text-muted-foreground hover:text-primary mb-2 inline-block">
-              &larr; Back to home
-            </Link>
-            <h1 className="text-2xl font-bold">{workflow.name}</h1>
-            <p className="text-muted-foreground text-sm mt-1">{workflow.description}</p>
-          </div>
-
-          {/* View Selector */}
-          <ViewSelector
-            viewTemplates={viewTemplates}
-            selectedViewId={selectedViewId}
-            onViewChange={setSelectedViewId}
-          />
+        <div className="mb-4">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-primary mb-2 inline-block">
+            &larr; Back to home
+          </Link>
+          <h1 className="text-2xl font-bold">{workflow.name}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{workflow.description}</p>
         </div>
+
+        {/* View Cards */}
+        <ViewCardGrid
+          viewTemplates={viewTemplates}
+          selectedViewId={selectedViewId}
+          onViewSelect={setSelectedViewId}
+          onCreateClick={() => setCreateModalOpen(true)}
+          onEditView={(view) => setEditingView(view)}
+          onDeleteView={(viewId) => setDeletingViewId(viewId)}
+        />
       </div>
 
       {/* Content Area */}
@@ -175,6 +220,36 @@ export default function WorkflowPage() {
           )}
         </div>
       )}
+
+      {/* Modals */}
+      <CreateViewModal
+        workflowId={workflowId}
+        workflowDefinition={workflow}
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onViewCreated={(view) => createViewMutation.mutate(view)}
+        isCreating={createViewMutation.isPending}
+      />
+
+      {editingView && (
+        <EditViewModal
+          view={editingView}
+          isOpen={true}
+          onClose={() => setEditingView(null)}
+          onSave={(update) =>
+            updateViewMutation.mutate({ viewId: editingView.id, update })
+          }
+          isSaving={updateViewMutation.isPending}
+        />
+      )}
+
+      <DeleteViewDialog
+        viewId={deletingViewId}
+        isOpen={!!deletingViewId}
+        onClose={() => setDeletingViewId(null)}
+        onConfirm={() => deletingViewId && deleteViewMutation.mutate(deletingViewId)}
+        isDeleting={deleteViewMutation.isPending}
+      />
     </div>
   );
 }

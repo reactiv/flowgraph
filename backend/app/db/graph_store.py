@@ -18,7 +18,12 @@ from app.models import (
     NodeUpdate,
     WorkflowDefinition,
 )
-from app.models.workflow import ViewTemplate, WorkflowSummary
+from app.models.workflow import (
+    ViewTemplate,
+    ViewTemplateCreate,
+    ViewTemplateUpdate,
+    WorkflowSummary,
+)
 
 
 def _generate_id() -> str:
@@ -550,6 +555,161 @@ class GraphStore:
             ]
 
         return result
+
+    async def add_view_template(
+        self, workflow_id: str, view_create: ViewTemplateCreate
+    ) -> ViewTemplate | None:
+        """Add a view template to a workflow definition."""
+        db = await get_db()
+
+        # Get current workflow definition
+        cursor = await db.execute(
+            "SELECT definition_json, version FROM workflow_definitions WHERE id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+
+        definition_dict = json.loads(row["definition_json"])
+        current_version = row["version"]
+
+        # Generate unique view ID
+        view_id = f"view-{_generate_id()[:8]}"
+
+        # Create ViewTemplate from ViewTemplateCreate
+        view_template = ViewTemplate(
+            id=view_id,
+            name=view_create.name,
+            description=view_create.description,
+            icon=view_create.icon,
+            root_type=view_create.root_type,
+            edges=view_create.edges,
+            levels=view_create.levels,
+            filters=view_create.filters,
+        )
+
+        # Add to view_templates list
+        if "viewTemplates" not in definition_dict:
+            definition_dict["viewTemplates"] = []
+        definition_dict["viewTemplates"].append(
+            view_template.model_dump(by_alias=True)
+        )
+
+        # Update definition_json and increment version
+        now = _now()
+        await db.execute(
+            """
+            UPDATE workflow_definitions
+            SET definition_json = ?, version = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(definition_dict), current_version + 1, now, workflow_id),
+        )
+        await db.commit()
+
+        return view_template
+
+    async def update_view_template(
+        self, workflow_id: str, view_id: str, update: ViewTemplateUpdate
+    ) -> ViewTemplate | None:
+        """Update a view template in a workflow definition."""
+        db = await get_db()
+
+        # Get current workflow definition
+        cursor = await db.execute(
+            "SELECT definition_json, version FROM workflow_definitions WHERE id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+
+        definition_dict = json.loads(row["definition_json"])
+        current_version = row["version"]
+
+        # Find and update the view
+        view_templates = definition_dict.get("viewTemplates", [])
+        updated_view: ViewTemplate | None = None
+
+        for i, view in enumerate(view_templates):
+            if view.get("id") == view_id:
+                # Apply partial updates
+                if update.name is not None:
+                    view["name"] = update.name
+                if update.description is not None:
+                    view["description"] = update.description
+                if update.icon is not None:
+                    view["icon"] = update.icon
+                view_templates[i] = view
+                updated_view = ViewTemplate.model_validate(view)
+                break
+
+        if updated_view is None:
+            return None
+
+        definition_dict["viewTemplates"] = view_templates
+
+        # Update definition_json and increment version
+        now = _now()
+        await db.execute(
+            """
+            UPDATE workflow_definitions
+            SET definition_json = ?, version = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(definition_dict), current_version + 1, now, workflow_id),
+        )
+        await db.commit()
+
+        return updated_view
+
+    async def delete_view_template(self, workflow_id: str, view_id: str) -> bool:
+        """Delete a view template from a workflow definition."""
+        db = await get_db()
+
+        # Get current workflow definition
+        cursor = await db.execute(
+            "SELECT definition_json, version FROM workflow_definitions WHERE id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return False
+
+        definition_dict = json.loads(row["definition_json"])
+        current_version = row["version"]
+
+        # Filter out the view
+        view_templates = definition_dict.get("viewTemplates", [])
+        original_count = len(view_templates)
+        view_templates = [v for v in view_templates if v.get("id") != view_id]
+
+        if len(view_templates) == original_count:
+            return False  # View not found
+
+        definition_dict["viewTemplates"] = view_templates
+
+        # Update definition_json and increment version
+        now = _now()
+        await db.execute(
+            """
+            UPDATE workflow_definitions
+            SET definition_json = ?, version = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(definition_dict), current_version + 1, now, workflow_id),
+        )
+        await db.commit()
+
+        return True
+
+    async def list_view_templates(self, workflow_id: str) -> list[ViewTemplate]:
+        """List all view templates for a workflow."""
+        workflow = await self.get_workflow(workflow_id)
+        if workflow is None:
+            return []
+        return workflow.view_templates
 
     # ==================== Events ====================
 

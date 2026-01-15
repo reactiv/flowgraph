@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.db import graph_store
-from app.llm import DataGenerator, SeedConfig
+from app.llm import DataGenerator, SeedConfig, ViewGenerator
 from app.models import (
     Edge,
     EdgeCreate,
@@ -18,7 +18,12 @@ from app.models import (
     NodeUpdate,
     WorkflowDefinition,
 )
-from app.models.workflow import WorkflowSummary
+from app.models.workflow import (
+    ViewTemplate,
+    ViewTemplateCreate,
+    ViewTemplateUpdate,
+    WorkflowSummary,
+)
 
 router = APIRouter()
 
@@ -199,6 +204,39 @@ async def delete_edge(workflow_id: str, edge_id: str) -> dict[str, bool]:
 # ==================== Views ====================
 
 
+@router.get("/workflows/{workflow_id}/views")
+async def list_views(workflow_id: str) -> list[ViewTemplate]:
+    """List all view templates for a workflow."""
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    return await graph_store.list_view_templates(workflow_id)
+
+
+@router.post("/workflows/{workflow_id}/views")
+async def create_view(workflow_id: str, view: ViewTemplateCreate) -> ViewTemplate:
+    """Create a new view template."""
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Validate rootType exists in workflow
+    valid_node_types = {nt.type for nt in workflow.node_types}
+    if view.root_type not in valid_node_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"rootType '{view.root_type}' not found in workflow node types",
+        )
+
+    result = await graph_store.add_view_template(workflow_id, view)
+    if result is None:
+        raise HTTPException(status_code=500, detail="Failed to create view")
+    return result
+
+
 @router.get("/workflows/{workflow_id}/views/{view_id}")
 async def get_view_subgraph(
     workflow_id: str,
@@ -227,6 +265,61 @@ async def get_view_subgraph(
     return await graph_store.traverse_view_template(
         workflow_id, template, root_node_id
     )
+
+
+@router.put("/workflows/{workflow_id}/views/{view_id}")
+async def update_view(
+    workflow_id: str, view_id: str, update: ViewTemplateUpdate
+) -> ViewTemplate:
+    """Update a view template."""
+    result = await graph_store.update_view_template(workflow_id, view_id, update)
+    if result is None:
+        raise HTTPException(status_code=404, detail="View template not found")
+    return result
+
+
+@router.delete("/workflows/{workflow_id}/views/{view_id}")
+async def delete_view(workflow_id: str, view_id: str) -> dict[str, bool]:
+    """Delete a view template."""
+    deleted = await graph_store.delete_view_template(workflow_id, view_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="View template not found")
+    return {"deleted": True}
+
+
+class GenerateViewRequest(BaseModel):
+    """Request to generate a view from natural language."""
+
+    description: str
+
+
+@router.post("/workflows/{workflow_id}/views/generate")
+async def generate_view(
+    workflow_id: str, request: GenerateViewRequest
+) -> ViewTemplateCreate:
+    """Generate a view template from natural language description.
+
+    This uses Claude to interpret the description and generate a view template.
+    The generated template is returned but NOT saved - call POST /views to save it.
+    """
+    # Get workflow definition for schema context
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    try:
+        generator = ViewGenerator()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        result = await generator.generate_view(request.description, workflow)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ==================== Events ====================
