@@ -187,13 +187,13 @@ function TreeNodeRow({
         onClick={handleClick}
       >
         {/* Depth lines and expand/collapse toggle */}
-        <div className="flex items-center" style={{ width: `${depth * 24 + 24}px` }}>
-          {/* Depth indicator lines */}
+        <div className="flex items-center shrink-0">
+          {/* Depth indicator lines - pointer-events-none so clicks pass through */}
           {showDepthLines &&
             parentLines.map((showLine, idx) => (
               <div
                 key={idx}
-                className="relative flex h-8 w-6 shrink-0 items-center justify-center"
+                className="pointer-events-none relative flex h-8 w-6 shrink-0 items-center justify-center"
               >
                 {showLine && (
                   <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-gray-200" />
@@ -201,9 +201,9 @@ function TreeNodeRow({
               </div>
             ))}
 
-          {/* Current level connector */}
+          {/* Current level connector - pointer-events-none */}
           {depth > 0 && showDepthLines && (
-            <div className="relative flex h-8 w-6 shrink-0 items-center justify-center">
+            <div className="pointer-events-none relative flex h-8 w-6 shrink-0 items-center justify-center">
               {/* Vertical line from parent */}
               <div
                 className={`absolute left-1/2 w-px -translate-x-1/2 bg-gray-200 ${
@@ -215,13 +215,14 @@ function TreeNodeRow({
             </div>
           )}
 
-          {/* Expand/collapse toggle */}
+          {/* Expand/collapse toggle - larger click target */}
           <button
+            type="button"
             onClick={handleToggle}
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-500 transition-colors ${
+            className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 transition-colors ${
               hasChildren
-                ? 'hover:bg-gray-200 hover:text-gray-700'
-                : 'cursor-default opacity-0'
+                ? 'hover:bg-gray-200 hover:text-gray-700 cursor-pointer'
+                : 'cursor-default invisible'
             }`}
             disabled={!hasChildren}
             aria-label={isExpanded ? 'Collapse' : 'Expand'}
