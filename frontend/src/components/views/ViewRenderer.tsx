@@ -3,8 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { Node } from '@/types/workflow';
-import type { ViewTemplate, KanbanConfig } from '@/types/view-templates';
+import type { ViewTemplate, KanbanConfig, CardsConfig, TimelineConfig, TreeConfig, TableConfig } from '@/types/view-templates';
 import { KanbanView } from './styles/KanbanView';
+import { CardsView } from './styles/CardsView';
+import { TimelineView } from './styles/TimelineView';
+import { TreeView } from './styles/TreeView';
+import { TableView } from './styles/TableView';
 
 interface ViewRendererProps {
   workflowId: string;
@@ -86,16 +90,47 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
       );
 
     case 'cards':
-    case 'tree':
-    case 'timeline':
-    case 'table':
-      // TODO: Implement other view styles in Phase 2/3
       return (
-        <div className="flex h-64 items-center justify-center">
-          <div className="text-gray-500">
-            View style &quot;{rootLevelConfig.style}&quot; coming soon
-          </div>
-        </div>
+        <CardsView
+          nodes={rootNodes}
+          config={rootLevelConfig.styleConfig as CardsConfig}
+          onNodeClick={onNodeClick}
+          onStatusChange={handleNodeDrop}
+        />
+      );
+
+    case 'timeline':
+      return (
+        <TimelineView
+          nodes={rootNodes}
+          config={rootLevelConfig.styleConfig as TimelineConfig}
+          onNodeClick={onNodeClick}
+          onStatusChange={handleNodeDrop}
+        />
+      );
+
+    case 'tree': {
+      // Collect all edges from the data levels for tree structure
+      const allEdges = Object.values(data.levels).flatMap((level) => level.edges || []);
+      return (
+        <TreeView
+          nodes={rootNodes}
+          edges={allEdges}
+          config={rootLevelConfig.styleConfig as TreeConfig}
+          onNodeClick={onNodeClick}
+          onStatusChange={handleNodeDrop}
+        />
+      );
+    }
+
+    case 'table':
+      return (
+        <TableView
+          nodes={rootNodes}
+          config={rootLevelConfig.styleConfig as TableConfig}
+          onNodeClick={onNodeClick}
+          onStatusChange={handleNodeDrop}
+        />
       );
 
     default:

@@ -164,3 +164,11 @@ export interface NodeCardProps {
   onClick?: () => void;
   draggable?: boolean;
 }
+
+export interface TableViewProps {
+  nodes: Node[];
+  config: TableConfig;
+  onNodeClick?: (node: Node) => void;
+  onStatusChange?: (nodeId: string, newStatus: string) => Promise<void>;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
+}

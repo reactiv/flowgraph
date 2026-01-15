@@ -328,11 +328,13 @@
 - [x] `ViewCardGrid` - grid layout with "Create View" card
 - [x] Integration into workflow detail page
 
+#### Additional View Styles (Completed)
+- [x] CardsView component (grid, list, single, inline-chips layouts)
+- [x] TreeView component (expand/collapse, depth lines)
+- [x] TimelineView component (date grouping, connectors)
+- [x] TableView component (sortable, selectable)
+
 #### Pending (Phase 2-4)
-- [ ] CardsView component (grid, list, single, inline-chips layouts)
-- [ ] TreeView component (expand/collapse, depth lines)
-- [ ] TimelineView component (date grouping, connectors)
-- [ ] TableView component (sortable, selectable)
 - [ ] Hierarchical edge traversal (multi-level views)
 - [ ] Drag-drop validation against allowed transitions
 - [ ] Filter bar integration
@@ -414,6 +416,10 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [ ] **Graph View**: Nodes render, edges connect, expand/filter controls work, click shows preview
 - [x] **Semantic View Templates**: View selector shows available views, switching views works
 - [x] **Kanban View**: Cards in correct columns, drag-drop transitions status, colored headers
+- [x] **Cards View**: Grid/list/single/chips layouts render correctly
+- [x] **Tree View**: Hierarchical display with expand/collapse and depth lines
+- [x] **Timeline View**: Date-grouped entries with connectors
+- [x] **Table View**: Sortable columns, selectable rows, configurable columns
 
 ### 8.5 "Alive" Feel
 - [ ] App feels populated and interactive within 30 seconds of starting
