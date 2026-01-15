@@ -159,6 +159,7 @@ class CardTemplate(BaseModel):
     status_field: str | None = PydanticField(default=None, alias="statusField")
     body_fields: list[str] = PydanticField(default=[], alias="bodyFields")
     show_inline_children: bool = PydanticField(default=False, alias="showInlineChildren")
+    status_colors: dict[str, str] | None = PydanticField(default=None, alias="statusColors")
 
     model_config = {"populate_by_name": True}
 
@@ -196,6 +197,7 @@ class TreeConfig(BaseModel):
     parent_field: str | None = PydanticField(default=None, alias="parentField")
     expandable: bool = True
     show_depth_lines: bool = PydanticField(default=True, alias="showDepthLines")
+    card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
 
     model_config = {"populate_by_name": True}
 
@@ -207,6 +209,7 @@ class TimelineConfig(BaseModel):
     granularity: Literal["day", "week", "month"] = "day"
     group_by_field: str | None = PydanticField(default=None, alias="groupByField")
     show_connectors: bool = PydanticField(default=True, alias="showConnectors")
+    card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
 
     model_config = {"populate_by_name": True}
 
@@ -217,6 +220,7 @@ class TableConfig(BaseModel):
     columns: list[str] = []
     sortable: bool = True
     selectable: bool = False
+    status_colors: dict[str, str] | None = PydanticField(default=None, alias="statusColors")
 
     model_config = {"populate_by_name": True}
 

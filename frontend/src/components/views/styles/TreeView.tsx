@@ -19,53 +19,19 @@ interface TreeNode {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  // Generic positive states
-  Complete: 'bg-green-100 text-green-700 border-green-200',
-  Completed: 'bg-green-100 text-green-700 border-green-200',
-  Validated: 'bg-green-100 text-green-700 border-green-200',
-  Operational: 'bg-green-100 text-green-700 border-green-200',
-  'In Stock': 'bg-green-100 text-green-700 border-green-200',
-  Pass: 'bg-green-100 text-green-700 border-green-200',
-
-  // Generic active/in-progress states
-  Active: 'bg-violet-100 text-violet-700 border-violet-200',
-  'In Progress': 'bg-blue-100 text-blue-700 border-blue-200',
-  Running: 'bg-blue-100 text-blue-700 border-blue-200',
-  Scheduled: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  'On Order': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-
-  // Generic warning states
-  Degraded: 'bg-amber-100 text-amber-700 border-amber-200',
-  'Low Stock': 'bg-amber-100 text-amber-700 border-amber-200',
-  'On Hold': 'bg-amber-100 text-amber-700 border-amber-200',
-  'Pass with Observations': 'bg-amber-100 text-amber-700 border-amber-200',
-  'Pending Review': 'bg-amber-100 text-amber-700 border-amber-200',
-
-  // Generic negative/error states
-  Failed: 'bg-red-100 text-red-700 border-red-200',
-  Rejected: 'bg-red-100 text-red-700 border-red-200',
-  Down: 'bg-red-100 text-red-700 border-red-200',
-  'Out of Stock': 'bg-red-100 text-red-700 border-red-200',
-  Overdue: 'bg-red-100 text-red-700 border-red-200',
-  Fail: 'bg-red-100 text-red-700 border-red-200',
-  Cancelled: 'bg-red-100 text-red-700 border-red-200',
-
-  // Generic neutral/pending states
-  Draft: 'bg-slate-100 text-slate-700 border-slate-200',
-  Pending: 'bg-slate-100 text-slate-700 border-slate-200',
-  Planned: 'bg-slate-100 text-slate-700 border-slate-200',
+  // Hypothesis statuses
   Proposed: 'bg-slate-100 text-slate-700 border-slate-200',
-  Submitted: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  Reviewed: 'bg-teal-100 text-teal-700 border-teal-200',
-
-  // Generic archived/inactive states
-  Archived: 'bg-slate-100 text-slate-600 border-slate-200',
+  Active: 'bg-violet-100 text-violet-700 border-violet-200',
+  Validated: 'bg-green-100 text-green-700 border-green-200',
+  Rejected: 'bg-red-100 text-red-700 border-red-200',
   Dismissed: 'bg-slate-100 text-slate-600 border-slate-200',
-  Decommissioned: 'bg-slate-100 text-slate-600 border-slate-200',
-  Obsolete: 'bg-slate-100 text-slate-600 border-slate-200',
-
-  // Equipment-specific
-  'Under Maintenance': 'bg-orange-100 text-orange-700 border-orange-200',
+  // Sample/Analysis statuses
+  Draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  'In Progress': 'bg-blue-100 text-blue-700 border-blue-200',
+  Complete: 'bg-green-100 text-green-700 border-green-200',
+  Archived: 'bg-slate-100 text-slate-600 border-slate-200',
+  Pending: 'bg-slate-100 text-slate-700 border-slate-200',
+  Failed: 'bg-red-100 text-red-700 border-red-200',
 };
 
 /**
@@ -181,7 +147,16 @@ interface TreeNodeRowProps {
   showDepthLines: boolean;
   isLast: boolean;
   parentLines: boolean[]; // Track which parent levels need continuation lines
+  statusColors?: Record<string, string>;
 }
+
+// Convert hex to rgba for background (with alpha for lighter background)
+const hexToRgba = (hex: string, alpha: number) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 function TreeNodeRow({
   treeNode,
@@ -191,14 +166,27 @@ function TreeNodeRow({
   showDepthLines,
   isLast,
   parentLines,
+  statusColors,
 }: TreeNodeRowProps) {
   const { node, children, depth } = treeNode;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(node.id);
   const status = node.status;
-  const statusColorClass = status
-    ? STATUS_COLORS[status] || 'bg-gray-100 text-gray-700 border-gray-200'
-    : '';
+
+  // Get status color - prefer config colors, fall back to hardcoded
+  const configColor = status && statusColors?.[status];
+  const statusColorClass = configColor
+    ? ''
+    : status
+      ? STATUS_COLORS[status] || 'bg-gray-100 text-gray-700 border-gray-200'
+      : '';
+  const statusStyle = configColor
+    ? {
+        backgroundColor: hexToRgba(configColor, 0.15),
+        color: configColor,
+        borderColor: hexToRgba(configColor, 0.3),
+      }
+    : undefined;
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
@@ -287,6 +275,7 @@ function TreeNodeRow({
           {status && (
             <span
               className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColorClass}`}
+              style={statusStyle}
             >
               {status}
             </span>
@@ -317,6 +306,7 @@ function TreeNodeRow({
               showDepthLines={showDepthLines}
               isLast={isLastChild}
               parentLines={newParentLines}
+              statusColors={statusColors}
             />
           );
         })}
@@ -344,6 +334,7 @@ export function TreeView({
 
   const showDepthLines = config.showDepthLines !== false;
   const expandable = config.expandable !== false;
+  const statusColors = config.cardTemplate?.statusColors;
 
   const handleToggle = useCallback(
     (nodeId: string) => {
@@ -423,6 +414,7 @@ export function TreeView({
             showDepthLines={showDepthLines}
             isLast={idx === trees.length - 1}
             parentLines={[]}
+            statusColors={statusColors}
           />
         ))}
       </div>

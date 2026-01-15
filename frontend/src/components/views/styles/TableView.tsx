@@ -79,6 +79,14 @@ const statusColors: Record<string, { bg: string; text: string }> = {
   'under_maintenance': { bg: 'bg-orange-100', text: 'text-orange-700' },
 };
 
+// Convert hex to rgba for background (with alpha for lighter background)
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function getStatusColors(status: string): { bg: string; text: string } {
   const normalized = status.toLowerCase().replace(/\s+/g, '_');
   return statusColors[normalized] || { bg: 'bg-gray-100', text: 'text-gray-700' };
@@ -179,6 +187,7 @@ export function TableView({
   const columns = config.columns.length > 0 ? config.columns : ['title', 'type', 'status'];
   const sortable = config.sortable !== false;
   const selectable = config.selectable === true;
+  const configStatusColors = config.statusColors;
 
   // Sort nodes
   const sortedNodes = useMemo(() => {
@@ -316,13 +325,23 @@ export function TableView({
                 const value = getNodeValue(node, column);
                 const isStatus = column === 'status' && typeof value === 'string';
 
+                // Get color from config or fallback to hardcoded
+                const configColor = isStatus && configStatusColors?.[value as string];
+                const statusStyle = configColor
+                  ? {
+                      backgroundColor: hexToRgba(configColor, 0.15),
+                      color: configColor,
+                    }
+                  : undefined;
+
                 return (
                   <td key={column} className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
                     {isStatus ? (
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                          getStatusColors(value as string).bg
-                        } ${getStatusColors(value as string).text}`}
+                          configColor ? '' : `${getStatusColors(value as string).bg} ${getStatusColors(value as string).text}`
+                        }`}
+                        style={statusStyle}
                       >
                         {formatCellValue(value)}
                       </span>

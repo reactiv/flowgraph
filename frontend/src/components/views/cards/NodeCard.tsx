@@ -80,7 +80,29 @@ export function NodeCard({ node, cardTemplate, onClick, draggable, onDragStart }
   // Get body fields
   const bodyFields = cardTemplate?.bodyFields || [];
 
-  const statusColorClass = status ? STATUS_COLORS[status] || 'bg-gray-100 text-gray-700 border-gray-200' : '';
+  // Get status color - prefer config colors, fall back to hardcoded
+  const configColor = status && cardTemplate?.statusColors?.[status];
+  const statusColorClass = configColor
+    ? ''
+    : status
+      ? STATUS_COLORS[status] || 'bg-gray-100 text-gray-700 border-gray-200'
+      : '';
+
+  // Convert hex to rgba for background (with alpha for lighter background)
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const statusStyle = configColor
+    ? {
+        backgroundColor: hexToRgba(configColor, 0.15),
+        color: configColor,
+        borderColor: hexToRgba(configColor, 0.3),
+      }
+    : undefined;
 
   return (
     <div
@@ -99,6 +121,7 @@ export function NodeCard({ node, cardTemplate, onClick, draggable, onDragStart }
         {status && (
           <span
             className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColorClass}`}
+            style={statusStyle}
           >
             {status}
           </span>

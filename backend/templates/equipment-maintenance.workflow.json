@@ -240,7 +240,16 @@
           "styleConfig": {
             "expandable": true,
             "showDepthLines": true,
-            "initialExpandDepth": 2
+            "initialExpandDepth": 2,
+            "cardTemplate": {
+              "statusColors": {
+                "Operational": "#22c55e",
+                "Degraded": "#f59e0b",
+                "Down": "#ef4444",
+                "Under Maintenance": "#3b82f6",
+                "Decommissioned": "#64748b"
+              }
+            }
           }
         }
       }
@@ -272,7 +281,15 @@
               "titleField": "title",
               "subtitleField": "work_order_id",
               "statusField": "status",
-              "bodyFields": ["work_type", "priority", "assigned_to", "due_date"]
+              "bodyFields": ["work_type", "priority", "assigned_to", "due_date"],
+              "statusColors": {
+                "Planned": "#64748b",
+                "Scheduled": "#3b82f6",
+                "In Progress": "#f59e0b",
+                "On Hold": "#ef4444",
+                "Completed": "#22c55e",
+                "Cancelled": "#475569"
+              }
             }
           }
         }
@@ -295,7 +312,13 @@
               "titleField": "title",
               "subtitleField": "technician",
               "statusField": "status",
-              "bodyFields": ["log_type", "duration_hours"]
+              "bodyFields": ["log_type", "duration_hours"],
+              "statusColors": {
+                "Draft": "#64748b",
+                "Submitted": "#3b82f6",
+                "Reviewed": "#22c55e",
+                "Archived": "#475569"
+              }
             }
           }
         }
@@ -313,7 +336,14 @@
           "styleConfig": {
             "columns": ["part_number", "name", "category", "quantity_on_hand", "reorder_point", "status", "storage_location", "unit_cost"],
             "sortable": true,
-            "selectable": true
+            "selectable": true,
+            "statusColors": {
+              "In Stock": "#22c55e",
+              "Low Stock": "#f59e0b",
+              "Out of Stock": "#ef4444",
+              "On Order": "#3b82f6",
+              "Obsolete": "#64748b"
+            }
           }
         }
       }
@@ -334,7 +364,14 @@
               "titleField": "name",
               "subtitleField": "equipment_id",
               "statusField": "status",
-              "bodyFields": ["equipment_type", "location", "criticality", "manufacturer"]
+              "bodyFields": ["equipment_type", "location", "criticality", "manufacturer"],
+              "statusColors": {
+                "Operational": "#22c55e",
+                "Degraded": "#f59e0b",
+                "Down": "#ef4444",
+                "Under Maintenance": "#3b82f6",
+                "Decommissioned": "#64748b"
+              }
             }
           }
         }
@@ -357,7 +394,13 @@
               "titleField": "title",
               "subtitleField": "inspector",
               "statusField": "status",
-              "bodyFields": ["inspection_type", "result"]
+              "bodyFields": ["inspection_type", "result"],
+              "statusColors": {
+                "Scheduled": "#64748b",
+                "In Progress": "#3b82f6",
+                "Completed": "#22c55e",
+                "Overdue": "#ef4444"
+              }
             }
           }
         }

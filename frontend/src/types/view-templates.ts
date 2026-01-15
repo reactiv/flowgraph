@@ -15,6 +15,7 @@ export interface CardTemplate {
   statusField?: string;
   bodyFields?: string[];
   showInlineChildren?: boolean;
+  statusColors?: Record<string, string>;
 }
 
 export interface KanbanConfig {
@@ -38,6 +39,7 @@ export interface TreeConfig {
   parentField?: string;
   expandable?: boolean;
   showDepthLines?: boolean;
+  cardTemplate?: CardTemplate;
 }
 
 export interface TimelineConfig {
@@ -45,12 +47,14 @@ export interface TimelineConfig {
   granularity: 'day' | 'week' | 'month';
   groupByField?: string;
   showConnectors?: boolean;
+  cardTemplate?: CardTemplate;
 }
 
 export interface TableConfig {
   columns: string[];
   sortable?: boolean;
   selectable?: boolean;
+  statusColors?: Record<string, string>;
 }
 
 export type StyleConfig =

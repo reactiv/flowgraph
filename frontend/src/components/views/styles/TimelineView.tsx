@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Node } from '@/types/workflow';
-import type { TimelineConfig, CardTemplate } from '@/types/view-templates';
+import type { TimelineConfig } from '@/types/view-templates';
 import { NodeCard } from '../cards/NodeCard';
 
 interface TimelineViewProps {
@@ -194,8 +194,8 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
     return sortedGroups;
   }, [nodes, dateField, granularity]);
 
-  // Create a card template if not provided via config
-  const cardTemplate: CardTemplate | undefined = undefined;
+  // Use card template from config (includes statusColors)
+  const cardTemplate = config.cardTemplate;
 
   if (nodes.length === 0) {
     return (
