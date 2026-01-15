@@ -7,14 +7,115 @@ from pydantic import ValidationError
 from app.llm.client import LLMClient, get_client
 from app.models import WorkflowDefinition
 from app.models.workflow import (
+    CardTemplate,
+    CardsConfig,
     GanttConfig,
     KanbanConfig,
     LevelConfig,
+    TableConfig,
+    TimelineConfig,
+    TreeConfig,
     ViewStyle,
     ViewTemplateCreate,
 )
 
 logger = logging.getLogger(__name__)
+
+# System prompt for generating multiple views based on workflow description
+VIEWS_FROM_DESCRIPTION_SYSTEM = """You are a view template generator for a workflow management system.
+
+Given a workflow description and schema, generate a diverse set of useful views that would help users work with this workflow effectively.
+
+## Available View Styles
+
+**kanban**: Board with columns grouped by a field (best for status-based workflows)
+- groupByField: Field to group by (typically "status" or an enum field)
+- columnOrder: Array of values in display order
+- columnColors: Map of value to hex color
+- cardTemplate: How to display each card
+
+**table**: Sortable data grid (best for data-heavy views, reporting, bulk operations)
+- columns: Array of field keys to display as columns
+- sortable: true/false
+- statusColors: Optional map for status badge colors
+
+**timeline**: Date-grouped entries (best for chronological views, activity feeds)
+- dateField: Field containing the date to group by
+- granularity: "day" | "week" | "month"
+- showConnectors: true/false
+- cardTemplate: How to display each entry
+
+**tree**: Hierarchical view (best for parent-child relationships)
+- expandable: true/false
+- showDepthLines: true/false
+- cardTemplate: How to display each node
+
+**gantt**: Timeline with duration bars (best for project planning, scheduling)
+- startDateField: Field with start date
+- endDateField: Field with end date
+- progressField: Optional percentage field
+- groupByField: Optional field to group rows
+- timeScale: "day" | "week" | "month"
+
+**cards**: Card grid or list (best for browsing, galleries)
+- layout: "grid" | "list" | "single"
+- columns: Number of columns for grid layout
+- cardTemplate: How to display each card
+
+## Response Format
+
+Return a JSON array of view templates:
+```json
+{
+  "views": [
+    {
+      "name": "View Name",
+      "description": "What this view is for",
+      "rootType": "ExactNodeTypeName",
+      "style": "kanban",
+      "styleConfig": { ... style-specific config ... }
+    }
+  ]
+}
+```
+
+## Style Config Examples
+
+Kanban:
+{"groupByField": "status", "columnOrder": ["Draft", "Active", "Done"], "columnColors": {"Draft": "#64748b", "Active": "#3b82f6", "Done": "#22c55e"}, "allowDrag": true, "showCounts": true, "cardTemplate": {"titleField": "name", "statusField": "status", "bodyFields": ["author"]}}
+
+Table:
+{"columns": ["name", "status", "author", "created_at"], "sortable": true, "statusColors": {"Active": "#3b82f6", "Done": "#22c55e"}}
+
+Timeline:
+{"dateField": "created_at", "granularity": "week", "showConnectors": true, "cardTemplate": {"titleField": "name", "subtitleField": "author"}}
+
+Gantt:
+{"startDateField": "start_date", "endDateField": "end_date", "groupByField": "assignee", "timeScale": "week", "statusColors": {"In Progress": "#3b82f6"}}
+
+Cards:
+{"layout": "grid", "columns": 3, "cardTemplate": {"titleField": "name", "subtitleField": "type", "bodyFields": ["description"]}}
+
+Tree:
+{"expandable": true, "showDepthLines": true, "cardTemplate": {"titleField": "name", "statusField": "status"}}
+
+## Color Guidelines
+- Pending/Draft/New/Proposed: grey (#64748b)
+- In Progress/Active/Running: blue (#3b82f6)
+- Complete/Done/Validated/Approved: green (#22c55e)
+- Failed/Rejected/Error/Blocked: red (#ef4444)
+- Archived/Cancelled/Closed: dark grey (#475569)
+- Warning/Review: yellow (#eab308)
+
+## Rules
+1. Generate 3-6 diverse views that would be genuinely useful for this workflow
+2. rootType MUST exactly match a node type name from the schema
+3. All field keys MUST exactly match keys from the schema
+4. Choose view styles that match the data - don't force styles that don't fit
+5. Each view should serve a different purpose (don't just make 5 kanban boards)
+6. Consider: What would users of this workflow actually need to see?
+7. Only output valid JSON, no markdown or explanations
+"""
 
 VIEW_GENERATION_SYSTEM = """You are a view template generator for a workflow management system.
 
@@ -110,6 +211,43 @@ def _build_schema_context(definition: WorkflowDefinition) -> str:
     return "\n".join(lines)
 
 
+def _build_schema_context_detailed(definition: WorkflowDefinition) -> str:
+    """Build a detailed schema context for view generation."""
+    lines = [
+        "## Workflow Schema",
+        f"Name: {definition.name}",
+        f"Description: {definition.description}",
+        "",
+    ]
+
+    lines.append("### Node Types (use these exact names for rootType)")
+    for nt in definition.node_types:
+        lines.append(f"\n**{nt.type}** (display: {nt.display_name})")
+        lines.append(f'  Title field: "{nt.title_field}"')
+        if nt.subtitle_field:
+            lines.append(f'  Subtitle field: "{nt.subtitle_field}"')
+
+        # Show states if enabled
+        if nt.states and nt.states.enabled:
+            lines.append(f"  Status values: {nt.states.values}")
+
+        lines.append("  Fields (use these exact keys):")
+        for field in nt.fields:
+            field_info = f'    - "{field.key}": {field.kind.value}'
+            if field.values:
+                field_info += f" (enum values: {field.values})"
+            if field.required:
+                field_info += " [required]"
+            lines.append(field_info)
+
+    if definition.edge_types:
+        lines.append("\n### Edge Types (relationships)")
+        for et in definition.edge_types:
+            lines.append(f"  - {et.from_type} --[{et.type}]--> {et.to_type}")
+
+    return "\n".join(lines)
+
+
 class ViewGenerator:
     """Generates view templates from natural language descriptions."""
 
@@ -148,6 +286,120 @@ Generate a JSON view template using exact field keys from the schema."""
             raise ValueError(f"Generated view is invalid: {e}") from e
 
         return view
+
+    async def generate_views_from_description(
+        self, description: str, workflow_definition: WorkflowDefinition
+    ) -> list[ViewTemplateCreate]:
+        """Generate multiple diverse views based on the workflow description and schema.
+
+        Uses LLM to intelligently create views that match the workflow's purpose.
+
+        Args:
+            description: The original user description of the workflow
+            workflow_definition: The generated workflow schema
+
+        Returns:
+            List of ViewTemplateCreate objects
+        """
+        schema_context = _build_schema_context_detailed(workflow_definition)
+
+        prompt = f"""Generate useful views for this workflow:
+
+## Original Workflow Description
+"{description}"
+
+{schema_context}
+
+Based on the workflow description and schema, generate 3-6 diverse views that would help users work effectively with this data. Choose view styles that match the data structure and workflow purpose."""
+
+        try:
+            result = await self._llm_client.generate_json(
+                prompt=prompt,
+                system=VIEWS_FROM_DESCRIPTION_SYSTEM,
+                max_tokens=4096,
+                temperature=0.3,
+            )
+        except Exception as e:
+            logger.error(f"LLM view generation failed: {e}")
+            raise ValueError(f"Failed to generate views: {e}") from e
+
+        views = result.get("views", [])
+        if not views:
+            logger.warning("LLM returned no views, falling back to auto-generation")
+            return self.auto_generate_views(workflow_definition)
+
+        validated_views: list[ViewTemplateCreate] = []
+        for view_data in views:
+            try:
+                view = self._parse_view_from_llm(view_data, workflow_definition)
+                validated_views.append(view)
+            except (ValueError, ValidationError) as e:
+                logger.warning(f"Skipping invalid view: {e}")
+                continue
+
+        if not validated_views:
+            logger.warning("No valid views from LLM, falling back to auto-generation")
+            return self.auto_generate_views(workflow_definition)
+
+        return validated_views
+
+    def _parse_view_from_llm(
+        self, view_data: dict, definition: WorkflowDefinition
+    ) -> ViewTemplateCreate:
+        """Parse and validate a single view from LLM output."""
+        valid_types = {nt.type for nt in definition.node_types}
+        root_type = view_data.get("rootType")
+
+        if root_type not in valid_types:
+            raise ValueError(f"Invalid rootType '{root_type}'")
+
+        node_type_def = next(
+            nt for nt in definition.node_types if nt.type == root_type
+        )
+        valid_fields = {f.key for f in node_type_def.fields}
+
+        style = view_data.get("style", "kanban")
+        style_config = view_data.get("styleConfig", {})
+
+        # Parse based on style
+        if style == "kanban":
+            config = KanbanConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.KANBAN, styleConfig=config)
+        elif style == "table":
+            config = TableConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.TABLE, styleConfig=config)
+        elif style == "timeline":
+            # Validate dateField exists
+            date_field = style_config.get("dateField")
+            if date_field and date_field not in valid_fields:
+                raise ValueError(f"Invalid dateField '{date_field}'")
+            config = TimelineConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.TIMELINE, styleConfig=config)
+        elif style == "tree":
+            config = TreeConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.TREE, styleConfig=config)
+        elif style == "gantt":
+            # Validate date fields exist
+            start_field = style_config.get("startDateField")
+            end_field = style_config.get("endDateField")
+            if start_field and start_field not in valid_fields:
+                raise ValueError(f"Invalid startDateField '{start_field}'")
+            if end_field and end_field not in valid_fields:
+                raise ValueError(f"Invalid endDateField '{end_field}'")
+            config = GanttConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.GANTT, styleConfig=config)
+        elif style == "cards":
+            config = CardsConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.CARDS, styleConfig=config)
+        else:
+            raise ValueError(f"Unknown style '{style}'")
+
+        return ViewTemplateCreate(
+            name=view_data.get("name", f"{root_type} View"),
+            description=view_data.get("description"),
+            rootType=root_type,
+            levels={root_type: level_config},
+        )
 
     def _parse_and_validate(
         self, result: dict, definition: WorkflowDefinition
@@ -205,7 +457,7 @@ Generate a JSON view template using exact field keys from the schema."""
 
                 config = KanbanConfig.model_validate(style_config)
                 processed_levels[node_type_name] = LevelConfig(
-                    style=ViewStyle.KANBAN, style_config=config
+                    style=ViewStyle.KANBAN, styleConfig=config
                 )
             elif style_str == "gantt":
                 # Validate date fields
@@ -237,7 +489,7 @@ Generate a JSON view template using exact field keys from the schema."""
 
                 config = GanttConfig.model_validate(style_config)
                 processed_levels[node_type_name] = LevelConfig(
-                    style=ViewStyle.GANTT, style_config=config
+                    style=ViewStyle.GANTT, styleConfig=config
                 )
             else:
                 # Default to kanban for unimplemented styles
@@ -246,28 +498,28 @@ Generate a JSON view template using exact field keys from the schema."""
                 )
                 if status_field and status_field.values:
                     config = KanbanConfig(
-                        group_by_field="status",
-                        column_order=status_field.values,
-                        allow_drag=True,
-                        show_counts=True,
-                        show_empty_columns=True,
+                        groupByField="status",
+                        columnOrder=status_field.values,
+                        allowDrag=True,
+                        showCounts=True,
+                        showEmptyColumns=True,
                     )
                 else:
                     config = KanbanConfig(
-                        group_by_field="status",
-                        allow_drag=True,
-                        show_counts=True,
-                        show_empty_columns=True,
+                        groupByField="status",
+                        allowDrag=True,
+                        showCounts=True,
+                        showEmptyColumns=True,
                     )
                 processed_levels[node_type_name] = LevelConfig(
-                    style=ViewStyle.KANBAN, style_config=config
+                    style=ViewStyle.KANBAN, styleConfig=config
                 )
 
         return ViewTemplateCreate(
             name=result.get("name", f"{root_type} View"),
             description=result.get("description"),
             icon=result.get("icon"),
-            root_type=root_type,
+            rootType=root_type,
             levels=processed_levels,
         )
 
@@ -393,31 +645,31 @@ Generate a JSON view template using exact field keys from the schema."""
                 }
 
                 card_template = CardTemplate(
-                    title_field=title_field,
-                    subtitle_field=subtitle_field,
-                    status_field=status_field,
-                    body_fields=body_fields,
-                    status_colors=col_colors,
+                    titleField=title_field,
+                    subtitleField=subtitle_field,
+                    statusField=status_field,
+                    bodyFields=body_fields,
+                    statusColors=col_colors,
                 )
 
                 kanban_config = KanbanConfig(
-                    group_by_field=status_field,
-                    column_order=status_values,
-                    column_colors=col_colors,
-                    allow_drag=True,
-                    show_counts=True,
-                    show_empty_columns=True,
-                    card_template=card_template,
+                    groupByField=status_field,
+                    columnOrder=status_values,
+                    columnColors=col_colors,
+                    allowDrag=True,
+                    showCounts=True,
+                    showEmptyColumns=True,
+                    cardTemplate=card_template,
                 )
 
                 views.append(ViewTemplateCreate(
                     name=f"{node_type.display_name} Board",
                     description=f"Kanban board for {node_type.display_name} by {status_field}",
-                    root_type=node_type.type,
+                    rootType=node_type.type,
                     levels={
                         node_type.type: LevelConfig(
                             style=ViewStyle.KANBAN,
-                            style_config=kanban_config,
+                            styleConfig=kanban_config,
                         )
                     },
                 ))
@@ -439,11 +691,11 @@ Generate a JSON view template using exact field keys from the schema."""
                 views.append(ViewTemplateCreate(
                     name=f"{node_type.display_name} List",
                     description=f"Table view of all {node_type.display_name} items",
-                    root_type=node_type.type,
+                    rootType=node_type.type,
                     levels={
                         node_type.type: LevelConfig(
                             style=ViewStyle.TABLE,
-                            style_config=table_config,
+                            styleConfig=table_config,
                         )
                     },
                 ))

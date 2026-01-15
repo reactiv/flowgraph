@@ -2,7 +2,7 @@
  * TypeScript types mirroring the backend Pydantic models.
  */
 
-import type { ViewTemplate } from './view-templates';
+import type { ViewTemplate, ViewTemplateCreate } from './view-templates';
 
 // ==================== Field Kinds ====================
 
@@ -218,4 +218,5 @@ export interface CreateFromLanguageRequest {
 export interface CreateFromLanguageResponse {
   definition: WorkflowDefinition;
   validation: SchemaValidationResult;
+  view_templates: ViewTemplateCreate[];
 }

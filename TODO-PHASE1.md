@@ -157,10 +157,17 @@
 ### 4.5 API Endpoint
 - [x] `POST /api/v1/workflows/from-language`
   - Request: `{ "description": "...", "options": {...} }`
-  - Response: `{ "definition": WorkflowDefinition, "validation": {...} }`
+  - Response: `{ "definition": WorkflowDefinition, "validation": {...}, "view_templates": [...] }`
+  - Now also generates LLM-based view templates conditioned on the prompt and schema
 - [x] `POST /api/v1/workflows/from-definition`
   - Request: `WorkflowDefinition`
   - Response: `WorkflowSummary` (creates workflow from validated definition)
+
+### 4.6 Create Workflow UX Enhancements
+- [x] Generated view templates displayed in preview (with style icons)
+- [x] Demo data scale selector (small/medium/large, default: medium)
+- [x] Auto-seeding on workflow creation (creates workflow + seeds with demo data)
+- [x] Extended timeouts for LLM routes (5 minutes for from-language, seed, from-definition)
 
 ---
 
@@ -342,10 +349,12 @@
 
 #### LLM View Generation (Backend)
 - [x] `ViewGenerator` class in `backend/app/llm/view_generator.py`
-- [x] System prompt for generating Kanban view configs from natural language
-- [x] Schema context builder (extracts node types, fields, values)
+- [x] System prompt for generating diverse view configs (kanban, table, timeline, tree, gantt, cards)
+- [x] Schema context builder (extracts node types, fields, values, edges)
 - [x] Validation against workflow schema (rootType, field keys)
 - [x] `POST /api/v1/workflows/{workflow_id}/views/generate` endpoint
+- [x] `generate_views_from_description()` method - generates 3-6 diverse views based on workflow description and schema
+- [x] LLM chooses appropriate view styles based on data structure (not just rule-based kanban)
 
 #### View Management UI (Frontend)
 - [x] `ViewTemplateCreate` TypeScript type

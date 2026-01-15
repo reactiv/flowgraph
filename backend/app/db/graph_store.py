@@ -46,16 +46,23 @@ class GraphStore:
         db = await get_db()
         now = _now()
 
+        # Generate a unique ID to avoid collisions with LLM-generated IDs
+        unique_id = f"{definition.workflow_id}-{_generate_id()[:8]}"
+
+        # Update the definition with the unique ID for storage
+        definition_dict = definition.model_dump(by_alias=True)
+        definition_dict["workflowId"] = unique_id
+
         await db.execute(
             """
             INSERT INTO workflow_definitions (id, name, version, definition_json, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                definition.workflow_id,
+                unique_id,
                 definition.name,
                 1,
-                definition.model_dump_json(by_alias=True),
+                json.dumps(definition_dict),
                 now,
                 now,
             ),
@@ -63,7 +70,7 @@ class GraphStore:
         await db.commit()
 
         return WorkflowSummary(
-            id=definition.workflow_id,
+            id=unique_id,
             name=definition.name,
             description=definition.description,
             version=1,
@@ -583,7 +590,7 @@ class GraphStore:
             name=view_create.name,
             description=view_create.description,
             icon=view_create.icon,
-            root_type=view_create.root_type,
+            rootType=view_create.root_type,
             edges=view_create.edges,
             levels=view_create.levels,
             filters=view_create.filters,

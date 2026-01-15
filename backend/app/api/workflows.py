@@ -55,6 +55,7 @@ class CreateFromLanguageResponse(BaseModel):
 
     definition: WorkflowDefinition
     validation: SchemaValidationResult
+    view_templates: list[ViewTemplateCreate] = []
 
 
 class NodesResponse(BaseModel):
@@ -116,7 +117,18 @@ async def create_from_language(
         definition, validation = await generator.generate_schema(
             request.description, options
         )
-        return CreateFromLanguageResponse(definition=definition, validation=validation)
+
+        # Generate view templates based on the schema and original description
+        view_generator = ViewGenerator()
+        view_templates = await view_generator.generate_views_from_description(
+            request.description, definition
+        )
+
+        return CreateFromLanguageResponse(
+            definition=definition,
+            validation=validation,
+            view_templates=view_templates,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -111,7 +111,7 @@ LOG_LEVEL=info                    # Logging verbosity
 ```
 GET    /api/v1/templates
 POST   /api/v1/workflows/from-template
-POST   /api/v1/workflows/from-language      # LLM schema generation
+POST   /api/v1/workflows/from-language      # LLM schema + view generation
 POST   /api/v1/workflows/from-definition    # Create from validated definition
 GET    /api/v1/workflows/{id}
 GET    /api/v1/workflows/{id}/nodes
@@ -120,9 +120,23 @@ GET    /api/v1/workflows/{id}/nodes/{node_id}
 PATCH  /api/v1/workflows/{id}/nodes/{node_id}
 GET    /api/v1/workflows/{id}/nodes/{node_id}/neighbors
 POST   /api/v1/workflows/{id}/edges
-POST   /api/v1/workflows/{id}/seed
+POST   /api/v1/workflows/{id}/seed          # LLM data generation (long-running)
 POST   /api/v1/workflows/{id}/reset
+GET    /api/v1/workflows/{id}/views
+POST   /api/v1/workflows/{id}/views/generate # LLM view generation
 ```
+
+### Create Workflow Flow
+The `/api/v1/workflows/from-language` endpoint returns:
+- `definition`: Generated WorkflowDefinition schema
+- `validation`: Validation results (errors, warnings, fixes)
+- `view_templates`: LLM-generated view templates (3-6 diverse views based on prompt + schema)
+
+The create page allows users to:
+1. Describe workflow in natural language
+2. Preview generated schema graph and view templates
+3. Select demo data scale (small/medium/large)
+4. Create workflow with auto-seeding
 
 ## Development Guidelines
 

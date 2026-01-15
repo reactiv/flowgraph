@@ -10,6 +10,7 @@ import type {
   SchemaGenerationOptions,
   SchemaValidationResult,
 } from '@/types/workflow';
+import type { ViewTemplateCreate } from '@/types/view-templates';
 
 // Example prompts to help users get started
 const EXAMPLE_PROMPTS = [
@@ -41,9 +42,11 @@ export default function CreateWorkflowPage() {
     includeTags: true,
     scientificTerminology: false,
   });
+  const [dataScale, setDataScale] = useState<'small' | 'medium' | 'large'>('medium');
 
   // Generation state
   const [generatedDefinition, setGeneratedDefinition] = useState<WorkflowDefinition | null>(null);
+  const [generatedViews, setGeneratedViews] = useState<ViewTemplateCreate[]>([]);
   const [validation, setValidation] = useState<SchemaValidationResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -63,6 +66,7 @@ export default function CreateWorkflowPage() {
       const response = await api.generateSchemaFromLanguage(description, options);
       setGeneratedDefinition(response.definition);
       setValidation(response.validation);
+      setGeneratedViews(response.view_templates || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate schema');
     } finally {
@@ -78,7 +82,24 @@ export default function CreateWorkflowPage() {
     setError(null);
 
     try {
-      const workflow = await api.createFromDefinition(generatedDefinition);
+      // Merge generated views into the definition
+      // Convert ViewTemplateCreate to ViewTemplate by adding generated IDs
+      const viewTemplatesWithIds = generatedViews.map((view, index) => ({
+        ...view,
+        id: `view-${Date.now()}-${index}`,
+        edges: view.edges || [],
+      }));
+
+      const definitionWithViews = {
+        ...generatedDefinition,
+        viewTemplates: viewTemplatesWithIds,
+      };
+
+      const workflow = await api.createFromDefinition(definitionWithViews);
+
+      // Seed the workflow with demo data
+      await api.seedWorkflow(workflow.id, dataScale);
+
       router.push(`/workflows/${workflow.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workflow');
@@ -89,6 +110,7 @@ export default function CreateWorkflowPage() {
   // Reset to start over
   const handleReset = () => {
     setGeneratedDefinition(null);
+    setGeneratedViews([]);
     setValidation(null);
     setError(null);
   };
@@ -295,6 +317,77 @@ export default function CreateWorkflowPage() {
               </div>
             </div>
 
+            {/* Generated View Templates */}
+            {generatedViews.length > 0 && (
+              <div className="border rounded-lg p-4">
+                <h3 className="font-medium mb-3">Generated Views</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  These views will be created automatically with your workflow.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {generatedViews.map((view, index) => {
+                    // Get the style from the first level config
+                    const levelConfig = Object.values(view.levels)[0];
+                    const style = levelConfig?.style || 'kanban';
+                    const styleIcon = {
+                      kanban: '📊',
+                      cards: '🃏',
+                      tree: '🌳',
+                      timeline: '📅',
+                      table: '📋',
+                      gantt: '📈',
+                    }[style] || '📊';
+
+                    return (
+                      <div
+                        key={index}
+                        className="border rounded-lg p-3 bg-muted/30"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{styleIcon}</span>
+                          <div>
+                            <div className="font-medium">{view.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {view.rootType} • {style}
+                            </div>
+                          </div>
+                        </div>
+                        {view.description && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {view.description}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Demo Data Settings */}
+            <div className="border rounded-lg p-4">
+              <h3 className="font-medium mb-3">Demo Data</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Generate realistic sample data to populate your workflow.
+              </p>
+              <div className="flex items-center gap-3">
+                <label htmlFor="data-scale" className="text-sm font-medium">
+                  Amount:
+                </label>
+                <select
+                  id="data-scale"
+                  value={dataScale}
+                  onChange={(e) => setDataScale(e.target.value as 'small' | 'medium' | 'large')}
+                  disabled={isCreating}
+                  className="px-3 py-2 border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="small">Small (3-8 items per type)</option>
+                  <option value="medium">Medium (10-25 items per type)</option>
+                  <option value="large">Large (30-60 items per type)</option>
+                </select>
+              </div>
+            </div>
+
             {/* Error Display */}
             {error && (
               <div className="p-4 border border-destructive rounded-lg bg-destructive/10 text-destructive">
@@ -316,7 +409,7 @@ export default function CreateWorkflowPage() {
                 disabled={isCreating || (validation !== null && !validation.isValid)}
                 className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isCreating ? 'Creating Workflow...' : 'Create Workflow'}
+                {isCreating ? 'Creating & Seeding...' : 'Create Workflow'}
               </button>
             </div>
           </div>

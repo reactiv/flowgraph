@@ -426,7 +426,7 @@ class DataGenerator:
     async def _populate_field_values(
         self, nodes: list[GeneratedNode], definition: WorkflowDefinition
     ) -> list[GeneratedNode]:
-        """Populate field values using LLM for summaries."""
+        """Populate field values using LLM for titles and summaries."""
         # Group nodes by type for batch processing
         nodes_by_type: dict[str, list[GeneratedNode]] = {}
         for node in nodes:
@@ -434,11 +434,18 @@ class DataGenerator:
                 nodes_by_type[node.node_type] = []
             nodes_by_type[node.node_type].append(node)
 
-        # Generate summaries/descriptions for each type
+        # Generate titles and summaries for each type
         for type_name, type_nodes in nodes_by_type.items():
             type_def = self._get_node_type(definition, type_name)
             if type_def is None:
                 continue
+
+            # Skip Tag nodes - keep simple names
+            if type_name == "Tag":
+                continue
+
+            # Generate creative titles with LLM
+            await self._generate_titles_with_llm(type_nodes, type_def, definition)
 
             # Check if this type has summary/description fields
             summary_fields = [
@@ -452,6 +459,69 @@ class DataGenerator:
                 )
 
         return nodes
+
+    async def _generate_titles_with_llm(
+        self,
+        nodes: list[GeneratedNode],
+        type_def: NodeType,
+        definition: WorkflowDefinition,
+    ) -> None:
+        """Use LLM to generate creative, realistic titles for nodes."""
+        if not self.llm_client or len(nodes) == 0:
+            return
+
+        # Batch nodes for efficiency (max 20 at a time)
+        batch_size = 20
+
+        for i in range(0, len(nodes), batch_size):
+            batch = nodes[i : i + batch_size]
+
+            prompt = f"""Generate {len(batch)} creative, realistic titles for {type_def.display_name} items in a "{definition.name}" workflow.
+
+Context: {definition.description}
+
+Requirements:
+- Each title should be unique and memorable
+- Titles should sound realistic for this domain
+- Vary the style: some short, some descriptive
+- Don't use generic names like "Item 1" or "Test-001"
+- Make them sound like real projects/items someone would create
+
+Examples of good titles (adapt to the domain):
+- For projects: "Q4 Marketing Campaign", "Website Redesign 2024", "Customer Onboarding Flow"
+- For tasks: "Fix login timeout bug", "Update pricing page copy", "Review Q3 analytics"
+- For experiments: "Thermal Stability Analysis", "User Engagement A/B Test", "Compound X Efficacy Trial"
+- For samples: "Batch 7 Titanium Alloy", "Patient cohort  Alpha-3", "Soil sample - North Ridge"
+
+Return JSON:
+{{"titles": ["title1", "title2", ...]}}
+
+Generate exactly {len(batch)} titles."""
+
+            try:
+                result = await self.llm_client.generate_json(
+                    prompt=prompt,
+                    system=(
+                        "You are a creative data generator. Generate realistic, varied, "
+                        "domain-appropriate titles that sound like real items in a professional workflow. "
+                        "Be creative and specific. Return valid JSON only."
+                    ),
+                    max_tokens=2000,
+                    temperature=0.9,
+                )
+
+                titles = result.get("titles", [])
+                for j, node in enumerate(batch):
+                    if j < len(titles):
+                        node.title = titles[j]
+                        # Also update title in properties if present
+                        if "title" in node.properties:
+                            node.properties["title"] = titles[j]
+                        if "name" in node.properties:
+                            node.properties["name"] = titles[j]
+
+            except Exception as e:
+                logger.warning(f"Failed to generate titles for batch: {e}")
 
     async def _generate_summaries_with_llm(
         self,

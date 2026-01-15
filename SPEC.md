@@ -189,7 +189,18 @@ A dedicated “Describe Workflow” page:
    - If JSON parsing or Pydantic validation fails, error is fed back to LLM
    - LLM retries with error context (up to 3 attempts)
    - No non-LLM auto-fix layer; LLM is responsible for valid output
-4) **Preview renderer** draws the schema graph via React Flow.
+4) **View Template Generation** (LLM):
+   - After schema generation, a second LLM call generates 3-6 diverse view templates
+   - Views are conditioned on both the original description AND the generated schema
+   - LLM chooses appropriate styles (kanban, table, timeline, tree, gantt, cards) based on data structure
+5) **Preview renderer** draws the schema graph and generated views via React Flow.
+
+### 6.5 Create workflow UX
+The create workflow page provides:
+- Schema generation with live preview
+- Generated view templates display (with style icons: kanban, table, etc.)
+- Demo data scale selector (small/medium/large, default: medium)
+- One-click creation with auto-seeding
 
 ### 6.3 LLM support options (prototype-friendly)
 The prototype should support either:
