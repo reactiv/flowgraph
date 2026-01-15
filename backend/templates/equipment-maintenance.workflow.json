@@ -1,0 +1,367 @@
+{
+  "workflowId": "equipment_maintenance_v1",
+  "name": "Equipment Maintenance Management",
+  "description": "Track equipment assets, maintenance work orders, spare parts inventory, and inspection schedules. Supports hierarchical equipment structures and preventive maintenance planning.",
+  "nodeTypes": [
+    {
+      "type": "Equipment",
+      "displayName": "Equipment",
+      "titleField": "name",
+      "subtitleField": "equipment_id",
+      "fields": [
+        {"key": "equipment_id", "label": "Equipment ID", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "equipment_type", "label": "Type", "kind": "enum", "values": ["Plant", "Production Line", "Machine", "Component", "Instrument"]},
+        {"key": "manufacturer", "label": "Manufacturer", "kind": "string"},
+        {"key": "model", "label": "Model", "kind": "string"},
+        {"key": "serial_number", "label": "Serial Number", "kind": "string"},
+        {"key": "location", "label": "Location", "kind": "string"},
+        {"key": "install_date", "label": "Install Date", "kind": "datetime"},
+        {"key": "criticality", "label": "Criticality", "kind": "enum", "values": ["Critical", "High", "Medium", "Low"]},
+        {"key": "status", "label": "Status", "kind": "enum", "values": ["Operational", "Degraded", "Down", "Under Maintenance", "Decommissioned"]},
+        {"key": "specifications", "label": "Specifications", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Operational",
+        "values": ["Operational", "Degraded", "Down", "Under Maintenance", "Decommissioned"],
+        "transitions": [
+          {"from": "Operational", "to": "Degraded"},
+          {"from": "Operational", "to": "Down"},
+          {"from": "Operational", "to": "Under Maintenance"},
+          {"from": "Degraded", "to": "Operational"},
+          {"from": "Degraded", "to": "Down"},
+          {"from": "Degraded", "to": "Under Maintenance"},
+          {"from": "Down", "to": "Under Maintenance"},
+          {"from": "Under Maintenance", "to": "Operational"},
+          {"from": "Under Maintenance", "to": "Degraded"},
+          {"from": "Operational", "to": "Decommissioned"},
+          {"from": "Down", "to": "Decommissioned"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "graph", "tree"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["equipment_id", "name", "equipment_type", "status", "criticality", "location"]
+      }
+    },
+    {
+      "type": "WorkOrder",
+      "displayName": "Work Order",
+      "titleField": "title",
+      "subtitleField": "work_order_id",
+      "fields": [
+        {"key": "work_order_id", "label": "Work Order ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string"},
+        {"key": "work_type", "label": "Type", "kind": "enum", "values": ["Preventive", "Corrective", "Emergency", "Inspection", "Calibration", "Upgrade"]},
+        {"key": "priority", "label": "Priority", "kind": "enum", "values": ["Critical", "High", "Medium", "Low"]},
+        {"key": "status", "label": "Status", "kind": "enum", "values": ["Planned", "Scheduled", "In Progress", "On Hold", "Completed", "Cancelled"]},
+        {"key": "assigned_to", "label": "Assigned To", "kind": "person"},
+        {"key": "requested_by", "label": "Requested By", "kind": "person"},
+        {"key": "scheduled_date", "label": "Scheduled Date", "kind": "datetime"},
+        {"key": "due_date", "label": "Due Date", "kind": "datetime"},
+        {"key": "completed_date", "label": "Completed Date", "kind": "datetime"},
+        {"key": "estimated_hours", "label": "Estimated Hours", "kind": "number"},
+        {"key": "actual_hours", "label": "Actual Hours", "kind": "number"},
+        {"key": "notes", "label": "Notes", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Planned",
+        "values": ["Planned", "Scheduled", "In Progress", "On Hold", "Completed", "Cancelled"],
+        "transitions": [
+          {"from": "Planned", "to": "Scheduled"},
+          {"from": "Planned", "to": "Cancelled"},
+          {"from": "Scheduled", "to": "In Progress"},
+          {"from": "Scheduled", "to": "On Hold"},
+          {"from": "Scheduled", "to": "Cancelled"},
+          {"from": "In Progress", "to": "On Hold"},
+          {"from": "In Progress", "to": "Completed"},
+          {"from": "On Hold", "to": "In Progress"},
+          {"from": "On Hold", "to": "Cancelled"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "kanban", "timeline"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["work_order_id", "title", "work_type", "priority", "status", "assigned_to", "due_date"]
+      }
+    },
+    {
+      "type": "SparePart",
+      "displayName": "Spare Part",
+      "titleField": "name",
+      "subtitleField": "part_number",
+      "fields": [
+        {"key": "part_number", "label": "Part Number", "kind": "string", "required": true, "unique": true},
+        {"key": "name", "label": "Name", "kind": "string", "required": true},
+        {"key": "description", "label": "Description", "kind": "string"},
+        {"key": "category", "label": "Category", "kind": "enum", "values": ["Mechanical", "Electrical", "Electronic", "Hydraulic", "Pneumatic", "Consumable", "Safety"]},
+        {"key": "manufacturer", "label": "Manufacturer", "kind": "string"},
+        {"key": "supplier", "label": "Supplier", "kind": "string"},
+        {"key": "quantity_on_hand", "label": "Qty On Hand", "kind": "number"},
+        {"key": "reorder_point", "label": "Reorder Point", "kind": "number"},
+        {"key": "unit_cost", "label": "Unit Cost", "kind": "number"},
+        {"key": "lead_time_days", "label": "Lead Time (Days)", "kind": "number"},
+        {"key": "storage_location", "label": "Storage Location", "kind": "string"},
+        {"key": "status", "label": "Status", "kind": "enum", "values": ["In Stock", "Low Stock", "Out of Stock", "On Order", "Obsolete"]},
+        {"key": "specifications", "label": "Specifications", "kind": "json"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "In Stock",
+        "values": ["In Stock", "Low Stock", "Out of Stock", "On Order", "Obsolete"],
+        "transitions": [
+          {"from": "In Stock", "to": "Low Stock"},
+          {"from": "In Stock", "to": "Out of Stock"},
+          {"from": "Low Stock", "to": "In Stock"},
+          {"from": "Low Stock", "to": "Out of Stock"},
+          {"from": "Low Stock", "to": "On Order"},
+          {"from": "Out of Stock", "to": "On Order"},
+          {"from": "On Order", "to": "In Stock"},
+          {"from": "On Order", "to": "Low Stock"},
+          {"from": "In Stock", "to": "Obsolete"},
+          {"from": "Low Stock", "to": "Obsolete"},
+          {"from": "Out of Stock", "to": "Obsolete"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "table"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["part_number", "name", "category", "quantity_on_hand", "status", "storage_location"]
+      }
+    },
+    {
+      "type": "Inspection",
+      "displayName": "Inspection",
+      "titleField": "title",
+      "subtitleField": "inspection_id",
+      "fields": [
+        {"key": "inspection_id", "label": "Inspection ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "inspection_type", "label": "Type", "kind": "enum", "values": ["Routine", "Safety", "Compliance", "Condition Assessment", "Pre-Startup", "Post-Maintenance"]},
+        {"key": "inspector", "label": "Inspector", "kind": "person"},
+        {"key": "inspection_date", "label": "Inspection Date", "kind": "datetime", "required": true},
+        {"key": "next_due_date", "label": "Next Due Date", "kind": "datetime"},
+        {"key": "result", "label": "Result", "kind": "enum", "values": ["Pass", "Pass with Observations", "Fail", "Pending Review"]},
+        {"key": "status", "label": "Status", "kind": "enum", "values": ["Scheduled", "In Progress", "Completed", "Overdue"]},
+        {"key": "findings", "label": "Findings", "kind": "json"},
+        {"key": "checklist_completed", "label": "Checklist Items Completed", "kind": "number"},
+        {"key": "checklist_total", "label": "Checklist Items Total", "kind": "number"},
+        {"key": "attachments", "label": "Attachments", "kind": "file[]"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Scheduled",
+        "values": ["Scheduled", "In Progress", "Completed", "Overdue"],
+        "transitions": [
+          {"from": "Scheduled", "to": "In Progress"},
+          {"from": "Scheduled", "to": "Overdue"},
+          {"from": "In Progress", "to": "Completed"},
+          {"from": "Overdue", "to": "In Progress"},
+          {"from": "Overdue", "to": "Completed"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "timeline", "kanban"],
+        "primarySections": ["summary", "relationships", "files", "events"],
+        "listColumns": ["inspection_id", "title", "inspection_type", "inspector", "inspection_date", "result", "status"]
+      }
+    },
+    {
+      "type": "MaintenanceLog",
+      "displayName": "Maintenance Log",
+      "titleField": "title",
+      "subtitleField": "log_id",
+      "fields": [
+        {"key": "log_id", "label": "Log ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "log_type", "label": "Type", "kind": "enum", "values": ["Repair", "Replacement", "Adjustment", "Lubrication", "Cleaning", "Observation", "Failure"]},
+        {"key": "technician", "label": "Technician", "kind": "person"},
+        {"key": "log_date", "label": "Date", "kind": "datetime", "required": true},
+        {"key": "duration_hours", "label": "Duration (Hours)", "kind": "number"},
+        {"key": "description", "label": "Description", "kind": "string"},
+        {"key": "root_cause", "label": "Root Cause", "kind": "string"},
+        {"key": "actions_taken", "label": "Actions Taken", "kind": "json"},
+        {"key": "status", "label": "Status", "kind": "enum", "values": ["Draft", "Submitted", "Reviewed", "Archived"]},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "Submitted", "Reviewed", "Archived"],
+        "transitions": [
+          {"from": "Draft", "to": "Submitted"},
+          {"from": "Submitted", "to": "Reviewed"},
+          {"from": "Reviewed", "to": "Archived"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail", "timeline"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["log_id", "title", "log_type", "technician", "log_date", "status"]
+      }
+    }
+  ],
+  "edgeTypes": [
+    {"type": "PARENT_OF", "displayName": "parent of", "from": "Equipment", "to": "Equipment", "direction": "out"},
+    {"type": "HAS_WORK_ORDER", "displayName": "has work order", "from": "Equipment", "to": "WorkOrder", "direction": "out"},
+    {"type": "USES_PART", "displayName": "uses part", "from": "WorkOrder", "to": "SparePart", "direction": "out"},
+    {"type": "REQUIRES_PART", "displayName": "requires part", "from": "Equipment", "to": "SparePart", "direction": "out"},
+    {"type": "HAS_INSPECTION", "displayName": "has inspection", "from": "Equipment", "to": "Inspection", "direction": "out"},
+    {"type": "HAS_LOG", "displayName": "has log", "from": "Equipment", "to": "MaintenanceLog", "direction": "out"},
+    {"type": "GENERATED_FROM", "displayName": "generated from", "from": "WorkOrder", "to": "Inspection", "direction": "out"},
+    {"type": "DOCUMENTED_BY", "displayName": "documented by", "from": "WorkOrder", "to": "MaintenanceLog", "direction": "out"}
+  ],
+  "rules": [
+    {
+      "id": "work_order_requires_equipment",
+      "when": {"nodeType": "WorkOrder", "transitionTo": "Scheduled"},
+      "requireEdges": [{"edgeType": "HAS_WORK_ORDER", "minCount": 1, "direction": "in"}],
+      "message": "A Work Order must be linked to Equipment before it can be scheduled."
+    }
+  ],
+  "viewTemplates": [
+    {
+      "id": "equipment-hierarchy",
+      "name": "Equipment Hierarchy",
+      "description": "View equipment in a hierarchical tree structure showing parent-child relationships",
+      "icon": "git-branch",
+      "rootType": "Equipment",
+      "edges": [{"edgeType": "PARENT_OF", "direction": "outgoing", "targetType": "Equipment"}],
+      "levels": {
+        "Equipment": {
+          "style": "tree",
+          "styleConfig": {
+            "expandable": true,
+            "showDepthLines": true,
+            "initialExpandDepth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "work-order-board",
+      "name": "Work Order Board",
+      "description": "Kanban board showing work orders by status",
+      "icon": "columns",
+      "rootType": "WorkOrder",
+      "levels": {
+        "WorkOrder": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": ["Planned", "Scheduled", "In Progress", "On Hold", "Completed"],
+            "columnColors": {
+              "Planned": "#64748b",
+              "Scheduled": "#3b82f6",
+              "In Progress": "#f59e0b",
+              "On Hold": "#ef4444",
+              "Completed": "#22c55e",
+              "Cancelled": "#475569"
+            },
+            "allowDrag": true,
+            "showCounts": true,
+            "showEmptyColumns": true,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "work_order_id",
+              "statusField": "status",
+              "bodyFields": ["work_type", "priority", "assigned_to", "due_date"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "maintenance-timeline",
+      "name": "Maintenance Timeline",
+      "description": "Timeline view of maintenance logs and activities",
+      "icon": "clock",
+      "rootType": "MaintenanceLog",
+      "levels": {
+        "MaintenanceLog": {
+          "style": "timeline",
+          "styleConfig": {
+            "dateField": "log_date",
+            "granularity": "day",
+            "showConnectors": true,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "technician",
+              "statusField": "status",
+              "bodyFields": ["log_type", "duration_hours"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "parts-inventory",
+      "name": "Parts Inventory",
+      "description": "Table view of spare parts with sorting and filtering",
+      "icon": "package",
+      "rootType": "SparePart",
+      "levels": {
+        "SparePart": {
+          "style": "table",
+          "styleConfig": {
+            "columns": ["part_number", "name", "category", "quantity_on_hand", "reorder_point", "status", "storage_location", "unit_cost"],
+            "sortable": true,
+            "selectable": true
+          }
+        }
+      }
+    },
+    {
+      "id": "equipment-cards",
+      "name": "Equipment Overview",
+      "description": "Card grid view of all equipment",
+      "icon": "grid",
+      "rootType": "Equipment",
+      "levels": {
+        "Equipment": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "grid",
+            "columns": 3,
+            "cardTemplate": {
+              "titleField": "name",
+              "subtitleField": "equipment_id",
+              "statusField": "status",
+              "bodyFields": ["equipment_type", "location", "criticality", "manufacturer"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "inspection-schedule",
+      "name": "Inspection Schedule",
+      "description": "Timeline of inspections by date",
+      "icon": "calendar",
+      "rootType": "Inspection",
+      "levels": {
+        "Inspection": {
+          "style": "timeline",
+          "styleConfig": {
+            "dateField": "inspection_date",
+            "granularity": "week",
+            "showConnectors": true,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "inspector",
+              "statusField": "status",
+              "bodyFields": ["inspection_type", "result"]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
