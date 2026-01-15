@@ -215,11 +215,12 @@ A polished gallery with cards:
 - “Preview Graph” → modal with schema diagram + example data
 
 ### 7.2 Required templates
-1) **Your provided workflow: “Samples–Analyses–Hypotheses”** *(included below)*
+1) **Your provided workflow: "Samples–Analyses–Hypotheses"** *(included below)*
 2) **CAPA / Investigation workflow**
 3) **Sequencing provenance**
 4) **ML lifecycle**
 5) **Materials closed-loop optimization** (Goal → Hypothesis → Plan → Sample → Analysis → Model → Recommendation)
+6) **Equipment Maintenance Management** (Equipment hierarchy → Work Orders → Inspections → Parts)
 
 ### 7.3 Template storage
 - Stored locally as JSON in `/templates/*.workflow.json`
@@ -387,16 +388,36 @@ Declarative configurations that define how to traverse and render workflow subgr
       "styleConfig": {
         "groupByField": "status",
         "columnOrder": ["Proposed", "Active", "Validated", "Rejected"],
+        "columnColors": {
+          "Proposed": "#64748b",
+          "Active": "#8b5cf6",
+          "Validated": "#22c55e",
+          "Rejected": "#ef4444"
+        },
         "allowDrag": true,
         "cardTemplate": {
           "titleField": "nickname",
-          "subtitleField": "author"
+          "subtitleField": "author",
+          "statusColors": {
+            "Proposed": "#64748b",
+            "Active": "#8b5cf6",
+            "Validated": "#22c55e",
+            "Rejected": "#ef4444"
+          }
         }
       }
     }
   }
 }
 ```
+
+#### Status Colors
+Views support `statusColors` configuration (hex values) for status badges:
+- `CardTemplate.statusColors`: Colors for status badges in cards/tree/timeline
+- `TableConfig.statusColors`: Colors for status badges in table cells
+- `KanbanConfig.columnColors`: Colors for kanban column headers
+
+When provided, colors are converted to rgba with transparency for backgrounds.
 
 View templates are stored in `WorkflowDefinition.viewTemplates[]` alongside node types and edge types, allowing each workflow to define its own semantic views.
 

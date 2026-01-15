@@ -89,7 +89,22 @@
 - [x] Shows iterative scientific loops
 - [x] **File: `backend/templates/closed-loop.workflow.json`** (8 node types, 13 edge types)
 
-### 3.6 Template Storage
+### 3.6 Template: Equipment Maintenance Management
+- [x] **Equipment** (hierarchical: Plant → Line → Machine → Component)
+- [x] **WorkOrder** (Preventive, Corrective, Emergency maintenance)
+- [x] **SparePart** (inventory with reorder points)
+- [x] **Inspection** (safety, compliance, condition assessments)
+- [x] **MaintenanceLog** (repair, replacement, observation records)
+- [x] Edge types: `PARENT_OF`, `HAS_WORK_ORDER`, `USES_PART`, `HAS_INSPECTION`, `HAS_LOG`
+- [x] **6 view templates** showcasing all view styles:
+  - Tree: Equipment Hierarchy
+  - Kanban: Work Order Board
+  - Timeline: Maintenance Timeline, Inspection Schedule
+  - Table: Parts Inventory
+  - Cards: Equipment Overview
+- [x] **File: `backend/templates/equipment-maintenance.workflow.json`** (5 node types, 8 edge types)
+
+### 3.7 Template Storage
 - [x] Store templates as JSON in `/templates/*.workflow.json`
 - [x] API: `GET /api/templates` returns template list
 - [x] API: `POST /api/workflows/from-template` creates workflow from template
@@ -334,6 +349,13 @@
 - [x] TimelineView component (date grouping, connectors)
 - [x] TableView component (sortable, selectable)
 
+#### Status Colors Configuration
+- [x] `statusColors` field added to `CardTemplate` (backend + frontend)
+- [x] `cardTemplate` added to `TreeConfig` and `TimelineConfig`
+- [x] `statusColors` added to `TableConfig`
+- [x] Components use config colors with hex-to-rgba conversion for badges
+- [x] Falls back to hardcoded colors when config not provided
+
 #### Pending (Phase 2-4)
 - [ ] Hierarchical edge traversal (multi-level views)
 - [ ] Drag-drop validation against allowed transitions
@@ -395,7 +417,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 ## 8. Acceptance Criteria
 
 ### 8.1 Template Library
-- [x] Gallery shows 5 diverse workflow templates
+- [x] Gallery shows 6 diverse workflow templates (Materials R&D, CAPA, ML Lifecycle, Sequencing, Closed-Loop, Equipment Maintenance)
 - [x] Each template can be instantiated into a working workflow
 - [x] Templates demonstrate that different domains use identical primitives
 
@@ -493,11 +515,12 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │       ├── data_generator.py  # Schema → realistic instance data
 │   │       └── view_generator.py  # NL → ViewTemplate
 │   ├── templates/                 # Built-in workflow JSON files
-│   │   ├── materials_rnd.workflow.json
+│   │   ├── materials-rnd.workflow.json
 │   │   ├── capa.workflow.json
-│   │   ├── ml_lifecycle.workflow.json
+│   │   ├── ml-lifecycle.workflow.json
 │   │   ├── sequencing.workflow.json
-│   │   └── closed_loop.workflow.json
+│   │   ├── closed-loop.workflow.json
+│   │   └── equipment-maintenance.workflow.json
 │   ├── tests/                     # pytest tests
 │   │   ├── conftest.py
 │   │   ├── test_api/
