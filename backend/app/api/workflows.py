@@ -8,7 +8,14 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.db import graph_store
-from app.llm import DataGenerator, SeedConfig, ViewGenerator
+from app.llm import (
+    DataGenerator,
+    SchemaGenerationOptions,
+    SchemaGenerator,
+    SchemaValidationResult,
+    SeedConfig,
+    ViewGenerator,
+)
 from app.models import (
     Edge,
     EdgeCreate,
@@ -34,6 +41,20 @@ class CreateFromTemplateRequest(BaseModel):
     """Request to create a workflow from a template."""
 
     template_id: str
+
+
+class CreateFromLanguageRequest(BaseModel):
+    """Request to create a workflow schema from natural language."""
+
+    description: str
+    options: SchemaGenerationOptions | None = None
+
+
+class CreateFromLanguageResponse(BaseModel):
+    """Response with generated schema and validation results."""
+
+    definition: WorkflowDefinition
+    validation: SchemaValidationResult
 
 
 class NodesResponse(BaseModel):
@@ -68,6 +89,44 @@ async def create_from_template(request: CreateFromTemplateRequest) -> WorkflowSu
         data = json.load(f)
 
     definition = WorkflowDefinition.model_validate(data)
+    return await graph_store.create_workflow(definition)
+
+
+@router.post("/workflows/from-language")
+async def create_from_language(
+    request: CreateFromLanguageRequest,
+) -> CreateFromLanguageResponse:
+    """Generate a workflow schema from natural language description.
+
+    This uses Claude to interpret the description and generate a WorkflowDefinition.
+    The generated schema is returned for preview but NOT saved.
+    Call POST /workflows/from-definition to save the schema.
+    """
+    try:
+        generator = SchemaGenerator()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY.",
+        )
+
+    options = request.options or SchemaGenerationOptions()
+
+    try:
+        definition, validation = await generator.generate_schema(
+            request.description, options
+        )
+        return CreateFromLanguageResponse(definition=definition, validation=validation)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workflows/from-definition")
+async def create_from_definition(definition: WorkflowDefinition) -> WorkflowSummary:
+    """Create a workflow from a validated WorkflowDefinition.
+
+    Use this after previewing a schema generated from language.
+    """
     return await graph_store.create_workflow(definition)
 
 

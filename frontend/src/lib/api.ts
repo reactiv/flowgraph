@@ -14,6 +14,8 @@ import type {
   Event,
   NodesResponse,
   NeighborsResponse,
+  SchemaGenerationOptions,
+  CreateFromLanguageResponse,
 } from '@/types/workflow';
 import type {
   ViewSubgraphResponse,
@@ -63,6 +65,19 @@ export const api = {
   deleteWorkflow: (workflowId: string) =>
     fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}`, {
       method: 'DELETE',
+    }),
+
+  // Schema Generation
+  generateSchemaFromLanguage: (description: string, options?: SchemaGenerationOptions) =>
+    fetchJson<CreateFromLanguageResponse>('/workflows/from-language', {
+      method: 'POST',
+      body: JSON.stringify({ description, options }),
+    }),
+
+  createFromDefinition: (definition: WorkflowDefinition) =>
+    fetchJson<WorkflowSummary>('/workflows/from-definition', {
+      method: 'POST',
+      body: JSON.stringify(definition),
     }),
 
   // Nodes

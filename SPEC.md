@@ -185,11 +185,11 @@ A dedicated “Describe Workflow” page:
    - all edge endpoints refer to node types
    - field keys unique per node type
    - states/transition validity
-3) **Auto-fix layer** (non-LLM):
-   - normalize names to `SNAKE_CASE` or `PascalCase` as needed
-   - infer missing title fields
-   - add default `createdAt/updatedAt`, `status` if absent
-4) **Preview renderer** draws the schema graph and flags issues.
+3) **LLM Self-Correction** (retry loop):
+   - If JSON parsing or Pydantic validation fails, error is fed back to LLM
+   - LLM retries with error context (up to 3 attempts)
+   - No non-LLM auto-fix layer; LLM is responsible for valid output
+4) **Preview renderer** draws the schema graph via React Flow.
 
 ### 6.3 LLM support options (prototype-friendly)
 The prototype should support either:

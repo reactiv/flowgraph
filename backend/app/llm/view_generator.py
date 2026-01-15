@@ -270,3 +270,182 @@ Generate a JSON view template using exact field keys from the schema."""
             root_type=root_type,
             levels=processed_levels,
         )
+
+    def auto_generate_views(
+        self, workflow_definition: WorkflowDefinition
+    ) -> list[ViewTemplateCreate]:
+        """Generate a standard set of views based on the workflow schema.
+
+        Creates appropriate views for each node type without LLM calls:
+        - Kanban view for node types with states or status enum fields
+        - Table view for node types without states
+
+        Args:
+            workflow_definition: The workflow schema to generate views for
+
+        Returns:
+            List of ViewTemplateCreate objects ready to be saved
+        """
+        views: list[ViewTemplateCreate] = []
+
+        # Standard colors for status values
+        status_colors = {
+            # Pending/Draft states
+            "Draft": "#64748b",
+            "Pending": "#64748b",
+            "New": "#64748b",
+            "Proposed": "#64748b",
+            "Planned": "#64748b",
+            "Backlog": "#64748b",
+            "To Do": "#64748b",
+            # Active/In Progress states
+            "In Progress": "#3b82f6",
+            "Active": "#3b82f6",
+            "Running": "#3b82f6",
+            "In Review": "#3b82f6",
+            "Submitted": "#3b82f6",
+            "Processing": "#3b82f6",
+            # Complete/Success states
+            "Complete": "#22c55e",
+            "Completed": "#22c55e",
+            "Done": "#22c55e",
+            "Validated": "#22c55e",
+            "Approved": "#22c55e",
+            "Successful": "#22c55e",
+            "Passed": "#22c55e",
+            # Failed/Error states
+            "Failed": "#ef4444",
+            "Rejected": "#ef4444",
+            "Error": "#ef4444",
+            "Blocked": "#ef4444",
+            # Archived/Cancelled states
+            "Archived": "#475569",
+            "Cancelled": "#475569",
+            "Closed": "#475569",
+            "Dismissed": "#475569",
+            "On Hold": "#475569",
+        }
+
+        for node_type in workflow_definition.node_types:
+            # Skip Tag node type - usually not useful as a primary view
+            if node_type.type == "Tag":
+                continue
+
+            # Find status/state field for kanban grouping
+            status_field = None
+            status_values = []
+
+            # First check if states are enabled
+            if node_type.states and node_type.states.enabled:
+                status_field = "status"
+                status_values = node_type.states.values or []
+            else:
+                # Look for an enum field that could work as status
+                for field in node_type.fields:
+                    if field.kind.value == "enum" and field.values:
+                        if field.key in ("status", "state", "phase", "stage"):
+                            status_field = field.key
+                            status_values = field.values
+                            break
+                        # Fall back to first enum field
+                        if not status_field:
+                            status_field = field.key
+                            status_values = field.values
+
+            # Find useful fields for card display
+            title_field = node_type.title_field
+            subtitle_field = node_type.subtitle_field
+
+            # Find author/person field
+            author_field = None
+            for field in node_type.fields:
+                if field.kind.value == "person":
+                    author_field = field.key
+                    break
+
+            # Find date field
+            date_field = None
+            for field in node_type.fields:
+                if field.kind.value == "datetime":
+                    date_field = field.key
+                    break
+
+            # Build body fields (useful info to show on cards)
+            body_fields = []
+            if author_field:
+                body_fields.append(author_field)
+            if date_field:
+                body_fields.append(date_field)
+            # Add first few other fields
+            for field in node_type.fields:
+                if len(body_fields) >= 3:
+                    break
+                if field.key not in (title_field, subtitle_field, status_field,
+                                     author_field, date_field):
+                    if field.kind.value in ("string", "enum", "number"):
+                        body_fields.append(field.key)
+
+            if status_field and status_values:
+                # Create Kanban view
+                col_colors = {
+                    val: status_colors.get(val, "#64748b")
+                    for val in status_values
+                }
+
+                card_template = CardTemplate(
+                    title_field=title_field,
+                    subtitle_field=subtitle_field,
+                    status_field=status_field,
+                    body_fields=body_fields,
+                    status_colors=col_colors,
+                )
+
+                kanban_config = KanbanConfig(
+                    group_by_field=status_field,
+                    column_order=status_values,
+                    column_colors=col_colors,
+                    allow_drag=True,
+                    show_counts=True,
+                    show_empty_columns=True,
+                    card_template=card_template,
+                )
+
+                views.append(ViewTemplateCreate(
+                    name=f"{node_type.display_name} Board",
+                    description=f"Kanban board for {node_type.display_name} by {status_field}",
+                    root_type=node_type.type,
+                    levels={
+                        node_type.type: LevelConfig(
+                            style=ViewStyle.KANBAN,
+                            style_config=kanban_config,
+                        )
+                    },
+                ))
+            else:
+                # Create Table view for node types without status
+                # Get first few fields for table columns
+                table_columns = [title_field]
+                for field in node_type.fields:
+                    if len(table_columns) >= 5:
+                        break
+                    if field.key != title_field:
+                        table_columns.append(field.key)
+
+                table_config = TableConfig(
+                    columns=table_columns,
+                    sortable=True,
+                )
+
+                views.append(ViewTemplateCreate(
+                    name=f"{node_type.display_name} List",
+                    description=f"Table view of all {node_type.display_name} items",
+                    root_type=node_type.type,
+                    levels={
+                        node_type.type: LevelConfig(
+                            style=ViewStyle.TABLE,
+                            style_config=table_config,
+                        )
+                    },
+                ))
+
+        return views

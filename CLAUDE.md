@@ -111,6 +111,8 @@ LOG_LEVEL=info                    # Logging verbosity
 ```
 GET    /api/v1/templates
 POST   /api/v1/workflows/from-template
+POST   /api/v1/workflows/from-language      # LLM schema generation
+POST   /api/v1/workflows/from-definition    # Create from validated definition
 GET    /api/v1/workflows/{id}
 GET    /api/v1/workflows/{id}/nodes
 POST   /api/v1/workflows/{id}/nodes

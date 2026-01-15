@@ -194,3 +194,28 @@ export interface Event {
   payload: Record<string, unknown>;
   created_at: string;
 }
+
+// ==================== Schema Generation ====================
+
+export interface SchemaGenerationOptions {
+  includeStates?: boolean;
+  includeTags?: boolean;
+  scientificTerminology?: boolean;
+}
+
+export interface SchemaValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  fixesApplied: string[];
+}
+
+export interface CreateFromLanguageRequest {
+  description: string;
+  options?: SchemaGenerationOptions;
+}
+
+export interface CreateFromLanguageResponse {
+  definition: WorkflowDefinition;
+  validation: SchemaValidationResult;
+}

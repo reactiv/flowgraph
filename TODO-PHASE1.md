@@ -116,33 +116,36 @@
 > Users describe their workflow in plain English, Claude generates a complete WorkflowDefinition.
 
 ### 4.1 "Describe Your Workflow" UI
-- [ ] Text area for natural language description
-- [ ] Example prompts/suggestions to guide users
-- [ ] Optional toggles: "Include states", "Include tags", "Scientific terminology"
-- [ ] Live preview of generated schema (graph visualization)
-- [ ] "Apply" button to create workflow from generated schema
+- [x] Text area for natural language description
+- [x] Example prompts/suggestions to guide users
+- [x] Optional toggles: "Include states", "Include tags", "Scientific terminology"
+- [x] Live preview of generated schema (graph visualization via React Flow)
+- [x] "Apply" button to create workflow from generated schema
+- [x] **File: `frontend/src/app/create/page.tsx`** (327 lines)
 
 ### 4.2 LLM Schema Generation
-- [ ] System prompt with:
+- [x] System prompt with:
   - WorkflowDefinition JSON schema (strict structure)
   - Examples of well-formed definitions
   - Domain hints based on detected terminology
-- [ ] Extract from natural language:
+- [x] Extract from natural language:
   - Node types (entities mentioned)
   - Fields per node type (attributes described)
   - Edge types (relationships between entities)
   - State machines (status progressions mentioned)
   - UI hints (inferred from context)
-- [ ] Structured output via Claude's JSON mode / tool use
+- [x] Structured output via Claude's JSON mode
+- [x] Uses Claude Opus 4.5 (claude-opus-4-5-20251101)
+- [x] **File: `backend/app/llm/schema_generator.py`** (266 lines)
 
-### 4.3 Validation & Auto-Fix
-- [ ] Pydantic validation on generated schema
-- [ ] Auto-fix layer (non-LLM):
-  - Normalize names to snake_case / PascalCase
-  - Add missing required fields (createdAt, updatedAt)
-  - Infer titleField if not specified
-  - Ensure edge endpoints reference valid node types
-- [ ] Return validation errors to user for ambiguous cases
+### 4.3 Validation & LLM Self-Correction
+- [x] Pydantic validation on generated schema
+- [x] Retry loop with error feedback (up to 3 attempts):
+  - JSON parsing errors fed back to LLM
+  - Pydantic validation errors fed back to LLM
+  - LLM self-corrects based on error messages
+- [x] Return validation results to user
+- [x] **Note:** No auto-fix layer; LLM is responsible for generating valid schemas
 
 ### 4.4 Refinement Chat
 - [ ] After initial generation, allow iterative refinement:
@@ -152,9 +155,12 @@
 - [ ] Each refinement regenerates/patches the schema
 
 ### 4.5 API Endpoint
-- [ ] `POST /api/v1/workflows/from-language`
+- [x] `POST /api/v1/workflows/from-language`
   - Request: `{ "description": "...", "options": {...} }`
-  - Response: `{ "definition": WorkflowDefinition, "validation": [...] }`
+  - Response: `{ "definition": WorkflowDefinition, "validation": {...} }`
+- [x] `POST /api/v1/workflows/from-definition`
+  - Request: `WorkflowDefinition`
+  - Response: `WorkflowSummary` (creates workflow from validated definition)
 
 ---
 
@@ -391,7 +397,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 ### 7.2 Workflows
 - [x] `GET /api/v1/workflows` - list user's workflows
 - [x] `POST /api/v1/workflows/from-template` - create from template
-- [ ] `POST /api/v1/workflows/from-language` - create from natural language (LLM)
+- [x] `POST /api/v1/workflows/from-language` - generate schema from natural language (LLM)
+- [x] `POST /api/v1/workflows/from-definition` - create workflow from validated definition
 - [x] `GET /api/v1/workflows/{workflow_id}` - get workflow with definition
 
 ### 7.3 Nodes
@@ -432,9 +439,9 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] Templates demonstrate that different domains use identical primitives
 
 ### 8.2 Schema Generation (LLM)
-- [ ] Natural language description produces valid WorkflowDefinition
-- [ ] Generated schemas pass Pydantic validation
-- [ ] User can refine/iterate on generated schema
+- [x] Natural language description produces valid WorkflowDefinition
+- [x] Generated schemas pass Pydantic validation (with LLM self-correction via retry loop)
+- [ ] User can refine/iterate on generated schema (refinement chat not yet implemented)
 
 ### 8.3 Data Generation (LLM)
 - [x] Seeding produces connected graphs (no orphan nodes)
