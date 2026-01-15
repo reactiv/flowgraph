@@ -9,7 +9,7 @@ from typing import Any
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
-from app.models import WorkflowDefinition, NodeCreate, EdgeCreate, NodeType, EdgeType
+from app.models import EdgeCreate, EdgeType, NodeCreate, NodeType, WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 

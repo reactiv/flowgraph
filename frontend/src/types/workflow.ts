@@ -2,6 +2,8 @@
  * TypeScript types mirroring the backend Pydantic models.
  */
 
+import type { ViewTemplate } from './view-templates';
+
 // ==================== Field Kinds ====================
 
 export type FieldKind =
@@ -87,6 +89,7 @@ export interface WorkflowDefinition {
   nodeTypes: NodeType[];
   edgeTypes: EdgeType[];
   rules: Rule[];
+  viewTemplates?: ViewTemplate[];
 }
 
 export interface WorkflowSummary {

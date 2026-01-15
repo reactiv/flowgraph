@@ -1,9 +1,10 @@
 """Pydantic models for WorkflowDefinition (the schema graph)."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel
+from pydantic import Field as PydanticField
 
 
 class FieldKind(str, Enum):
@@ -119,6 +120,153 @@ class Rule(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# ==================== View Template Models ====================
+
+
+class ViewStyle(str, Enum):
+    """Available component styles for rendering nodes."""
+
+    KANBAN = "kanban"
+    CARDS = "cards"
+    TREE = "tree"
+    TIMELINE = "timeline"
+    TABLE = "table"
+
+
+class CardTemplate(BaseModel):
+    """Configuration for how to render a node card."""
+
+    title_field: str | None = PydanticField(default=None, alias="titleField")
+    subtitle_field: str | None = PydanticField(default=None, alias="subtitleField")
+    status_field: str | None = PydanticField(default=None, alias="statusField")
+    body_fields: list[str] = PydanticField(default=[], alias="bodyFields")
+    show_inline_children: bool = PydanticField(default=False, alias="showInlineChildren")
+
+    model_config = {"populate_by_name": True}
+
+
+class KanbanConfig(BaseModel):
+    """Configuration for Kanban-style view."""
+
+    group_by_field: str = PydanticField(alias="groupByField")
+    column_order: list[str] | None = PydanticField(default=None, alias="columnOrder")
+    column_colors: dict[str, str] | None = PydanticField(default=None, alias="columnColors")
+    allow_drag: bool = PydanticField(default=True, alias="allowDrag")
+    allowed_transitions: dict[str, list[str]] | None = PydanticField(
+        default=None, alias="allowedTransitions"
+    )
+    card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
+    show_counts: bool = PydanticField(default=True, alias="showCounts")
+    show_empty_columns: bool = PydanticField(default=True, alias="showEmptyColumns")
+
+    model_config = {"populate_by_name": True}
+
+
+class CardsConfig(BaseModel):
+    """Configuration for Cards-style view."""
+
+    layout: Literal["grid", "list", "single", "inline-chips"] = "grid"
+    columns: int | None = None
+    card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
+
+    model_config = {"populate_by_name": True}
+
+
+class TreeConfig(BaseModel):
+    """Configuration for Tree-style view."""
+
+    parent_field: str | None = PydanticField(default=None, alias="parentField")
+    expandable: bool = True
+    show_depth_lines: bool = PydanticField(default=True, alias="showDepthLines")
+
+    model_config = {"populate_by_name": True}
+
+
+class TimelineConfig(BaseModel):
+    """Configuration for Timeline-style view."""
+
+    date_field: str = PydanticField(alias="dateField")
+    granularity: Literal["day", "week", "month"] = "day"
+    group_by_field: str | None = PydanticField(default=None, alias="groupByField")
+    show_connectors: bool = PydanticField(default=True, alias="showConnectors")
+
+    model_config = {"populate_by_name": True}
+
+
+class TableConfig(BaseModel):
+    """Configuration for Table-style view."""
+
+    columns: list[str] = []
+    sortable: bool = True
+    selectable: bool = False
+
+    model_config = {"populate_by_name": True}
+
+
+class ActionConfig(BaseModel):
+    """Configuration for an action available in a view."""
+
+    id: str
+    label: str
+    icon: str | None = None
+    action: Literal["create-linked", "update-status", "navigate", "custom"]
+    params: dict[str, Any] | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class FilterConfig(BaseModel):
+    """Configuration for a filter in a view."""
+
+    field: str
+    label: str
+    filter_type: Literal["select", "multiselect", "date-range", "search"] = PydanticField(
+        alias="type"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class EdgeTraversal(BaseModel):
+    """Configuration for traversing an edge type in a view template."""
+
+    edge_type: str = PydanticField(alias="edgeType")
+    direction: Literal["outgoing", "incoming"]
+    target_type: str = PydanticField(alias="targetType")
+    required: bool = False
+
+    model_config = {"populate_by_name": True}
+
+
+class LevelConfig(BaseModel):
+    """Configuration for how to render a node type level in a view."""
+
+    style: ViewStyle
+    style_config: KanbanConfig | CardsConfig | TreeConfig | TimelineConfig | TableConfig = (
+        PydanticField(alias="styleConfig")
+    )
+    inline_children: list[str] = PydanticField(default=[], alias="inlineChildren")
+    expanded_by_default: bool = PydanticField(default=False, alias="expandedByDefault")
+    actions: list[ActionConfig] = []
+
+    model_config = {"populate_by_name": True}
+
+
+class ViewTemplate(BaseModel):
+    """A declarative view template for rendering workflow subgraphs."""
+
+    id: str
+    name: str
+    description: str | None = None
+    icon: str | None = None
+    root_type: str = PydanticField(alias="rootType")
+    edges: list[EdgeTraversal] = []
+    levels: dict[str, LevelConfig] = {}
+    filters: list[FilterConfig] = []
+
+    model_config = {"populate_by_name": True}
+
+
 class WorkflowDefinition(BaseModel):
     """The complete workflow definition (schema graph)."""
 
@@ -128,6 +276,7 @@ class WorkflowDefinition(BaseModel):
     node_types: list[NodeType] = PydanticField(alias="nodeTypes")
     edge_types: list[EdgeType] = PydanticField(alias="edgeTypes")
     rules: list[Rule] = []
+    view_templates: list[ViewTemplate] = PydanticField(default=[], alias="viewTemplates")
 
     model_config = {"populate_by_name": True}
 

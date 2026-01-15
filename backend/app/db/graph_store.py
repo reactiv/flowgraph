@@ -9,16 +9,16 @@ import aiosqlite
 
 from app.db.database import get_db
 from app.models import (
-    WorkflowDefinition,
-    Node,
-    NodeCreate,
-    NodeUpdate,
     Edge,
     EdgeCreate,
     Event,
     EventCreate,
+    Node,
+    NodeCreate,
+    NodeUpdate,
+    WorkflowDefinition,
 )
-from app.models.workflow import WorkflowSummary
+from app.models.workflow import ViewTemplate, WorkflowSummary
 
 
 def _generate_id() -> str:
@@ -449,6 +449,107 @@ class GraphStore:
             "outgoing": [row_to_edge_with_node(row) for row in outgoing_rows],
             "incoming": [row_to_edge_with_node(row) for row in incoming_rows],
         }
+
+    # ==================== View Templates ====================
+
+    async def traverse_view_template(
+        self,
+        workflow_id: str,
+        template: ViewTemplate,
+        root_node_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Traverse the graph according to a view template configuration.
+
+        Returns a structured response with nodes organized by level (node type).
+        """
+        result: dict[str, Any] = {
+            "template": template.model_dump(by_alias=True),
+            "levels": {},
+        }
+
+        # Get root nodes
+        if root_node_id:
+            root_node = await self.get_node(workflow_id, root_node_id)
+            if root_node is None:
+                return result
+            root_nodes = [root_node]
+        else:
+            root_nodes, _ = await self.query_nodes(
+                workflow_id, node_type=template.root_type, limit=1000
+            )
+
+        # Store root nodes in result
+        result["levels"][template.root_type] = {
+            "nodes": [node.model_dump() for node in root_nodes],
+            "edges": [],
+        }
+
+        # Track visited node IDs to avoid cycles
+        visited_node_ids: set[str] = {n.id for n in root_nodes}
+
+        # Traverse each edge configuration
+        current_level_nodes = root_nodes
+
+        for edge_config in template.edges:
+            level_nodes: list[dict[str, Any]] = []
+            level_edges: list[dict[str, Any]] = []
+
+            for node in current_level_nodes:
+                # Determine which direction to traverse
+                if edge_config.direction == "outgoing":
+                    neighbors = await self.get_neighbors(
+                        workflow_id,
+                        node.id,
+                        edge_types=[edge_config.edge_type],
+                    )
+                    neighbor_list = neighbors.get("outgoing", [])
+                else:
+                    neighbors = await self.get_neighbors(
+                        workflow_id,
+                        node.id,
+                        edge_types=[edge_config.edge_type],
+                    )
+                    neighbor_list = neighbors.get("incoming", [])
+
+                for item in neighbor_list:
+                    neighbor_node = item["node"]
+                    edge = item["edge"]
+
+                    # Check if this node matches the target type
+                    if neighbor_node["type"] == edge_config.target_type:
+                        # Avoid duplicates
+                        if neighbor_node["id"] not in visited_node_ids:
+                            visited_node_ids.add(neighbor_node["id"])
+                            level_nodes.append(neighbor_node)
+                        level_edges.append(edge)
+
+            # Store this level's nodes and edges
+            if edge_config.target_type not in result["levels"]:
+                result["levels"][edge_config.target_type] = {
+                    "nodes": [],
+                    "edges": [],
+                }
+
+            result["levels"][edge_config.target_type]["nodes"].extend(level_nodes)
+            result["levels"][edge_config.target_type]["edges"].extend(level_edges)
+
+            # Update current level for next traversal (if needed for deeper traversals)
+            current_level_nodes = [
+                Node(
+                    id=n["id"],
+                    workflow_id=n["workflow_id"],
+                    type=n["type"],
+                    title=n["title"],
+                    status=n.get("status"),
+                    properties=n.get("properties", {}),
+                    created_at=n["created_at"],
+                    updated_at=n["updated_at"],
+                )
+                for n in level_nodes
+            ]
+
+        return result
 
     # ==================== Events ====================
 

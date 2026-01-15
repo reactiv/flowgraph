@@ -357,8 +357,48 @@ A two-stage generator:
 - Use a modern component library and consistent styling
 - Fast interactions (optimistic UI where safe)
 - Smooth graph interactions (zoom, pan, minimap)
-- Empty states that guide users (“Generate demo data”)
+- Empty states that guide users ("Generate demo data")
 - Strong demo defaults: the system looks alive immediately after seeding
+
+### 9.4 Semantic View Templates
+Declarative configurations that define how to traverse and render workflow subgraphs based on edge types. Each view template specifies:
+- **Root type**: The node type this view starts from
+- **Edge traversals**: Which edges to follow and in what direction
+- **Level configurations**: How to render each node type level
+- **Component styles**: Kanban, Cards, Tree, Timeline, or Table
+
+#### Component Styles
+- **Kanban**: Group nodes by a field (typically status), render as draggable columns
+- **Cards**: Grid, list, single card, or inline chips layout
+- **Tree**: Hierarchical expand/collapse with depth lines
+- **Timeline**: Date-grouped events with connectors
+- **Table**: Sortable, selectable data grid
+
+#### View Template Schema
+```json
+{
+  "id": "hypothesis-kanban",
+  "name": "Hypothesis Board",
+  "rootType": "Hypothesis",
+  "edges": [],
+  "levels": {
+    "Hypothesis": {
+      "style": "kanban",
+      "styleConfig": {
+        "groupByField": "status",
+        "columnOrder": ["Proposed", "Active", "Validated", "Rejected"],
+        "allowDrag": true,
+        "cardTemplate": {
+          "titleField": "nickname",
+          "subtitleField": "author"
+        }
+      }
+    }
+  }
+}
+```
+
+View templates are stored in `WorkflowDefinition.viewTemplates[]` alongside node types and edge types, allowing each workflow to define its own semantic views.
 
 ---
 

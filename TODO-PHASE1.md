@@ -261,20 +261,51 @@
   - From List View: "Explore Graph" starts with selected nodes
   - Standalone: shows full workflow graph (collapsed clusters for large graphs)
 
-### 6.6 Kanban View (Board)
-- [ ] Column per status value (from state machine)
-- [ ] Cards showing:
-  - Title
-  - Subtitle (if configured)
-  - Key metadata (author, date)
-  - Tag chips
-- [ ] Drag-and-drop to transition status:
-  - Validate against allowed transitions
-  - Show error if transition not allowed
-  - Create status_changed event on success
-- [ ] Filter bar: by tag, author, date range
-- [ ] Node type selector (one Kanban per node type with states)
-- [ ] Optional: Swimlanes by tag or author
+### 6.6 Semantic View Templates (Kanban, Cards, Tree, Timeline, Table)
+
+> **Declarative view configurations** that define how to traverse and render subgraphs.
+
+#### Backend
+- [x] `ViewTemplate` Pydantic models in `backend/app/models/workflow.py`:
+  - `ViewTemplate`, `LevelConfig`, `EdgeTraversal`
+  - `KanbanConfig`, `CardsConfig`, `TreeConfig`, `TimelineConfig`, `TableConfig`
+  - `CardTemplate`, `ActionConfig`, `FilterConfig`
+- [x] `WorkflowDefinition.viewTemplates[]` field added
+- [x] `GraphStore.traverse_view_template()` method for subgraph traversal
+- [x] `GET /api/v1/workflows/{workflow_id}/views/{view_id}` endpoint
+- [x] Materials R&D template updated with 3 view templates:
+  - `hypothesis-kanban`: Hypothesis Board by status
+  - `sample-pipeline`: Sample Pipeline by status
+  - `analysis-pipeline`: Analysis Pipeline by status
+
+#### Frontend
+- [x] TypeScript types in `frontend/src/types/view-templates.ts`
+- [x] `api.getViewSubgraph()` method in `frontend/src/lib/api.ts`
+- [x] `ViewSelector` component - dropdown to switch between views
+- [x] `ViewRenderer` component - orchestrator that renders appropriate style
+- [x] `KanbanView` component with:
+  - [x] Columns grouped by status field
+  - [x] Drag-and-drop to transition status
+  - [x] Colored column headers from config
+  - [x] Node count badges
+  - [x] Empty column placeholders
+- [x] `NodeCard` component with:
+  - [x] Title/subtitle from cardTemplate config
+  - [x] Status badge with colors
+  - [x] Body fields display
+  - [x] Draggable support
+- [x] Integration into `/app/workflows/[id]/page.tsx`:
+  - [x] View selector in header
+  - [x] Conditional rendering of ViewRenderer vs list view
+
+#### Pending (Phase 2-4)
+- [ ] CardsView component (grid, list, single, inline-chips layouts)
+- [ ] TreeView component (expand/collapse, depth lines)
+- [ ] TimelineView component (date grouping, connectors)
+- [ ] TableView component (sortable, selectable)
+- [ ] Hierarchical edge traversal (multi-level views)
+- [ ] Drag-drop validation against allowed transitions
+- [ ] Filter bar integration
 
 ### 6.7 Shared UI Patterns
 - [ ] Loading states (skeletons)
@@ -311,11 +342,14 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] `DELETE /api/v1/workflows/{workflow_id}/edges/{edge_id}` - delete edge
 - [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/neighbors` - get neighborhood
 
-### 7.5 Events
+### 7.5 Views (Semantic View Templates)
+- [x] `GET /api/v1/workflows/{workflow_id}/views/{view_id}` - get traversed subgraph for view template
+
+### 7.6 Events
 - [x] `GET /api/v1/workflows/{workflow_id}/events` - query events with filters
 - [x] `POST /api/v1/workflows/{workflow_id}/events` - create event (automatic on node/edge operations)
 
-### 7.6 Seeding (LLM-Powered)
+### 7.7 Seeding (LLM-Powered)
 - [x] `POST /api/v1/workflows/{workflow_id}/seed` - wire up DataGenerator
 - [x] `POST /api/v1/workflows/{workflow_id}/reset` - reset workflow data
 
@@ -343,7 +377,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [ ] **List View**: Filters work, sorting works, pagination works, click navigates to detail
 - [ ] **Detail View**: All tabs populated, relationships show linked nodes, status transition works
 - [ ] **Graph View**: Nodes render, edges connect, expand/filter controls work, click shows preview
-- [ ] **Kanban View**: Cards in correct columns, drag-drop transitions status, events logged
+- [x] **Semantic View Templates**: View selector shows available views, switching views works
+- [x] **Kanban View**: Cards in correct columns, drag-drop transitions status, colored headers
 
 ### 8.5 "Alive" Feel
 - [ ] App feels populated and interactive within 30 seconds of starting
@@ -441,15 +476,21 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │       └── board/
 │   │   ├── components/
 │   │   │   ├── ui/               # shadcn components
+│   │   │   ├── layout/           # App shell, sidebar
+│   │   │   ├── views/            # Semantic view components
+│   │   │   │   ├── ViewSelector.tsx
+│   │   │   │   ├── ViewRenderer.tsx
+│   │   │   │   ├── styles/       # KanbanView, CardsView, TreeView, etc.
+│   │   │   │   └── cards/        # NodeCard, StatusBadge
 │   │   │   ├── list-view/
 │   │   │   ├── detail-view/
-│   │   │   ├── graph-view/
-│   │   │   └── kanban-view/
+│   │   │   └── graph-view/
 │   │   ├── lib/
 │   │   │   ├── api.ts            # API client
 │   │   │   └── utils.ts
 │   │   └── types/
-│   │       └── workflow.ts       # TypeScript types (mirror Pydantic)
+│   │       ├── workflow.ts       # TypeScript types (mirror Pydantic)
+│   │       └── view-templates.ts # ViewTemplate types for semantic views
 │   ├── __tests__/                # Vitest tests
 │   │   ├── components/
 │   │   └── lib/

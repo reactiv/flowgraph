@@ -10,13 +10,13 @@ from pydantic import BaseModel
 from app.db import graph_store
 from app.llm import DataGenerator, SeedConfig
 from app.models import (
-    WorkflowDefinition,
-    Node,
-    NodeCreate,
-    NodeUpdate,
     Edge,
     EdgeCreate,
     Event,
+    Node,
+    NodeCreate,
+    NodeUpdate,
+    WorkflowDefinition,
 )
 from app.models.workflow import WorkflowSummary
 
@@ -194,6 +194,39 @@ async def delete_edge(workflow_id: str, edge_id: str) -> dict[str, bool]:
     if not deleted:
         raise HTTPException(status_code=404, detail="Edge not found")
     return {"deleted": True}
+
+
+# ==================== Views ====================
+
+
+@router.get("/workflows/{workflow_id}/views/{view_id}")
+async def get_view_subgraph(
+    workflow_id: str,
+    view_id: str,
+    root_node_id: str | None = Query(None, description="Optional root node ID"),
+) -> dict[str, Any]:
+    """Get a subgraph traversed according to a view template configuration."""
+    # Get workflow definition
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Find the view template
+    template = None
+    for vt in workflow.view_templates:
+        if vt.id == view_id:
+            template = vt
+            break
+
+    if template is None:
+        raise HTTPException(
+            status_code=404, detail=f"View template '{view_id}' not found"
+        )
+
+    # Traverse the graph according to the template
+    return await graph_store.traverse_view_template(
+        workflow_id, template, root_node_id
+    )
 
 
 # ==================== Events ====================

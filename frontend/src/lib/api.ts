@@ -14,6 +14,7 @@ import type {
   Event,
   NodesResponse,
 } from '@/types/workflow';
+import type { ViewSubgraphResponse } from '@/types/view-templates';
 
 const API_BASE = '/api/v1';
 
@@ -119,6 +120,21 @@ export const api = {
     fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/edges/${edgeId}`, {
       method: 'DELETE',
     }),
+
+  // Views
+  getViewSubgraph: (
+    workflowId: string,
+    viewId: string,
+    params?: { rootNodeId?: string }
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.rootNodeId) searchParams.set('root_node_id', params.rootNodeId);
+
+    const query = searchParams.toString();
+    return fetchJson<ViewSubgraphResponse>(
+      `/workflows/${workflowId}/views/${viewId}${query ? `?${query}` : ''}`
+    );
+  },
 
   // Events
   listEvents: (

@@ -254,5 +254,104 @@
       ],
       "message": "A Hypothesis must be linked to at least 1 Analysis before it can be Validated."
     }
+  ],
+  "viewTemplates": [
+    {
+      "id": "hypothesis-kanban",
+      "name": "Hypothesis Board",
+      "description": "Track hypotheses through their lifecycle stages",
+      "icon": "columns",
+      "rootType": "Hypothesis",
+      "edges": [],
+      "levels": {
+        "Hypothesis": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": ["Proposed", "Active", "Validated", "Rejected", "Dismissed"],
+            "columnColors": {
+              "Proposed": "#64748b",
+              "Active": "#8b5cf6",
+              "Validated": "#22c55e",
+              "Rejected": "#ef4444",
+              "Dismissed": "#475569"
+            },
+            "allowDrag": true,
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "author",
+              "statusField": "status"
+            },
+            "showCounts": true,
+            "showEmptyColumns": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sample-pipeline",
+      "name": "Sample Pipeline",
+      "description": "Track samples through processing stages",
+      "icon": "git-branch",
+      "rootType": "Sample",
+      "edges": [],
+      "levels": {
+        "Sample": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": ["Draft", "In Progress", "Complete", "Archived"],
+            "columnColors": {
+              "Draft": "#64748b",
+              "In Progress": "#3b82f6",
+              "Complete": "#22c55e",
+              "Archived": "#475569"
+            },
+            "allowDrag": true,
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "sample_id",
+              "statusField": "status",
+              "bodyFields": ["author", "sample_type"]
+            },
+            "showCounts": true,
+            "showEmptyColumns": true
+          }
+        }
+      }
+    },
+    {
+      "id": "analysis-pipeline",
+      "name": "Analysis Pipeline",
+      "description": "Track analyses through their workflow",
+      "icon": "activity",
+      "rootType": "Analysis",
+      "edges": [],
+      "levels": {
+        "Analysis": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": ["Pending", "In Progress", "Complete", "Failed", "Archived"],
+            "columnColors": {
+              "Pending": "#64748b",
+              "In Progress": "#3b82f6",
+              "Complete": "#22c55e",
+              "Failed": "#ef4444",
+              "Archived": "#475569"
+            },
+            "allowDrag": true,
+            "cardTemplate": {
+              "titleField": "result_id",
+              "subtitleField": "analysis_type",
+              "statusField": "status",
+              "bodyFields": ["author"]
+            },
+            "showCounts": true,
+            "showEmptyColumns": true
+          }
+        }
+      }
+    }
   ]
 }

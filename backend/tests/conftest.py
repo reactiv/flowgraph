@@ -3,12 +3,12 @@
 import asyncio
 import os
 import tempfile
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.db.database import init_database, close_database
+from app.db.database import close_database, init_database
 from app.main import app
 
 

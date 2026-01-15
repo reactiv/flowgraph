@@ -1,0 +1,1364 @@
+{
+  "workflow": {
+    "id": "materials_rnd_v1",
+    "name": "Materials R&D Workflow",
+    "description": "Samples, analyses, and hypotheses with lineage and tags. Scientists create samples, run various analyses (PXRD, SEM, TGA, etc.), and link findings to hypotheses.",
+    "node_types": [
+      "Sample",
+      "Analysis",
+      "Hypothesis",
+      "Tag",
+      "InstrumentConfig",
+      "FamilyTree"
+    ],
+    "edge_types": [
+      "HAS_ANALYSIS",
+      "LINKED_TO_HYPOTHESIS",
+      "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "TAGGED_WITH",
+      "ANALYSIS_TAGGED_WITH",
+      "HYPOTHESIS_TAGGED_WITH",
+      "PARENT_OF",
+      "BELONGS_TO_TREE",
+      "USES_CONFIG"
+    ]
+  },
+  "stats": {
+    "total_nodes": 29,
+    "total_edges": 88,
+    "by_type": {
+      "FamilyTree": 4,
+      "InstrumentConfig": 5,
+      "Tag": 2,
+      "Hypothesis": 6,
+      "Analysis": 7,
+      "Sample": 5
+    }
+  },
+  "nodes": [
+    {
+      "id": "dec55fa2-5d57-41c2-9825-c50ef9a679b5",
+      "workflow_id": "materials_rnd_v1",
+      "type": "FamilyTree",
+      "title": "FamilyTree-004",
+      "status": "Active",
+      "properties": {
+        "root_sample_id": "FAM-0004",
+        "data": {
+          "generated": true,
+          "index": 3
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.019024",
+      "updated_at": "2026-01-14T21:34:48.019024"
+    },
+    {
+      "id": "37510836-71c6-4515-987a-1e397233e06e",
+      "workflow_id": "materials_rnd_v1",
+      "type": "FamilyTree",
+      "title": "FamilyTree-003",
+      "status": "Active",
+      "properties": {
+        "root_sample_id": "FAM-0003",
+        "data": {
+          "generated": true,
+          "index": 2
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.016980",
+      "updated_at": "2026-01-14T21:34:48.016980"
+    },
+    {
+      "id": "4e257ecd-4b7d-407b-a227-dcbd546cb840",
+      "workflow_id": "materials_rnd_v1",
+      "type": "FamilyTree",
+      "title": "FamilyTree-002",
+      "status": "Active",
+      "properties": {
+        "root_sample_id": "FAM-0002",
+        "data": {
+          "generated": true,
+          "index": 1
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.014946",
+      "updated_at": "2026-01-14T21:34:48.014946"
+    },
+    {
+      "id": "537d2a3f-75b4-45fd-b53e-3b5a3f2384f2",
+      "workflow_id": "materials_rnd_v1",
+      "type": "FamilyTree",
+      "title": "FamilyTree-001",
+      "status": "Active",
+      "properties": {
+        "root_sample_id": "FAM-0001",
+        "data": {
+          "generated": true,
+          "index": 0
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.012514",
+      "updated_at": "2026-01-14T21:34:48.012514"
+    },
+    {
+      "id": "756631f9-3ef8-4be3-b4c5-c6df54a40407",
+      "workflow_id": "materials_rnd_v1",
+      "type": "InstrumentConfig",
+      "title": "InstrumentConfig-005",
+      "status": "Deprecated",
+      "properties": {
+        "instrument_id": "INS-0005",
+        "name": "InstrumentConfig-005",
+        "instrument_type": "Instrument Type 5",
+        "version_id": "INS-0005",
+        "sop_summary": "Tensile testing machine calibration for mechanical property evaluation of fiber-reinforced specimens. Deprecated due to updated ASTM standard requirements and equipment upgrade.",
+        "parameters": {
+          "generated": true,
+          "index": 4
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.009906",
+      "updated_at": "2026-01-14T21:34:48.009906"
+    },
+    {
+      "id": "9b0a1f10-1313-4412-b9a2-5d35bc5d92b5",
+      "workflow_id": "materials_rnd_v1",
+      "type": "InstrumentConfig",
+      "title": "InstrumentConfig-004",
+      "status": "Archived",
+      "properties": {
+        "instrument_id": "INS-0004",
+        "name": "InstrumentConfig-004",
+        "instrument_type": "Instrument Type 4",
+        "version_id": "INS-0004",
+        "sop_summary": "FTIR spectroscopy configuration for chemical bonding analysis in ceramic matrix composites. Archived following successful validation and transfer to production workflow.",
+        "parameters": {
+          "generated": true,
+          "index": 3
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.007325",
+      "updated_at": "2026-01-14T21:34:48.007325"
+    },
+    {
+      "id": "10148cde-9ae3-45c9-85e6-5766df475049",
+      "workflow_id": "materials_rnd_v1",
+      "type": "InstrumentConfig",
+      "title": "InstrumentConfig-003",
+      "status": "Deprecated",
+      "properties": {
+        "instrument_id": "INS-0003",
+        "name": "InstrumentConfig-003",
+        "instrument_type": "Instrument Type 3",
+        "version_id": "INS-0003",
+        "sop_summary": "Thermal analysis setup for DSC measurements of composite materials under nitrogen atmosphere. Superseded by enhanced temperature ramping protocol for better sensitivity.",
+        "parameters": {
+          "generated": true,
+          "index": 2
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.004671",
+      "updated_at": "2026-01-14T21:34:48.004671"
+    },
+    {
+      "id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "workflow_id": "materials_rnd_v1",
+      "type": "InstrumentConfig",
+      "title": "InstrumentConfig-002",
+      "status": "Archived",
+      "properties": {
+        "instrument_id": "INS-0002",
+        "name": "InstrumentConfig-002",
+        "instrument_type": "Instrument Type 2",
+        "version_id": "INS-0002",
+        "sop_summary": "SEM imaging configuration optimized for polymer surface characterization at 15kV acceleration voltage. Successfully archived after project completion with comprehensive documentation.",
+        "parameters": {
+          "generated": true,
+          "index": 1
+        }
+      },
+      "created_at": "2026-01-14T21:34:48.001905",
+      "updated_at": "2026-01-14T21:34:48.001905"
+    },
+    {
+      "id": "8e550d66-57fb-4494-b217-e202bd1dc03e",
+      "workflow_id": "materials_rnd_v1",
+      "type": "InstrumentConfig",
+      "title": "InstrumentConfig-001",
+      "status": "Deprecated",
+      "properties": {
+        "instrument_id": "INS-0001",
+        "name": "InstrumentConfig-001",
+        "instrument_type": "Instrument Type 1",
+        "version_id": "INS-0001",
+        "sop_summary": "Initial XRD configuration for crystalline structure analysis with basic diffraction parameters. Replaced by updated protocol with improved resolution settings.",
+        "parameters": {
+          "generated": true,
+          "index": 0
+        }
+      },
+      "created_at": "2026-01-14T21:34:47.999105",
+      "updated_at": "2026-01-14T21:34:47.999105"
+    },
+    {
+      "id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Tag",
+      "title": "tag-002",
+      "status": "Active",
+      "properties": {
+        "tag_id": "TAG-0002",
+        "name": "tag-002",
+        "tag_type": "SYSTEM",
+        "description": "Marks experimental batches that exhibit enhanced mechanical properties under stress testing. Applied to specimens showing improved tensile strength and durability metrics."
+      },
+      "created_at": "2026-01-14T21:34:47.996277",
+      "updated_at": "2026-01-14T21:34:47.996277"
+    },
+    {
+      "id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Tag",
+      "title": "tag-001",
+      "status": "Active",
+      "properties": {
+        "tag_id": "TAG-0001",
+        "name": "tag-001",
+        "tag_type": "SYSTEM",
+        "description": "Identifies samples containing high-temperature resistant polymer compositions for aerospace applications. Used to track materials with thermal stability above 300\u00b0C."
+      },
+      "created_at": "2026-01-14T21:34:47.993854",
+      "updated_at": "2026-01-14T21:34:47.993854"
+    },
+    {
+      "id": "a430e2da-c70e-46e2-b7da-bb5c7a54e3b4",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Prediction-006",
+      "status": "Validated",
+      "properties": {
+        "nickname": "Prediction-006",
+        "author": "Jack Thompson",
+        "details": {
+          "generated": true,
+          "index": 5
+        },
+        "statements": {
+          "generated": true,
+          "index": 5
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.991405",
+      "updated_at": "2026-01-14T21:34:47.991405"
+    },
+    {
+      "id": "52009140-542d-486f-9b7e-7515f156035c",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Theory-005",
+      "status": "Validated",
+      "properties": {
+        "nickname": "Hypothesis-005",
+        "author": "Alice Chen",
+        "details": {
+          "generated": true,
+          "index": 4
+        },
+        "statements": {
+          "generated": true,
+          "index": 4
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.988637",
+      "updated_at": "2026-01-14T21:34:47.988637"
+    },
+    {
+      "id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Theory-004",
+      "status": "Dismissed",
+      "properties": {
+        "nickname": "Hypothesis-004",
+        "author": "Karen Davis",
+        "details": {
+          "generated": true,
+          "index": 3
+        },
+        "statements": {
+          "generated": true,
+          "index": 3
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.985627",
+      "updated_at": "2026-01-14T21:34:47.985627"
+    },
+    {
+      "id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Prediction-003",
+      "status": "Dismissed",
+      "properties": {
+        "nickname": "Prediction-003",
+        "author": "Grace Lee",
+        "details": {
+          "generated": true,
+          "index": 2
+        },
+        "statements": {
+          "generated": true,
+          "index": 2
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.982728",
+      "updated_at": "2026-01-14T21:34:47.982728"
+    },
+    {
+      "id": "6ad90837-4e75-4862-a90e-1991b13cab44",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Prediction-002",
+      "status": "Rejected",
+      "properties": {
+        "nickname": "Hypothesis-002",
+        "author": "Leo Nguyen",
+        "details": {
+          "generated": true,
+          "index": 1
+        },
+        "statements": {
+          "generated": true,
+          "index": 1
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.979267",
+      "updated_at": "2026-01-14T21:34:47.979267"
+    },
+    {
+      "id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Hypothesis",
+      "title": "Hypothesis-001",
+      "status": "Validated",
+      "properties": {
+        "nickname": "Hypothesis-001",
+        "author": "Carol Johnson",
+        "details": {
+          "generated": true,
+          "index": 0
+        },
+        "statements": {
+          "generated": true,
+          "index": 0
+        },
+        "tags": []
+      },
+      "created_at": "2026-01-14T21:34:47.975533",
+      "updated_at": "2026-01-14T21:34:47.975533"
+    },
+    {
+      "id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Test-007",
+      "status": "Failed",
+      "properties": {
+        "result_id": "ANA-0007",
+        "analysis_type": "CHN",
+        "author": "Emma Wilson",
+        "date": "2025-10-28T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 6
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 6
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Elemental analysis for carbon, hydrogen, and nitrogen content failed due to incomplete sample combustion and analytical instrument calibration errors."
+      },
+      "created_at": "2026-01-14T21:34:47.972000",
+      "updated_at": "2026-01-14T21:34:47.972000"
+    },
+    {
+      "id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Test-006",
+      "status": "Failed",
+      "properties": {
+        "result_id": "ANA-0006",
+        "analysis_type": "SCAT",
+        "author": "Frank Garcia",
+        "date": "2025-10-21T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 5
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 5
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Surface area characterization failed due to sample degassing issues and equipment malfunction during nitrogen adsorption measurement cycle."
+      },
+      "created_at": "2026-01-14T21:34:47.968274",
+      "updated_at": "2026-01-14T21:34:47.968274"
+    },
+    {
+      "id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Measurement-005",
+      "status": "Complete",
+      "properties": {
+        "result_id": "ANA-0005",
+        "analysis_type": "PXRD",
+        "author": "Grace Lee",
+        "date": "2025-10-28T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 4
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 4
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Powder X-ray diffraction analysis completed, confirming crystalline phase identification and lattice parameter determination with high-quality diffraction patterns obtained."
+      },
+      "created_at": "2026-01-14T21:34:47.964398",
+      "updated_at": "2026-01-14T21:34:47.964398"
+    },
+    {
+      "id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Test-004",
+      "status": "Archived",
+      "properties": {
+        "result_id": "ANA-0004",
+        "analysis_type": "DERP",
+        "author": "Bob Martinez",
+        "date": "2025-10-19T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 3
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 3
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Density and porosity measurements archived following successful characterization of bulk material properties and void fraction determination."
+      },
+      "created_at": "2026-01-14T21:34:47.959993",
+      "updated_at": "2026-01-14T21:34:47.959993"
+    },
+    {
+      "id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Measurement-003",
+      "status": "Archived",
+      "properties": {
+        "result_id": "ANA-0003",
+        "analysis_type": "TGA",
+        "author": "Frank Garcia",
+        "date": "2025-10-20T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 2
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 2
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Thermal gravimetric analysis archived after completion, showing material decomposition profile and thermal stability up to 800\u00b0C with two distinct weight loss stages."
+      },
+      "created_at": "2026-01-14T21:34:47.954736",
+      "updated_at": "2026-01-14T21:34:47.954736"
+    },
+    {
+      "id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Measurement-002",
+      "status": "Complete",
+      "properties": {
+        "result_id": "ANA-0002",
+        "analysis_type": "3FLEX",
+        "author": "Leo Nguyen",
+        "date": "2025-10-18T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 1
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 1
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Gas adsorption analysis completed successfully, revealing high surface area characteristics with well-defined micropore structure suitable for gas storage applications."
+      },
+      "created_at": "2026-01-14T21:34:47.948554",
+      "updated_at": "2026-01-14T21:34:47.948554"
+    },
+    {
+      "id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Analysis",
+      "title": "Measurement-001",
+      "status": "In Progress",
+      "properties": {
+        "result_id": "ANA-0001",
+        "analysis_type": "SCAT",
+        "author": "Frank Garcia",
+        "date": "2025-10-16T21:34:19.224499",
+        "parameters": {
+          "generated": true,
+          "index": 0
+        },
+        "processed_results": {
+          "generated": true,
+          "index": 0
+        },
+        "files": [],
+        "tags": [],
+        "summary": "Surface area and porosity characterization using nitrogen adsorption isotherms to determine BET surface area and pore size distribution. Analysis is currently in progress with initial data collection underway."
+      },
+      "created_at": "2026-01-14T21:34:47.942207",
+      "updated_at": "2026-01-14T21:34:47.942207"
+    },
+    {
+      "id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Sample",
+      "title": "Sample-005",
+      "status": "Draft",
+      "properties": {
+        "sample_id": "SAM-0005",
+        "nickname": "Specimen-005",
+        "author": "Alice Chen",
+        "date": "2025-10-28T21:34:19.224380",
+        "sample_type": "commercial",
+        "details": {
+          "generated": true,
+          "index": 4
+        },
+        "tags": [],
+        "summary": "Commercial grade titanium dioxide sample acquired for baseline comparison studies in photocatalytic research."
+      },
+      "created_at": "2026-01-14T21:34:47.934306",
+      "updated_at": "2026-01-14T21:34:47.934306"
+    },
+    {
+      "id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Sample",
+      "title": "Sample-004",
+      "status": "Complete",
+      "properties": {
+        "sample_id": "SAM-0004",
+        "nickname": "Sample-004",
+        "author": "Henry Brown",
+        "date": "2025-10-22T21:34:19.224380",
+        "sample_type": "synth",
+        "details": {
+          "generated": true,
+          "index": 3
+        },
+        "tags": [],
+        "summary": "Successfully synthesized high-strength aluminum alloy sample meeting target mechanical properties for aerospace applications."
+      },
+      "created_at": "2026-01-14T21:34:47.926058",
+      "updated_at": "2026-01-14T21:34:47.926058"
+    },
+    {
+      "id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Sample",
+      "title": "Batch-003",
+      "status": "In Progress",
+      "properties": {
+        "sample_id": "SAM-0003",
+        "nickname": "Sample-003",
+        "author": "Emma Wilson",
+        "date": "2025-10-18T21:34:19.224380",
+        "sample_type": "analysis",
+        "details": {
+          "generated": true,
+          "index": 2
+        },
+        "tags": [],
+        "summary": "Batch analysis of crystalline structure and phase composition for multiple ceramic samples using X-ray diffraction techniques."
+      },
+      "created_at": "2026-01-14T21:34:47.917805",
+      "updated_at": "2026-01-14T21:34:47.917805"
+    },
+    {
+      "id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Sample",
+      "title": "Sample-002",
+      "status": "In Progress",
+      "properties": {
+        "sample_id": "SAM-0002",
+        "nickname": "Specimen-002",
+        "author": "Leo Nguyen",
+        "date": "2025-10-17T21:34:19.224380",
+        "sample_type": "synth",
+        "details": {
+          "generated": true,
+          "index": 1
+        },
+        "tags": [],
+        "summary": "Ongoing synthesis of novel graphene-oxide nanocomposite material with targeted electrical conductivity improvements."
+      },
+      "created_at": "2026-01-14T21:34:47.909337",
+      "updated_at": "2026-01-14T21:34:47.909337"
+    },
+    {
+      "id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "workflow_id": "materials_rnd_v1",
+      "type": "Sample",
+      "title": "Sample-001",
+      "status": "Archived",
+      "properties": {
+        "sample_id": "SAM-0001",
+        "nickname": "Batch-001",
+        "author": "Emma Wilson",
+        "date": "2025-10-16T21:34:19.224380",
+        "sample_type": "synth",
+        "details": {
+          "generated": true,
+          "index": 0
+        },
+        "tags": [],
+        "summary": "Synthetic polymer composite sample with enhanced thermal stability properties, completed characterization and archived for future reference."
+      },
+      "created_at": "2026-01-14T21:34:47.896750",
+      "updated_at": "2026-01-14T21:34:47.896750"
+    }
+  ],
+  "edges": [
+    {
+      "id": "bd547f2c-70a2-4c4c-ae1e-b28424f50e5d",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "a430e2da-c70e-46e2-b7da-bb5c7a54e3b4",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.361947"
+    },
+    {
+      "id": "e7d3a372-5bf3-404b-b09c-6b0b29ecbad5",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "52009140-542d-486f-9b7e-7515f156035c",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.356697"
+    },
+    {
+      "id": "4cfa6540-1b27-4e4c-8b70-d23e77a1c583",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.350419"
+    },
+    {
+      "id": "cbd2e086-e3b8-4532-8337-d197f4b7349e",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.340000"
+    },
+    {
+      "id": "52e4a395-5f5c-4ca4-97ef-bd9cab24446c",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.345370"
+    },
+    {
+      "id": "723cac2d-450d-479d-9fff-dab537774c7f",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "6ad90837-4e75-4862-a90e-1991b13cab44",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.334627"
+    },
+    {
+      "id": "411361f2-67fd-456b-a045-e454a58b660d",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.322443"
+    },
+    {
+      "id": "199a8271-70f4-463b-8b73-5670690ef269",
+      "type": "HYPOTHESIS_TAGGED_WITH",
+      "from_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.328751"
+    },
+    {
+      "id": "a079ece4-9c25-4300-8e2b-240824bca034",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.189240"
+    },
+    {
+      "id": "c22ae6e8-5b1a-4985-bc99-cfb866d4de95",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.307458"
+    },
+    {
+      "id": "36052c8c-43bd-47c5-b14a-d138ffc9a0f3",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.315418"
+    },
+    {
+      "id": "060a09d3-5943-425a-944d-33d486a62dd7",
+      "type": "USES_CONFIG",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "756631f9-3ef8-4be3-b4c5-c6df54a40407",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.516005"
+    },
+    {
+      "id": "9b5ead2c-e2df-4561-aaf0-ff1dd5d2f85c",
+      "type": "USES_CONFIG",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "8e550d66-57fb-4494-b217-e202bd1dc03e",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.522112"
+    },
+    {
+      "id": "1d9c9bae-505d-4018-b5ab-356eda8aeb1e",
+      "type": "USES_CONFIG",
+      "from_node_id": "1427aabe-f9e5-4509-aab7-d5f5fcd53c77",
+      "to_node_id": "10148cde-9ae3-45c9-85e6-5766df475049",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.527291"
+    },
+    {
+      "id": "1731671e-b5cf-40bd-80bb-58ef442bc933",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "6ad90837-4e75-4862-a90e-1991b13cab44",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.173672"
+    },
+    {
+      "id": "249b1304-fe26-4d7b-ae6e-1496915a64f2",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "a430e2da-c70e-46e2-b7da-bb5c7a54e3b4",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.182550"
+    },
+    {
+      "id": "4c73632a-05b4-4114-b457-056083b0f4cc",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.296571"
+    },
+    {
+      "id": "6a574962-396e-4619-87d4-876493c9af97",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.302335"
+    },
+    {
+      "id": "2a0f6e30-1ff6-4fbb-8601-1f0a66f20860",
+      "type": "USES_CONFIG",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.502931"
+    },
+    {
+      "id": "1e2cef8a-4875-455b-a26b-1106d5d850c9",
+      "type": "USES_CONFIG",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "756631f9-3ef8-4be3-b4c5-c6df54a40407",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.506331"
+    },
+    {
+      "id": "f4076a78-9716-4813-9caf-17cb3f31b6eb",
+      "type": "USES_CONFIG",
+      "from_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "to_node_id": "9b0a1f10-1313-4412-b9a2-5d35bc5d92b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.511747"
+    },
+    {
+      "id": "695a5679-90f4-4c5a-9f45-c540c9afa0f4",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.161736"
+    },
+    {
+      "id": "299ec51f-d6e6-4e58-9230-f21fe69fbc83",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "a430e2da-c70e-46e2-b7da-bb5c7a54e3b4",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.168620"
+    },
+    {
+      "id": "6729abed-4567-4b85-afa0-641d1641c2e0",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.284101"
+    },
+    {
+      "id": "e426a70f-cf1d-4449-9a6e-ac90268ea688",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.289701"
+    },
+    {
+      "id": "86875c92-f445-4810-85e9-a157bbec5d71",
+      "type": "USES_CONFIG",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "756631f9-3ef8-4be3-b4c5-c6df54a40407",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.483794"
+    },
+    {
+      "id": "91696d1d-c1f0-4faa-b62f-9a3aac9797fd",
+      "type": "USES_CONFIG",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.489356"
+    },
+    {
+      "id": "51459ee2-4ff6-4148-9a6e-9dd80da1582a",
+      "type": "USES_CONFIG",
+      "from_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "to_node_id": "9b0a1f10-1313-4412-b9a2-5d35bc5d92b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.496546"
+    },
+    {
+      "id": "edf039ef-db39-490d-8ac6-1cb17b96a5dd",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.146680"
+    },
+    {
+      "id": "695273fc-aab6-4c56-ae49-04390c6b612d",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.155116"
+    },
+    {
+      "id": "458b5d02-ced5-4e04-b536-c28c2109ac77",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.271344"
+    },
+    {
+      "id": "48a1af70-6afc-4d4a-b384-d4adcc750cba",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.275908"
+    },
+    {
+      "id": "4dee83bc-7b05-414c-8a8b-c6fa54f38b16",
+      "type": "USES_CONFIG",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "10148cde-9ae3-45c9-85e6-5766df475049",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.470010"
+    },
+    {
+      "id": "edf55b5f-f667-4b4b-ab39-65f4cf8ce215",
+      "type": "USES_CONFIG",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.474883"
+    },
+    {
+      "id": "21a28bc6-996c-498d-8867-177789432e3f",
+      "type": "USES_CONFIG",
+      "from_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "to_node_id": "756631f9-3ef8-4be3-b4c5-c6df54a40407",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.479055"
+    },
+    {
+      "id": "5da42ba1-61cc-48c2-9dfc-007d20f43557",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.127182"
+    },
+    {
+      "id": "13053d6b-84b5-452d-85d6-32b87204d275",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "52009140-542d-486f-9b7e-7515f156035c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.134339"
+    },
+    {
+      "id": "77d72e26-f463-448c-9e4e-a97ba09bd83e",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.140898"
+    },
+    {
+      "id": "f852b9db-175d-4b08-9ed5-2d3fc3c5a840",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.257264"
+    },
+    {
+      "id": "65f5dbbe-d33c-4f14-a2d8-b31ddef21e34",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.264921"
+    },
+    {
+      "id": "4f38cae6-5436-406d-9380-adc062267f8a",
+      "type": "USES_CONFIG",
+      "from_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "to_node_id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.465915"
+    },
+    {
+      "id": "9f8918b1-e264-43d8-a9c9-7f229d0ec7e9",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "to_node_id": "6ad90837-4e75-4862-a90e-1991b13cab44",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.116923"
+    },
+    {
+      "id": "260ebe05-1887-4777-ac2e-2bc31cc28926",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "to_node_id": "52009140-542d-486f-9b7e-7515f156035c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.121794"
+    },
+    {
+      "id": "bef1948c-d227-4f39-93e7-3d9b79f447fa",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.250327"
+    },
+    {
+      "id": "6035ed70-f220-4458-8071-1a80ea390c9f",
+      "type": "USES_CONFIG",
+      "from_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "to_node_id": "00c3da66-6533-4bcf-9760-45e28af1c50b",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.456241"
+    },
+    {
+      "id": "6b1bf6f7-6b37-44af-bd8c-207c23eac830",
+      "type": "USES_CONFIG",
+      "from_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "to_node_id": "10148cde-9ae3-45c9-85e6-5766df475049",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.459978"
+    },
+    {
+      "id": "ed843672-46d7-49ed-8877-be4cd155975b",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "to_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.091996"
+    },
+    {
+      "id": "348945d9-972c-4954-9b1b-0c5fbd36507b",
+      "type": "ANALYSIS_LINKED_TO_HYPOTHESIS",
+      "from_node_id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "to_node_id": "52009140-542d-486f-9b7e-7515f156035c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.105013"
+    },
+    {
+      "id": "79edecee-cb18-4a8a-b22a-5476f2ddf58a",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.241027"
+    },
+    {
+      "id": "6ba1d678-9f8d-4bcb-a5ed-4b7e0285c1a7",
+      "type": "ANALYSIS_TAGGED_WITH",
+      "from_node_id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.246821"
+    },
+    {
+      "id": "39ed8cb3-9b68-4dda-b886-a77e61c3d008",
+      "type": "USES_CONFIG",
+      "from_node_id": "378c4154-f58b-4667-a2b4-3a3d03b14fda",
+      "to_node_id": "10148cde-9ae3-45c9-85e6-5766df475049",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.448772"
+    },
+    {
+      "id": "15749de3-45ff-4b03-a94e-008e828b6e11",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "to_node_id": "37510836-71c6-4515-987a-1e397233e06e",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.443853"
+    },
+    {
+      "id": "3823d259-daae-4fed-a352-b8d3b5a88db5",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "to_node_id": "baf5bafb-b248-444f-9a5a-9b2d0f7d30c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.030925"
+    },
+    {
+      "id": "6ecf3f3f-dead-4efd-8798-39c3dd08665e",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "to_node_id": "c4fcd96b-df4f-4e3c-86de-1292a6053ae8",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.032925"
+    },
+    {
+      "id": "3c9be304-54a7-4159-a23d-bfaff3629c9d",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "to_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.084913"
+    },
+    {
+      "id": "ab2273c3-c93f-4bc1-92d4-01269707128e",
+      "type": "TAGGED_WITH",
+      "from_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.234646"
+    },
+    {
+      "id": "a39fbdaf-9983-46d8-8ead-137f5d80dab7",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "to_node_id": "dec55fa2-5d57-41c2-9825-c50ef9a679b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.439288"
+    },
+    {
+      "id": "8fb41af4-47e4-4e0f-b08d-ac85805f6878",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "to_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.028907"
+    },
+    {
+      "id": "4ed46405-4b29-4de3-a636-3594d20461f9",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "to_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.077394"
+    },
+    {
+      "id": "344a0302-0249-4b47-80b9-f91dab7ed3ef",
+      "type": "TAGGED_WITH",
+      "from_node_id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.225694"
+    },
+    {
+      "id": "823fd6ad-b2bc-4ed0-8ae6-b407f84e04fb",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "4e257ecd-4b7d-407b-a227-dcbd546cb840",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.422472"
+    },
+    {
+      "id": "8cc76608-712c-4cd6-ad58-a43e9f12a4b3",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "dec55fa2-5d57-41c2-9825-c50ef9a679b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.430050"
+    },
+    {
+      "id": "a09bc32c-da96-40cd-87ac-2ffefa77304f",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "537d2a3f-75b4-45fd-b53e-3b5a3f2384f2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.436595"
+    },
+    {
+      "id": "60a174d2-ff18-406b-a10f-10343afd06f4",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "b55d40a6-5120-49d8-bcc2-857cfdf358c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.025036"
+    },
+    {
+      "id": "5554116d-e1e0-4f85-a4c3-d4b05ab97d73",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.026935"
+    },
+    {
+      "id": "06fdbcfb-ffeb-4f7d-812d-f11fbeed386d",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.064753"
+    },
+    {
+      "id": "50a6ae32-67d2-40bc-b146-40ab9bab391c",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "a430e2da-c70e-46e2-b7da-bb5c7a54e3b4",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.069573"
+    },
+    {
+      "id": "12dc2b50-da5a-46f9-973b-9a34cdfb6ccd",
+      "type": "TAGGED_WITH",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.213263"
+    },
+    {
+      "id": "b7b41b1e-17ce-480e-855a-7b292577a628",
+      "type": "TAGGED_WITH",
+      "from_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.219923"
+    },
+    {
+      "id": "07e9c53e-469d-466f-afde-010248937677",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "537d2a3f-75b4-45fd-b53e-3b5a3f2384f2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.408184"
+    },
+    {
+      "id": "827fc7d8-6d47-4768-86dd-107eb86489bc",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "37510836-71c6-4515-987a-1e397233e06e",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.414079"
+    },
+    {
+      "id": "c9ddeff3-a0f7-4100-a68f-4305e12cc676",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "dec55fa2-5d57-41c2-9825-c50ef9a679b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.418081"
+    },
+    {
+      "id": "254a7300-b6bb-4f75-a39b-c3eff7508941",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "ee060a3c-f732-48e4-a554-187b05d243eb",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.022933"
+    },
+    {
+      "id": "6e158907-9ba2-4290-b413-af27e4baee77",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "11d9ff05-bbcd-4cd1-893b-1d35bc0346b9",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.049636"
+    },
+    {
+      "id": "83e17bc2-c69b-4a22-b94c-72ff5f1b9f5d",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.057650"
+    },
+    {
+      "id": "3557172c-3c7d-4c31-b24d-4417b7c265b9",
+      "type": "PARENT_OF",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "680caad8-78c1-44f8-989e-79ae703426da",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.374543"
+    },
+    {
+      "id": "a30b0dac-e2e0-4299-bd9b-5c7303f0d8ac",
+      "type": "PARENT_OF",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "70a958ec-17b8-45bd-a4f0-bcbd6039caf2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.387390"
+    },
+    {
+      "id": "cc8a2365-6502-4486-8ea8-e3fc9829c468",
+      "type": "TAGGED_WITH",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "c3197745-c7f0-4768-b7e8-169eb47331c1",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.200513"
+    },
+    {
+      "id": "afc17983-bb72-4aff-a159-50a620e7b4e3",
+      "type": "TAGGED_WITH",
+      "from_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.207490"
+    },
+    {
+      "id": "932b6333-2c12-4d52-a4bd-653dbf18f2fc",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "dec55fa2-5d57-41c2-9825-c50ef9a679b5",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.392197"
+    },
+    {
+      "id": "e025a50a-604b-4946-81e4-f2747a85c394",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "37510836-71c6-4515-987a-1e397233e06e",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.397582"
+    },
+    {
+      "id": "73691cd9-7e53-41e0-9a0a-baba14072844",
+      "type": "BELONGS_TO_TREE",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "537d2a3f-75b4-45fd-b53e-3b5a3f2384f2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.403149"
+    },
+    {
+      "id": "3abd937c-5b5b-4abc-b3f1-cdf2cde4dfe5",
+      "type": "HAS_ANALYSIS",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "b042984c-354b-42bc-8279-4c4c6582ffb2",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.020877"
+    },
+    {
+      "id": "9f01d00d-1919-4fbf-a0db-95e6f8178683",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "d98964aa-d973-4c71-9972-4c568e952189",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.035490"
+    },
+    {
+      "id": "e2924966-76bb-45c4-bb11-1cb2734fc787",
+      "type": "LINKED_TO_HYPOTHESIS",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "f02c33c6-e910-4adb-99b4-2c5f7696823c",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.038153"
+    },
+    {
+      "id": "04f39393-3d50-43fd-b4a3-9888a1993035",
+      "type": "PARENT_OF",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "5c4c70d0-ba4d-4f76-95a1-7a9aef8e2bdc",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.369148"
+    },
+    {
+      "id": "208dcfc7-6f5b-4d7d-b7a2-5843c1209e54",
+      "type": "PARENT_OF",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "5177d736-8778-46d2-bf97-814a4d014042",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.382406"
+    },
+    {
+      "id": "f2fccf03-e3e7-4250-9b21-bc4f0d234c4a",
+      "type": "TAGGED_WITH",
+      "from_node_id": "4dfc5361-ce9c-4c61-8007-82bd63e9743b",
+      "to_node_id": "87c79806-a639-4e96-92b3-7aa4d41da078",
+      "properties": {},
+      "created_at": "2026-01-14T21:34:48.195765"
+    }
+  ]
+}

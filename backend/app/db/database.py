@@ -1,6 +1,5 @@
 """SQLite database connection and schema initialization."""
 
-import os
 from pathlib import Path
 
 import aiosqlite

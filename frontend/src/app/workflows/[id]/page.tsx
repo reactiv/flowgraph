@@ -7,11 +7,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { Node } from '@/types/workflow';
+import { ViewSelector, ViewRenderer } from '@/components/views';
 
 export default function WorkflowPage() {
   const params = useParams();
   const workflowId = params.id as string;
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
 
   // Fetch workflow definition
   const {
@@ -23,14 +25,14 @@ export default function WorkflowPage() {
     queryFn: () => api.getWorkflow(workflowId),
   });
 
-  // Fetch nodes (filtered by selected type)
+  // Fetch nodes (filtered by selected type) - only when in list view
   const {
     data: nodesResponse,
     isLoading: nodesLoading,
   } = useQuery({
     queryKey: ['nodes', workflowId, selectedType],
     queryFn: () => api.listNodes(workflowId, { type: selectedType || undefined, limit: 100 }),
-    enabled: !!workflow,
+    enabled: !!workflow && !selectedViewId, // Only fetch for list view
   });
 
   // Set default selected type once workflow loads
@@ -38,6 +40,11 @@ export default function WorkflowPage() {
   if (workflow && !selectedType && firstNodeType) {
     setSelectedType(firstNodeType.type);
   }
+
+  // Get the selected view template
+  const selectedViewTemplate = selectedViewId
+    ? workflow?.viewTemplates?.find((vt) => vt.id === selectedViewId)
+    : null;
 
   if (workflowLoading) {
     return (
@@ -59,84 +66,114 @@ export default function WorkflowPage() {
   }
 
   const nodes = nodesResponse?.nodes || [];
+  const viewTemplates = workflow.viewTemplates || [];
 
   return (
-    <div className="p-8">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="mb-8">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-primary mb-2 inline-block">
-          &larr; Back to home
-        </Link>
-        <h1 className="text-3xl font-bold">{workflow.name}</h1>
-        <p className="text-muted-foreground mt-1">{workflow.description}</p>
-      </div>
+      <div className="border-b bg-white p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <Link href="/" className="text-sm text-muted-foreground hover:text-primary mb-2 inline-block">
+              &larr; Back to home
+            </Link>
+            <h1 className="text-2xl font-bold">{workflow.name}</h1>
+            <p className="text-muted-foreground text-sm mt-1">{workflow.description}</p>
+          </div>
 
-      {/* Node Type Tabs */}
-      <div className="border-b mb-6">
-        <div className="flex gap-1 -mb-px">
-          {workflow.nodeTypes.map((nodeType) => (
-            <button
-              key={nodeType.type}
-              onClick={() => setSelectedType(nodeType.type)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                selectedType === nodeType.type
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {nodeType.displayName}
-            </button>
-          ))}
+          {/* View Selector */}
+          <ViewSelector
+            viewTemplates={viewTemplates}
+            selectedViewId={selectedViewId}
+            onViewChange={setSelectedViewId}
+          />
         </div>
       </div>
 
-      {/* Nodes Table */}
-      {nodesLoading ? (
-        <p className="text-muted-foreground">Loading nodes...</p>
-      ) : nodes.length === 0 ? (
-        <div className="border rounded-lg p-8 text-center">
-          <p className="text-muted-foreground">No {selectedType} nodes yet.</p>
+      {/* Content Area */}
+      {selectedViewTemplate ? (
+        // Render the selected semantic view
+        <div className="flex-1 overflow-hidden">
+          <ViewRenderer
+            workflowId={workflowId}
+            viewTemplate={selectedViewTemplate}
+            onNodeClick={(node) => {
+              // TODO: Open node detail panel
+              console.log('Node clicked:', node);
+            }}
+          />
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium">Title</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Author</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Summary</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {nodes.map((node: Node) => (
-                <tr key={node.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{node.title}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={node.status || 'Unknown'} />
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {(node.properties?.author as string) || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground max-w-md truncate">
-                    {(node.properties?.summary as string) || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {formatDate(node.created_at)}
-                  </td>
-                </tr>
+        // Render the default list view
+        <div className="flex-1 overflow-auto p-4">
+          {/* Node Type Tabs */}
+          <div className="border-b mb-6">
+            <div className="flex gap-1 -mb-px">
+              {workflow.nodeTypes.map((nodeType) => (
+                <button
+                  key={nodeType.type}
+                  onClick={() => setSelectedType(nodeType.type)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    selectedType === nodeType.type
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {nodeType.displayName}
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </div>
+          </div>
 
-      {/* Stats */}
-      {nodesResponse && (
-        <p className="text-sm text-muted-foreground mt-4">
-          Showing {nodes.length} of {nodesResponse.total} {selectedType} nodes
-        </p>
+          {/* Nodes Table */}
+          {nodesLoading ? (
+            <p className="text-muted-foreground">Loading nodes...</p>
+          ) : nodes.length === 0 ? (
+            <div className="border rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">No {selectedType} nodes yet.</p>
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Title</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Author</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Summary</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {nodes.map((node: Node) => (
+                    <tr key={node.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium">{node.title}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={node.status || 'Unknown'} />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {(node.properties?.author as string) || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground max-w-md truncate">
+                        {(node.properties?.summary as string) || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {formatDate(node.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Stats */}
+          {nodesResponse && (
+            <p className="text-sm text-muted-foreground mt-4">
+              Showing {nodes.length} of {nodesResponse.total} {selectedType} nodes
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
