@@ -166,6 +166,18 @@ export interface Edge {
   created_at: string;
 }
 
+// ==================== Neighbors ====================
+
+export interface NeighborResult {
+  edge: Edge;
+  node: Node;
+}
+
+export interface NeighborsResponse {
+  outgoing: NeighborResult[];
+  incoming: NeighborResult[];
+}
+
 // ==================== Events ====================
 
 export interface EventCreate {

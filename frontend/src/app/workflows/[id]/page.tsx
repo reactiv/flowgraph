@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useCallback } from 'react';
+import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -13,11 +13,18 @@ import { ViewCardGrid } from '@/components/views/ViewCardGrid';
 import { CreateViewModal } from '@/components/views/CreateViewModal';
 import { EditViewModal } from '@/components/views/EditViewModal';
 import { DeleteViewDialog } from '@/components/views/DeleteViewDialog';
+import { NodeDetailPanel } from '@/components/node-detail';
 
 export default function WorkflowPage() {
   const params = useParams();
   const workflowId = params.id as string;
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Get selected node from URL params
+  const selectedNodeId = searchParams.get('node');
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
@@ -68,6 +75,26 @@ export default function WorkflowPage() {
       setEditingView(null);
     },
   });
+
+  // Node detail panel handlers
+  const handleNodeClick = useCallback((node: Node) => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.set('node', node.id);
+    router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
+  const handleNodeSelect = useCallback((nodeId: string) => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.set('node', nodeId);
+    router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
+  const handlePanelClose = useCallback(() => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete('node');
+    const query = newParams.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   // Fetch nodes (filtered by selected type) - only when in list view
   const {
@@ -142,10 +169,7 @@ export default function WorkflowPage() {
           <ViewRenderer
             workflowId={workflowId}
             viewTemplate={selectedViewTemplate}
-            onNodeClick={(node) => {
-              // TODO: Open node detail panel
-              console.log('Node clicked:', node);
-            }}
+            onNodeClick={handleNodeClick}
           />
         </div>
       ) : (
@@ -191,7 +215,11 @@ export default function WorkflowPage() {
                 </thead>
                 <tbody className="divide-y">
                   {nodes.map((node: Node) => (
-                    <tr key={node.id} className="hover:bg-muted/30">
+                    <tr
+                      key={node.id}
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => handleNodeClick(node)}
+                    >
                       <td className="px-4 py-3 font-medium">{node.title}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={node.status || 'Unknown'} />
@@ -250,6 +278,17 @@ export default function WorkflowPage() {
         onConfirm={() => deletingViewId && deleteViewMutation.mutate(deletingViewId)}
         isDeleting={deleteViewMutation.isPending}
       />
+
+      {/* Node Detail Panel */}
+      {selectedNodeId && (
+        <NodeDetailPanel
+          workflowId={workflowId}
+          workflowDefinition={workflow}
+          nodeId={selectedNodeId}
+          onClose={handlePanelClose}
+          onNodeSelect={handleNodeSelect}
+        />
+      )}
     </div>
   );
 }

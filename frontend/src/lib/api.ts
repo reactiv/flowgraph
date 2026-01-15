@@ -13,6 +13,7 @@ import type {
   EdgeCreate,
   Event,
   NodesResponse,
+  NeighborsResponse,
 } from '@/types/workflow';
 import type {
   ViewSubgraphResponse,
@@ -109,7 +110,7 @@ export const api = {
     if (params?.edgeTypes) searchParams.set('edge_types', params.edgeTypes.join(','));
 
     const query = searchParams.toString();
-    return fetchJson<{ outgoing: unknown[]; incoming: unknown[] }>(
+    return fetchJson<NeighborsResponse>(
       `/workflows/${workflowId}/nodes/${nodeId}/neighbors${query ? `?${query}` : ''}`
     );
   },

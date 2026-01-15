@@ -235,29 +235,38 @@
   - Date range picker
 - [ ] Search: title + selected searchable fields
 - [x] Pagination with count ("Showing X of Y nodes")
-- [ ] Click row → navigates to Detail View
+- [x] Click row → opens Detail Panel
 
-### 6.4 Detail View (Node Page)
-- [ ] Header:
+### 6.4 Detail View (Slide-in Panel)
+
+> **Implemented as a slide-in panel from the right**, accessible from any view (list, kanban, semantic views).
+> Uses URL params (`?node=<id>`) for shareable links and browser navigation.
+
+- [x] Header:
   - Title (from `titleField`)
-  - Status chip with dropdown to transition
+  - Status chip with dropdown to transition (validates against schema transitions)
   - Type badge
   - Created/Updated timestamps
   - Author
-- [ ] Tabs:
-  - **Summary**: Auto-generated or editable text summary
-  - **Properties**: Form generated from schema fields (grouped, ordered)
+- [x] Tabs:
+  - **Summary**: Read-only display of key fields
+  - **Properties**: Editable form generated from schema fields (all field types supported)
   - **Relationships**: Panels by edge type
-    - Outgoing edges (e.g., "Analyses" for a Sample)
-    - Incoming edges (e.g., "Parent Sample")
-    - Each panel shows linked node cards with quick view
-    - "Create linked" and "Link existing" buttons
-  - **Files**: Attachment list (metadata only for Phase 1)
-  - **Timeline**: Event feed for this node only
-- [ ] Sidebar actions:
+    - Outgoing edges grouped by edge type
+    - Incoming edges grouped by edge type
+    - Each panel shows linked node cards with click to navigate
+    - [ ] "Create linked" and "Link existing" buttons (deferred)
+  - [ ] **Files**: Attachment list (deferred to Phase 2)
+  - [ ] **Timeline**: Event feed for this node only (deferred to Phase 2)
+- [ ] Sidebar actions (deferred to Phase 2):
   - Quick actions from schema (e.g., "Create Analysis")
   - "View in Graph"
   - "Delete" (with confirmation)
+- [x] Panel features:
+  - Slide-in animation from right
+  - Backdrop click or Escape to close
+  - URL-based state for shareable links
+  - Click related node → opens that node in panel
 
 ### 6.5 Graph View (Graph Explorer)
 - [ ] React Flow canvas with:
@@ -434,8 +443,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] Content is coherent (hypotheses reference actual sample names)
 
 ### 8.4 UI Views
-- [ ] **List View**: Filters work, sorting works, pagination works, click navigates to detail
-- [ ] **Detail View**: All tabs populated, relationships show linked nodes, status transition works
+- [ ] **List View**: Filters work, sorting works, pagination works, click opens detail panel
+- [x] **Detail Panel**: Summary/Properties/Relationships tabs, status transitions, click opens related nodes
 - [ ] **Graph View**: Nodes render, edges connect, expand/filter controls work, click shows preview
 - [x] **Semantic View Templates**: View selector shows available views, switching views works
 - [x] **Kanban View**: Cards in correct columns, drag-drop transitions status, colored headers
@@ -554,6 +563,15 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   │   ├── DeleteViewDialog.tsx # Delete confirmation
 │   │   │   │   ├── styles/       # KanbanView, CardsView, TreeView, etc.
 │   │   │   │   └── cards/        # NodeCard, StatusBadge
+│   │   │   ├── node-detail/      # Slide-in detail panel
+│   │   │   │   ├── NodeDetailPanel.tsx   # Main panel with tabs
+│   │   │   │   ├── NodeDetailHeader.tsx  # Header with status dropdown
+│   │   │   │   ├── StatusDropdown.tsx    # Status transition dropdown
+│   │   │   │   ├── RelationshipCard.tsx  # Card for linked nodes
+│   │   │   │   └── tabs/
+│   │   │   │       ├── SummaryTab.tsx    # Read-only field display
+│   │   │   │       ├── PropertiesTab.tsx # Editable form
+│   │   │   │       └── RelationshipsTab.tsx # Neighbor cards
 │   │   │   ├── list-view/
 │   │   │   ├── detail-view/
 │   │   │   └── graph-view/
