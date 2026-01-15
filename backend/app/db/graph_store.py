@@ -397,7 +397,7 @@ class GraphStore:
         edge_params: list[Any] = []
         if edge_types:
             placeholders = ",".join("?" * len(edge_types))
-            edge_filter = f"AND type IN ({placeholders})"
+            edge_filter = f"AND e.type IN ({placeholders})"
             edge_params = edge_types
 
         # Get outgoing edges
