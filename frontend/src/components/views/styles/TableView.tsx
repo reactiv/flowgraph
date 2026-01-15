@@ -21,21 +21,62 @@ interface TableViewProps {
 
 // Status badge color mapping
 const statusColors: Record<string, { bg: string; text: string }> = {
-  // Common status values
-  'todo': { bg: 'bg-gray-100', text: 'text-gray-700' },
+  // Positive states (green)
+  'complete': { bg: 'bg-green-100', text: 'text-green-700' },
+  'completed': { bg: 'bg-green-100', text: 'text-green-700' },
+  'done': { bg: 'bg-green-100', text: 'text-green-700' },
+  'validated': { bg: 'bg-green-100', text: 'text-green-700' },
+  'approved': { bg: 'bg-green-100', text: 'text-green-700' },
+  'operational': { bg: 'bg-green-100', text: 'text-green-700' },
+  'in_stock': { bg: 'bg-green-100', text: 'text-green-700' },
+  'pass': { bg: 'bg-green-100', text: 'text-green-700' },
+
+  // Active/in-progress states (blue/violet)
+  'active': { bg: 'bg-violet-100', text: 'text-violet-700' },
   'in_progress': { bg: 'bg-blue-100', text: 'text-blue-700' },
   'in-progress': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'done': { bg: 'bg-green-100', text: 'text-green-700' },
-  'completed': { bg: 'bg-green-100', text: 'text-green-700' },
-  'blocked': { bg: 'bg-red-100', text: 'text-red-700' },
-  'cancelled': { bg: 'bg-gray-200', text: 'text-gray-500' },
+  'running': { bg: 'bg-blue-100', text: 'text-blue-700' },
+  'scheduled': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+  'on_order': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+
+  // Warning states (amber/yellow)
+  'degraded': { bg: 'bg-amber-100', text: 'text-amber-700' },
+  'low_stock': { bg: 'bg-amber-100', text: 'text-amber-700' },
+  'on_hold': { bg: 'bg-amber-100', text: 'text-amber-700' },
   'pending': { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  'review': { bg: 'bg-purple-100', text: 'text-purple-700' },
-  'approved': { bg: 'bg-green-100', text: 'text-green-700' },
+  'pass_with_observations': { bg: 'bg-amber-100', text: 'text-amber-700' },
+  'pending_review': { bg: 'bg-amber-100', text: 'text-amber-700' },
+
+  // Negative/error states (red)
+  'failed': { bg: 'bg-red-100', text: 'text-red-700' },
+  'fail': { bg: 'bg-red-100', text: 'text-red-700' },
   'rejected': { bg: 'bg-red-100', text: 'text-red-700' },
-  'draft': { bg: 'bg-gray-100', text: 'text-gray-600' },
-  'active': { bg: 'bg-green-100', text: 'text-green-700' },
-  'inactive': { bg: 'bg-gray-100', text: 'text-gray-500' },
+  'blocked': { bg: 'bg-red-100', text: 'text-red-700' },
+  'down': { bg: 'bg-red-100', text: 'text-red-700' },
+  'out_of_stock': { bg: 'bg-red-100', text: 'text-red-700' },
+  'overdue': { bg: 'bg-red-100', text: 'text-red-700' },
+  'cancelled': { bg: 'bg-red-100', text: 'text-red-700' },
+
+  // Neutral/pending states (slate/gray)
+  'draft': { bg: 'bg-slate-100', text: 'text-slate-700' },
+  'planned': { bg: 'bg-slate-100', text: 'text-slate-700' },
+  'proposed': { bg: 'bg-slate-100', text: 'text-slate-700' },
+  'todo': { bg: 'bg-slate-100', text: 'text-slate-700' },
+
+  // Review states (indigo/teal/purple)
+  'submitted': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  'reviewed': { bg: 'bg-teal-100', text: 'text-teal-700' },
+  'review': { bg: 'bg-purple-100', text: 'text-purple-700' },
+
+  // Archived/inactive states (gray)
+  'archived': { bg: 'bg-slate-100', text: 'text-slate-600' },
+  'dismissed': { bg: 'bg-slate-100', text: 'text-slate-600' },
+  'decommissioned': { bg: 'bg-slate-100', text: 'text-slate-600' },
+  'obsolete': { bg: 'bg-slate-100', text: 'text-slate-600' },
+  'inactive': { bg: 'bg-slate-100', text: 'text-slate-500' },
+
+  // Equipment-specific
+  'under_maintenance': { bg: 'bg-orange-100', text: 'text-orange-700' },
 };
 
 function getStatusColors(status: string): { bg: string; text: string } {
