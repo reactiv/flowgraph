@@ -7,7 +7,7 @@ import type { Node, Edge } from './workflow';
 
 // ==================== Style Configuration Types ====================
 
-export type ViewStyle = 'kanban' | 'cards' | 'tree' | 'timeline' | 'table';
+export type ViewStyle = 'kanban' | 'cards' | 'tree' | 'timeline' | 'table' | 'gantt';
 
 export interface CardTemplate {
   titleField?: string;
@@ -57,12 +57,29 @@ export interface TableConfig {
   statusColors?: Record<string, string>;
 }
 
+export interface GanttConfig {
+  startDateField: string;
+  endDateField: string;
+  progressField?: string;
+  labelField?: string;
+  groupByField?: string;
+  dependencyEdgeTypes?: string[];
+  timeScale: 'day' | 'week' | 'month';
+  statusColors?: Record<string, string>;
+  showTodayMarker?: boolean;
+  barHeight?: number;
+  allowDrag?: boolean;
+  allowResize?: boolean;
+  cardTemplate?: CardTemplate;
+}
+
 export type StyleConfig =
   | KanbanConfig
   | CardsConfig
   | TreeConfig
   | TimelineConfig
-  | TableConfig;
+  | TableConfig
+  | GanttConfig;
 
 // ==================== Action and Filter Types ====================
 
@@ -175,4 +192,16 @@ export interface TableViewProps {
   onNodeClick?: (node: Node) => void;
   onStatusChange?: (nodeId: string, newStatus: string) => Promise<void>;
   onSelectionChange?: (selectedIds: Set<string>) => void;
+}
+
+export interface GanttViewProps {
+  nodes: Node[];
+  edges?: Edge[];
+  config: GanttConfig;
+  onNodeClick?: (node: Node) => void;
+  onNodeUpdate?: (
+    nodeId: string,
+    updates: { start?: string; end?: string }
+  ) => Promise<void>;
+  onStatusChange?: (nodeId: string, newStatus: string) => Promise<void>;
 }

@@ -366,7 +366,7 @@ Declarative configurations that define how to traverse and render workflow subgr
 - **Root type**: The node type this view starts from
 - **Edge traversals**: Which edges to follow and in what direction
 - **Level configurations**: How to render each node type level
-- **Component styles**: Kanban, Cards, Tree, Timeline, or Table
+- **Component styles**: Kanban, Cards, Tree, Timeline, Table, or Gantt
 
 #### Component Styles
 - **Kanban**: Group nodes by a field (typically status), render as draggable columns
@@ -374,6 +374,7 @@ Declarative configurations that define how to traverse and render workflow subgr
 - **Tree**: Hierarchical expand/collapse with depth lines
 - **Timeline**: Date-grouped events with connectors
 - **Table**: Sortable, selectable data grid
+- **Gantt**: Duration bars on a horizontal timeline with start/end dates, progress indicators, today marker, and optional dependency arrows
 
 #### View Template Schema
 ```json

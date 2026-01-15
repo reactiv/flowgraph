@@ -149,6 +149,7 @@ class ViewStyle(str, Enum):
     TREE = "tree"
     TIMELINE = "timeline"
     TABLE = "table"
+    GANTT = "gantt"
 
 
 class CardTemplate(BaseModel):
@@ -225,6 +226,30 @@ class TableConfig(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class GanttConfig(BaseModel):
+    """Configuration for Gantt-style view (timeline with duration bars)."""
+
+    start_date_field: str = PydanticField(alias="startDateField")
+    end_date_field: str = PydanticField(alias="endDateField")
+    progress_field: str | None = PydanticField(default=None, alias="progressField")
+    label_field: str | None = PydanticField(default=None, alias="labelField")
+    group_by_field: str | None = PydanticField(default=None, alias="groupByField")
+    dependency_edge_types: list[str] | None = PydanticField(
+        default=None, alias="dependencyEdgeTypes"
+    )
+    time_scale: Literal["day", "week", "month"] = PydanticField(
+        default="week", alias="timeScale"
+    )
+    status_colors: dict[str, str] | None = PydanticField(default=None, alias="statusColors")
+    show_today_marker: bool = PydanticField(default=True, alias="showTodayMarker")
+    bar_height: int = PydanticField(default=32, alias="barHeight")
+    allow_drag: bool = PydanticField(default=True, alias="allowDrag")
+    allow_resize: bool = PydanticField(default=True, alias="allowResize")
+    card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
+
+    model_config = {"populate_by_name": True}
+
+
 class ActionConfig(BaseModel):
     """Configuration for an action available in a view."""
 
@@ -264,9 +289,9 @@ class LevelConfig(BaseModel):
     """Configuration for how to render a node type level in a view."""
 
     style: ViewStyle
-    style_config: KanbanConfig | CardsConfig | TreeConfig | TimelineConfig | TableConfig = (
-        PydanticField(alias="styleConfig")
-    )
+    style_config: (
+        KanbanConfig | CardsConfig | TreeConfig | TimelineConfig | TableConfig | GanttConfig
+    ) = PydanticField(alias="styleConfig")
     inline_children: list[str] = PydanticField(default=[], alias="inlineChildren")
     expanded_by_default: bool = PydanticField(default=False, alias="expandedByDefault")
     actions: list[ActionConfig] = []

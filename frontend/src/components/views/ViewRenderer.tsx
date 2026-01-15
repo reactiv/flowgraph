@@ -3,12 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { Node } from '@/types/workflow';
-import type { ViewTemplate, KanbanConfig, CardsConfig, TimelineConfig, TreeConfig, TableConfig } from '@/types/view-templates';
+import type { ViewTemplate, KanbanConfig, CardsConfig, TimelineConfig, TreeConfig, TableConfig, GanttConfig } from '@/types/view-templates';
 import { KanbanView } from './styles/KanbanView';
 import { CardsView } from './styles/CardsView';
 import { TimelineView } from './styles/TimelineView';
 import { TreeView } from './styles/TreeView';
 import { TableView } from './styles/TableView';
+import { GanttView } from './styles/GanttView';
 
 interface ViewRendererProps {
   workflowId: string;
@@ -132,6 +133,34 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
           onStatusChange={handleNodeDrop}
         />
       );
+
+    case 'gantt': {
+      // Collect all edges for dependency arrows
+      const allEdges = Object.values(data.levels).flatMap((level) => level.edges || []);
+      const ganttConfig = rootLevelConfig.styleConfig as GanttConfig;
+      return (
+        <GanttView
+          nodes={rootNodes}
+          edges={allEdges}
+          config={ganttConfig}
+          onNodeClick={onNodeClick}
+          onNodeUpdate={async (nodeId, updates) => {
+            // Convert date updates to property updates
+            const propertyUpdates: Record<string, unknown> = {};
+            if (updates.start) {
+              propertyUpdates[ganttConfig.startDateField] = updates.start;
+            }
+            if (updates.end) {
+              propertyUpdates[ganttConfig.endDateField] = updates.end;
+            }
+            await api.updateNode(workflowId, nodeId, { properties: propertyUpdates });
+            queryClient.invalidateQueries({ queryKey: ['view', workflowId, viewTemplate.id] });
+            queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
+          }}
+          onStatusChange={handleNodeDrop}
+        />
+      );
+    }
 
     default:
       return (

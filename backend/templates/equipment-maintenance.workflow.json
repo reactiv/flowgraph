@@ -296,6 +296,42 @@
       }
     },
     {
+      "id": "work-order-schedule",
+      "name": "Work Order Schedule",
+      "description": "Gantt chart showing work order timelines and scheduling",
+      "icon": "gantt-chart",
+      "rootType": "WorkOrder",
+      "levels": {
+        "WorkOrder": {
+          "style": "gantt",
+          "styleConfig": {
+            "startDateField": "scheduled_date",
+            "endDateField": "due_date",
+            "labelField": "title",
+            "groupByField": "priority",
+            "timeScale": "week",
+            "showTodayMarker": true,
+            "allowDrag": true,
+            "allowResize": true,
+            "statusColors": {
+              "Planned": "#64748b",
+              "Scheduled": "#3b82f6",
+              "In Progress": "#f59e0b",
+              "On Hold": "#ef4444",
+              "Completed": "#22c55e",
+              "Cancelled": "#475569"
+            },
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "work_order_id",
+              "statusField": "status",
+              "bodyFields": ["work_type", "assigned_to"]
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "maintenance-timeline",
       "name": "Maintenance Timeline",
       "description": "Timeline view of maintenance logs and activities",

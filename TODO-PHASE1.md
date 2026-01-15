@@ -276,14 +276,14 @@
   - From List View: "Explore Graph" starts with selected nodes
   - Standalone: shows full workflow graph (collapsed clusters for large graphs)
 
-### 6.6 Semantic View Templates (Kanban, Cards, Tree, Timeline, Table)
+### 6.6 Semantic View Templates (Kanban, Cards, Tree, Timeline, Table, Gantt)
 
 > **Declarative view configurations** that define how to traverse and render subgraphs.
 
 #### Backend
 - [x] `ViewTemplate` Pydantic models in `backend/app/models/workflow.py`:
   - `ViewTemplate`, `LevelConfig`, `EdgeTraversal`
-  - `KanbanConfig`, `CardsConfig`, `TreeConfig`, `TimelineConfig`, `TableConfig`
+  - `KanbanConfig`, `CardsConfig`, `TreeConfig`, `TimelineConfig`, `TableConfig`, `GanttConfig`
   - `CardTemplate`, `ActionConfig`, `FilterConfig`
 - [x] `WorkflowDefinition.viewTemplates[]` field added
 - [x] `GraphStore.traverse_view_template()` method for subgraph traversal
@@ -348,6 +348,7 @@
 - [x] TreeView component (expand/collapse, depth lines)
 - [x] TimelineView component (date grouping, connectors)
 - [x] TableView component (sortable, selectable)
+- [x] GanttView component (duration bars, today marker, dependency arrows, grouping)
 
 #### Status Colors Configuration
 - [x] `statusColors` field added to `CardTemplate` (backend + frontend)
@@ -442,6 +443,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] **Tree View**: Hierarchical display with expand/collapse and depth lines
 - [x] **Timeline View**: Date-grouped entries with connectors
 - [x] **Table View**: Sortable columns, selectable rows, configurable columns
+- [x] **Gantt View**: Duration bars with start/end dates, today marker, grouping, status colors
 
 ### 8.5 "Alive" Feel
 - [ ] App feels populated and interactive within 30 seconds of starting

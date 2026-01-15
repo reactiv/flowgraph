@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from app.llm.client import LLMClient, get_client
 from app.models import WorkflowDefinition
 from app.models.workflow import (
+    GanttConfig,
     KanbanConfig,
     LevelConfig,
     ViewStyle,
@@ -19,13 +20,23 @@ VIEW_GENERATION_SYSTEM = """You are a view template generator for a workflow man
 
 Create declarative view configurations that define how to display workflow data.
 
-## View Style
+## View Styles
 
 **kanban**: Group items in columns by a field value
-- groupByField: The field key to group by (e.g., "status" for workflow state)
+- groupByField: The field key to group by (e.g., "status")
 - columnOrder: Array of values in display order
-- columnColors: Map of value to hex color (use semantic colors: blue for in-progress, green for complete, red for failed, grey for pending/archived)
-- cardTemplate.bodyFields: Array of field keys to show in card body (include useful fields like "author")
+- columnColors: Map of value to hex color (semantic colors preferred)
+- cardTemplate.bodyFields: Array of field keys to show in card body
+
+**gantt**: Show items as duration bars on a timeline
+- startDateField: The field key containing the start date (must be datetime type)
+- endDateField: The field key containing the end date (must be datetime type)
+- progressField: Optional field with percentage (0-100) for progress indicator
+- labelField: Optional field to display on the bar (defaults to title)
+- groupByField: Optional field to group rows (e.g., by assignee or priority)
+- timeScale: "day" | "week" | "month" (default: "week")
+- statusColors: Map of status value to hex color for bar coloring
+- dependencyEdgeTypes: Array of edge types that represent task dependencies (optional)
 
 ## Response Format
 
@@ -195,6 +206,38 @@ Generate a JSON view template using exact field keys from the schema."""
                 config = KanbanConfig.model_validate(style_config)
                 processed_levels[node_type_name] = LevelConfig(
                     style=ViewStyle.KANBAN, style_config=config
+                )
+            elif style_str == "gantt":
+                # Validate date fields
+                start_field = style_config.get("startDateField")
+                end_field = style_config.get("endDateField")
+                if not start_field or not end_field:
+                    raise ValueError(
+                        "gantt view requires startDateField and endDateField"
+                    )
+                if start_field not in valid_fields:
+                    raise ValueError(
+                        f"Invalid startDateField '{start_field}'. "
+                        f"Valid fields: {valid_fields}"
+                    )
+                if end_field not in valid_fields:
+                    raise ValueError(
+                        f"Invalid endDateField '{end_field}'. "
+                        f"Valid fields: {valid_fields}"
+                    )
+
+                # Validate optional fields
+                for opt_field in ["progressField", "labelField", "groupByField"]:
+                    field_val = style_config.get(opt_field)
+                    if field_val and field_val not in valid_fields:
+                        raise ValueError(
+                            f"Invalid {opt_field} '{field_val}'. "
+                            f"Valid fields: {valid_fields}"
+                        )
+
+                config = GanttConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.GANTT, style_config=config
                 )
             else:
                 # Default to kanban for unimplemented styles
