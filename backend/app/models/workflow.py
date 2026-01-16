@@ -1,9 +1,9 @@
 """Pydantic models for WorkflowDefinition (the schema graph)."""
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Discriminator, Tag, model_validator
 from pydantic import Field as PydanticField
 
 
@@ -270,6 +270,121 @@ class FilterConfig(BaseModel):
     filter_type: Literal["select", "multiselect", "date-range", "search"] = PydanticField(
         alias="type"
     )
+
+    model_config = {"populate_by_name": True}
+
+
+# ==================== Dynamic Filter Models ====================
+
+
+class FilterOperator(str, Enum):
+    """Operators for filter comparisons."""
+
+    EQUALS = "eq"
+    NOT_EQUALS = "neq"
+    CONTAINS = "contains"
+    STARTS_WITH = "startsWith"
+    ENDS_WITH = "endsWith"
+    GREATER_THAN = "gt"
+    GREATER_THAN_OR_EQUAL = "gte"
+    LESS_THAN = "lt"
+    LESS_THAN_OR_EQUAL = "lte"
+    IN = "in"
+    NOT_IN = "notIn"
+    IS_NULL = "isNull"
+    IS_NOT_NULL = "isNotNull"
+
+
+class PropertyFilter(BaseModel):
+    """Filter on direct node properties."""
+
+    type: Literal["property"] = "property"
+    field: str
+    operator: FilterOperator
+    value: Any | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class RelationalFilter(BaseModel):
+    """Filter nodes based on connected node properties via edges."""
+
+    type: Literal["relational"] = "relational"
+    edge_type: str = PydanticField(alias="edgeType")
+    direction: Literal["outgoing", "incoming"]
+    target_type: str = PydanticField(alias="targetType")
+    target_filter: PropertyFilter = PydanticField(alias="targetFilter")
+    match_mode: Literal["any", "all", "none"] = PydanticField(default="any", alias="matchMode")
+
+    model_config = {"populate_by_name": True}
+
+
+def _get_filter_discriminator(v: Any) -> str:
+    """Discriminator function for NodeFilter union."""
+    if isinstance(v, dict):
+        return v.get("type", "property")
+    return getattr(v, "type", "property")
+
+
+NodeFilter = Annotated[
+    Annotated[PropertyFilter, Tag("property")] | Annotated[RelationalFilter, Tag("relational")],
+    Discriminator(_get_filter_discriminator),
+]
+
+
+class FilterGroup(BaseModel):
+    """Group of filters combined with AND/OR logic."""
+
+    logic: Literal["and", "or"] = "and"
+    filters: list[NodeFilter | "FilterGroup"] = []
+
+    model_config = {"populate_by_name": True}
+
+
+# Rebuild the model to handle self-reference
+FilterGroup.model_rebuild()
+
+
+class ViewFilterParams(BaseModel):
+    """Filter parameters passed to view subgraph API."""
+
+    filters: FilterGroup | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+# ==================== Filter Schema Models (for filter-schema endpoint) ====================
+
+
+class RelationPath(BaseModel):
+    """Path information for a relational filter field."""
+
+    edge_type: str = PydanticField(alias="edgeType")
+    direction: Literal["outgoing", "incoming"]
+    target_type: str = PydanticField(alias="targetType")
+
+    model_config = {"populate_by_name": True}
+
+
+class FilterableField(BaseModel):
+    """A field available for filtering."""
+
+    key: str
+    label: str
+    kind: FieldKind
+    node_type: str = PydanticField(alias="nodeType")
+    values: list[str] | None = None  # For enum fields
+    is_relational: bool = PydanticField(default=False, alias="isRelational")
+    relation_path: RelationPath | None = PydanticField(default=None, alias="relationPath")
+
+    model_config = {"populate_by_name": True}
+
+
+class FilterSchema(BaseModel):
+    """Schema of available filter options for a view."""
+
+    property_fields: list[FilterableField] = PydanticField(alias="propertyFields")
+    relational_fields: list[FilterableField] = PydanticField(alias="relationalFields")
 
     model_config = {"populate_by_name": True}
 

@@ -21,6 +21,8 @@ app/models/event.py
 app/models/node.py
 app/models/suggestion.py
 app/models/workflow.py
+app/services/__init__.py
+app/services/filter_evaluator.py
 flowgraph_backend.egg-info/PKG-INFO
 flowgraph_backend.egg-info/SOURCES.txt
 flowgraph_backend.egg-info/dependency_links.txt

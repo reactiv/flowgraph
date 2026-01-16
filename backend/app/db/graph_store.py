@@ -19,6 +19,7 @@ from app.models import (
     WorkflowDefinition,
 )
 from app.models.workflow import (
+    ViewFilterParams,
     ViewTemplate,
     ViewTemplateCreate,
     ViewTemplateUpdate,
@@ -330,6 +331,50 @@ class GraphStore:
 
         return nodes, total
 
+    async def get_distinct_field_values(
+        self,
+        workflow_id: str,
+        node_type: str,
+        field: str,
+        limit: int = 50,
+    ) -> list[str]:
+        """Get distinct values for a field from nodes.
+
+        Used for autocomplete suggestions in filters.
+        Returns unique non-null values for the specified field.
+        """
+        db = await get_db()
+
+        # Handle built-in fields vs properties
+        if field in ("title", "status"):
+            # Direct column query
+            cursor = await db.execute(
+                f"""
+                SELECT DISTINCT {field} as value
+                FROM nodes
+                WHERE workflow_id = ? AND type = ? AND {field} IS NOT NULL
+                ORDER BY {field}
+                LIMIT ?
+                """,
+                (workflow_id, node_type, limit),
+            )
+        else:
+            # Query JSON property - use json_extract for SQLite
+            cursor = await db.execute(
+                """
+                SELECT DISTINCT json_extract(properties_json, ?) as value
+                FROM nodes
+                WHERE workflow_id = ? AND type = ?
+                  AND json_extract(properties_json, ?) IS NOT NULL
+                ORDER BY value
+                LIMIT ?
+                """,
+                (f"$.{field}", workflow_id, node_type, f"$.{field}", limit),
+            )
+
+        rows = await cursor.fetchall()
+        return [str(row["value"]) for row in rows if row["value"] is not None]
+
     # ==================== Edges ====================
 
     async def create_edge(self, workflow_id: str, edge: EdgeCreate) -> Edge:
@@ -524,12 +569,16 @@ class GraphStore:
         workflow_id: str,
         template: ViewTemplate,
         root_node_id: str | None = None,
+        filter_params: ViewFilterParams | None = None,
     ) -> dict[str, Any]:
         """
         Traverse the graph according to a view template configuration.
 
         Returns a structured response with nodes organized by level (node type).
+        Optionally applies filters to root nodes.
         """
+        from app.services.filter_evaluator import FilterEvaluator
+
         result: dict[str, Any] = {
             "template": template.model_dump(by_alias=True),
             "levels": {},
@@ -544,6 +593,13 @@ class GraphStore:
         else:
             root_nodes, _ = await self.query_nodes(
                 workflow_id, node_type=template.root_type, limit=1000
+            )
+
+        # Apply filters to root nodes if provided
+        if filter_params and filter_params.filters:
+            evaluator = FilterEvaluator(self, workflow_id)
+            root_nodes = await evaluator.evaluate_filter_group(
+                root_nodes, filter_params.filters
             )
 
         # Store root nodes in result

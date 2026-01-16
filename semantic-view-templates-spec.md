@@ -380,3 +380,115 @@ Templates are domain configuration, not code. Users or admins define new views w
 4. **Saved views**: Should users be able to save filter + template combinations as named views? What's the sharing model?
 
 5. **Real-time updates**: How do we handle concurrent edits in Kanban? Optimistic UI with conflict resolution, or lock-based?
+
+---
+
+## Filtering
+
+Views support dynamic filtering at query time, allowing users to narrow down displayed nodes without modifying the view template.
+
+### Filter Types
+
+#### Property Filters
+Filter nodes by their direct field values:
+
+```typescript
+interface PropertyFilter {
+  type: 'property';
+  field: string;           // Field key (e.g., "status", "priority")
+  operator: FilterOperator;
+  value?: unknown;
+}
+
+type FilterOperator =
+  | 'eq' | 'neq'           // Equality
+  | 'contains' | 'startsWith' | 'endsWith'  // String matching
+  | 'gt' | 'gte' | 'lt' | 'lte'  // Comparison
+  | 'in' | 'notIn'         // Set membership
+  | 'isNull' | 'isNotNull'; // Null checks
+```
+
+#### Relational Filters
+Filter nodes based on properties of connected nodes via edges:
+
+```typescript
+interface RelationalFilter {
+  type: 'relational';
+  edgeType: string;        // e.g., "BELONGS_TO"
+  direction: 'outgoing' | 'incoming';
+  targetType: string;      // Target node type
+  targetFilter: PropertyFilter;  // Filter applied to connected nodes
+  matchMode?: 'any' | 'all' | 'none';  // How to aggregate matches
+}
+```
+
+**Example**: "Show Parts where the connected Device has status = Active"
+```typescript
+{
+  type: 'relational',
+  edgeType: 'BELONGS_TO',
+  direction: 'outgoing',
+  targetType: 'Device',
+  targetFilter: { type: 'property', field: 'status', operator: 'eq', value: 'Active' },
+  matchMode: 'any'
+}
+```
+
+### Filter Groups
+
+Filters can be combined with AND/OR logic:
+
+```typescript
+interface FilterGroup {
+  logic: 'and' | 'or';
+  filters: (NodeFilter | FilterGroup)[];  // Supports nesting
+}
+```
+
+### Filter Schema API
+
+`GET /views/{view_id}/filter-schema` returns available filterable fields:
+
+```typescript
+interface FilterSchema {
+  propertyFields: FilterableField[];   // Direct node properties
+  relationalFields: FilterableField[]; // Properties via edges
+}
+
+interface FilterableField {
+  key: string;           // Unique identifier
+  label: string;         // Display label
+  kind: FieldKind;       // string, number, enum, datetime, person
+  nodeType: string;      // Which node type this field belongs to
+  values?: string[];     // For enums: allowed values
+  isRelational: boolean;
+  relationPath?: {       // For relational fields
+    edgeType: string;
+    direction: 'outgoing' | 'incoming';
+    targetType: string;
+  };
+}
+```
+
+### Autocomplete
+
+`GET /views/{view_id}/filter-values` provides distinct values for autocomplete:
+
+| Parameter | Description |
+|-----------|-------------|
+| `node_type` | The node type to get values from |
+| `field` | The field to get distinct values for |
+| `limit` | Maximum number of values (default: 50) |
+
+### UI Components
+
+The filter bar appears above the view content:
+
+| Component | Purpose |
+|-----------|---------|
+| `FilterBar` | Container showing active filters as chips |
+| `FilterChip` | Removable pill showing filter summary |
+| `FilterBuilder` | Modal for constructing new filters |
+| `FieldSelector` | Dropdown grouped by property/relational |
+| `OperatorSelector` | Operators appropriate for field kind |
+| `ValueInput` | Input with autocomplete for text fields |
