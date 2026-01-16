@@ -456,10 +456,13 @@ def _build_filter_schema(
                 None,
             )
             if target_node_type:
+                # Key format: EDGE_TYPE:out:field_name (direction included for uniqueness)
+                key_prefix = f"{edge_type.type}:out"
+
                 # Add built-in fields for the target node type
                 relational_fields.append(
                     FilterableField(
-                        key=f"{edge_type.type}.title",
+                        key=f"{key_prefix}:title",
                         label=f"{target_node_type.display_name} > Title",
                         kind=FieldKind.STRING,
                         node_type=target_node_type.type,
@@ -473,7 +476,7 @@ def _build_filter_schema(
                 )
                 relational_fields.append(
                     FilterableField(
-                        key=f"{edge_type.type}.status",
+                        key=f"{key_prefix}:status",
                         label=f"{target_node_type.display_name} > Status",
                         kind=FieldKind.ENUM,
                         node_type=target_node_type.type,
@@ -493,7 +496,7 @@ def _build_filter_schema(
                         continue
                     relational_fields.append(
                         FilterableField(
-                            key=f"{edge_type.type}.{field.key}",
+                            key=f"{key_prefix}:{field.key}",
                             label=f"{target_node_type.display_name} > {field.label}",
                             kind=field.kind,
                             node_type=target_node_type.type,
@@ -514,10 +517,13 @@ def _build_filter_schema(
                 None,
             )
             if source_node_type:
+                # Key format: EDGE_TYPE:in:field_name (direction included for uniqueness)
+                key_prefix = f"{edge_type.type}:in"
+
                 # Add built-in fields
                 relational_fields.append(
                     FilterableField(
-                        key=f"{edge_type.type}.title",
+                        key=f"{key_prefix}:title",
                         label=f"{source_node_type.display_name} > Title",
                         kind=FieldKind.STRING,
                         node_type=source_node_type.type,
@@ -531,7 +537,7 @@ def _build_filter_schema(
                 )
                 relational_fields.append(
                     FilterableField(
-                        key=f"{edge_type.type}.status",
+                        key=f"{key_prefix}:status",
                         label=f"{source_node_type.display_name} > Status",
                         kind=FieldKind.ENUM,
                         node_type=source_node_type.type,
@@ -550,7 +556,7 @@ def _build_filter_schema(
                         continue
                     relational_fields.append(
                         FilterableField(
-                            key=f"{edge_type.type}.{field.key}",
+                            key=f"{key_prefix}:{field.key}",
                             label=f"{source_node_type.display_name} > {field.label}",
                             kind=field.kind,
                             node_type=source_node_type.type,

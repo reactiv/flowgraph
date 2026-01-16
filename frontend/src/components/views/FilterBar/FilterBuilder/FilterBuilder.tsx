@@ -60,9 +60,9 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
     let filter: NodeFilter;
 
     if (selectedField.isRelational && selectedField.relationPath) {
-      // Extract field name from the key (e.g., "EDGE_TYPE.field_name" -> "field_name")
-      const fieldParts = selectedField.key.split('.');
-      const targetFieldName = fieldParts.length > 1 ? fieldParts[1] : selectedField.key;
+      // Extract field name from the key (e.g., "EDGE_TYPE:out:field_name" -> "field_name")
+      const fieldParts = selectedField.key.split(':');
+      const targetFieldName = fieldParts.length > 2 ? fieldParts[2] : fieldParts[fieldParts.length - 1];
 
       // Relational filter
       filter = {

@@ -37,9 +37,9 @@ export function ValueInput({
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Determine the field name for the API call
-  // For relational fields, we need to extract the actual field name (e.g., "EDGE_TYPE.title" -> "title")
+  // For relational fields, we need to extract the actual field name (e.g., "EDGE_TYPE:out:title" -> "title")
   const actualFieldName = field.isRelational
-    ? field.key.split('.')[1] || field.key
+    ? field.key.split(':').pop() || field.key
     : field.key;
 
   // Fetch suggestions for string/person fields
