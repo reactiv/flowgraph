@@ -22,12 +22,17 @@ from app.models import (
     Edge,
     EdgeCreate,
     Event,
+    FilterableField,
+    FilterSchema,
     Node,
     NodeCreate,
     NodeUpdate,
+    RelationPath,
+    ViewFilterParams,
     WorkflowDefinition,
 )
 from app.models.workflow import (
+    FieldKind,
     ViewTemplate,
     ViewTemplateCreate,
     ViewTemplateUpdate,
@@ -315,8 +320,12 @@ async def get_view_subgraph(
     workflow_id: str,
     view_id: str,
     root_node_id: str | None = Query(None, description="Optional root node ID"),
+    filters: str | None = Query(None, description="JSON-encoded filter parameters"),
 ) -> dict[str, Any]:
-    """Get a subgraph traversed according to a view template configuration."""
+    """Get a subgraph traversed according to a view template configuration.
+
+    Optionally accepts a `filters` query parameter as a JSON-encoded FilterGroup.
+    """
     # Get workflow definition
     workflow = await graph_store.get_workflow(workflow_id)
     if workflow is None:
@@ -334,9 +343,230 @@ async def get_view_subgraph(
             status_code=404, detail=f"View template '{view_id}' not found"
         )
 
+    # Parse filter parameters if provided
+    filter_params = None
+    if filters:
+        try:
+            filter_dict = json.loads(filters)
+            filter_params = ViewFilterParams.model_validate(filter_dict)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON in filters parameter: {e}"
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid filter parameters: {e}"
+            )
+
     # Traverse the graph according to the template
     return await graph_store.traverse_view_template(
-        workflow_id, template, root_node_id
+        workflow_id, template, root_node_id, filter_params
+    )
+
+
+@router.get("/workflows/{workflow_id}/views/{view_id}/filter-schema")
+async def get_view_filter_schema(
+    workflow_id: str,
+    view_id: str,
+) -> FilterSchema:
+    """Get the schema of available filter options for a view template.
+
+    Returns property fields (direct node fields) and relational fields
+    (fields on connected nodes via edges).
+    """
+    # Get workflow definition
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Find the view template
+    template = None
+    for vt in workflow.view_templates:
+        if vt.id == view_id:
+            template = vt
+            break
+
+    if template is None:
+        raise HTTPException(
+            status_code=404, detail=f"View template '{view_id}' not found"
+        )
+
+    # Build filter schema from workflow definition and template
+    return _build_filter_schema(workflow, template)
+
+
+def _build_filter_schema(
+    workflow: WorkflowDefinition,
+    template: ViewTemplate,
+) -> FilterSchema:
+    """Build filter schema showing available fields and relationships."""
+    # Find the root node type definition
+    root_node_type = next(
+        (nt for nt in workflow.node_types if nt.type == template.root_type),
+        None,
+    )
+
+    property_fields: list[FilterableField] = []
+    relational_fields: list[FilterableField] = []
+
+    if root_node_type:
+        # Add built-in fields
+        property_fields.append(
+            FilterableField(
+                key="title",
+                label="Title",
+                kind=FieldKind.STRING,
+                node_type=root_node_type.type,
+                is_relational=False,
+            )
+        )
+        property_fields.append(
+            FilterableField(
+                key="status",
+                label="Status",
+                kind=FieldKind.ENUM,
+                node_type=root_node_type.type,
+                values=root_node_type.states.values if root_node_type.states else None,
+                is_relational=False,
+            )
+        )
+
+        # Add direct property fields from schema
+        for field in root_node_type.fields:
+            # Skip status since we already added it
+            if field.key == "status":
+                continue
+            property_fields.append(
+                FilterableField(
+                    key=field.key,
+                    label=field.label,
+                    kind=field.kind,
+                    node_type=root_node_type.type,
+                    values=field.values,
+                    is_relational=False,
+                )
+            )
+
+    # Add relational fields based on edge types
+    for edge_type in workflow.edge_types:
+        # Check outgoing edges from root type
+        if edge_type.from_type == template.root_type:
+            target_node_type = next(
+                (nt for nt in workflow.node_types if nt.type == edge_type.to_type),
+                None,
+            )
+            if target_node_type:
+                # Add built-in fields for the target node type
+                relational_fields.append(
+                    FilterableField(
+                        key=f"{edge_type.type}.title",
+                        label=f"{target_node_type.display_name} > Title",
+                        kind=FieldKind.STRING,
+                        node_type=target_node_type.type,
+                        is_relational=True,
+                        relation_path=RelationPath(
+                            edge_type=edge_type.type,
+                            direction="outgoing",
+                            target_type=edge_type.to_type,
+                        ),
+                    )
+                )
+                relational_fields.append(
+                    FilterableField(
+                        key=f"{edge_type.type}.status",
+                        label=f"{target_node_type.display_name} > Status",
+                        kind=FieldKind.ENUM,
+                        node_type=target_node_type.type,
+                        values=target_node_type.states.values if target_node_type.states else None,
+                        is_relational=True,
+                        relation_path=RelationPath(
+                            edge_type=edge_type.type,
+                            direction="outgoing",
+                            target_type=edge_type.to_type,
+                        ),
+                    )
+                )
+
+                # Add property fields from the target node type
+                for field in target_node_type.fields:
+                    if field.key == "status":
+                        continue
+                    relational_fields.append(
+                        FilterableField(
+                            key=f"{edge_type.type}.{field.key}",
+                            label=f"{target_node_type.display_name} > {field.label}",
+                            kind=field.kind,
+                            node_type=target_node_type.type,
+                            values=field.values,
+                            is_relational=True,
+                            relation_path=RelationPath(
+                                edge_type=edge_type.type,
+                                direction="outgoing",
+                                target_type=edge_type.to_type,
+                            ),
+                        )
+                    )
+
+        # Check incoming edges to root type
+        if edge_type.to_type == template.root_type:
+            source_node_type = next(
+                (nt for nt in workflow.node_types if nt.type == edge_type.from_type),
+                None,
+            )
+            if source_node_type:
+                # Add built-in fields
+                relational_fields.append(
+                    FilterableField(
+                        key=f"{edge_type.type}.title",
+                        label=f"{source_node_type.display_name} > Title",
+                        kind=FieldKind.STRING,
+                        node_type=source_node_type.type,
+                        is_relational=True,
+                        relation_path=RelationPath(
+                            edge_type=edge_type.type,
+                            direction="incoming",
+                            target_type=edge_type.from_type,
+                        ),
+                    )
+                )
+                relational_fields.append(
+                    FilterableField(
+                        key=f"{edge_type.type}.status",
+                        label=f"{source_node_type.display_name} > Status",
+                        kind=FieldKind.ENUM,
+                        node_type=source_node_type.type,
+                        values=source_node_type.states.values if source_node_type.states else None,
+                        is_relational=True,
+                        relation_path=RelationPath(
+                            edge_type=edge_type.type,
+                            direction="incoming",
+                            target_type=edge_type.from_type,
+                        ),
+                    )
+                )
+
+                for field in source_node_type.fields:
+                    if field.key == "status":
+                        continue
+                    relational_fields.append(
+                        FilterableField(
+                            key=f"{edge_type.type}.{field.key}",
+                            label=f"{source_node_type.display_name} > {field.label}",
+                            kind=field.kind,
+                            node_type=source_node_type.type,
+                            values=field.values,
+                            is_relational=True,
+                            relation_path=RelationPath(
+                                edge_type=edge_type.type,
+                                direction="incoming",
+                                target_type=edge_type.from_type,
+                            ),
+                        )
+                    )
+
+    return FilterSchema(
+        property_fields=property_fields,
+        relational_fields=relational_fields,
     )
 
 

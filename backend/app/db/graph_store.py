@@ -19,6 +19,7 @@ from app.models import (
     WorkflowDefinition,
 )
 from app.models.workflow import (
+    ViewFilterParams,
     ViewTemplate,
     ViewTemplateCreate,
     ViewTemplateUpdate,
@@ -469,12 +470,16 @@ class GraphStore:
         workflow_id: str,
         template: ViewTemplate,
         root_node_id: str | None = None,
+        filter_params: ViewFilterParams | None = None,
     ) -> dict[str, Any]:
         """
         Traverse the graph according to a view template configuration.
 
         Returns a structured response with nodes organized by level (node type).
+        Optionally applies filters to root nodes.
         """
+        from app.services.filter_evaluator import FilterEvaluator
+
         result: dict[str, Any] = {
             "template": template.model_dump(by_alias=True),
             "levels": {},
@@ -489,6 +494,13 @@ class GraphStore:
         else:
             root_nodes, _ = await self.query_nodes(
                 workflow_id, node_type=template.root_type, limit=1000
+            )
+
+        # Apply filters to root nodes if provided
+        if filter_params and filter_params.filters:
+            evaluator = FilterEvaluator(self, workflow_id)
+            root_nodes = await evaluator.evaluate_filter_group(
+                root_nodes, filter_params.filters
             )
 
         # Store root nodes in result

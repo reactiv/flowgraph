@@ -18,6 +18,8 @@ import type {
   CreateFromLanguageResponse,
 } from '@/types/workflow';
 import type {
+  FilterSchema,
+  ViewFilterParams,
   ViewSubgraphResponse,
   ViewTemplate,
   ViewTemplateCreate,
@@ -172,16 +174,20 @@ export const api = {
   getViewSubgraph: (
     workflowId: string,
     viewId: string,
-    params?: { rootNodeId?: string }
+    params?: { rootNodeId?: string; filters?: ViewFilterParams }
   ) => {
     const searchParams = new URLSearchParams();
     if (params?.rootNodeId) searchParams.set('root_node_id', params.rootNodeId);
+    if (params?.filters) searchParams.set('filters', JSON.stringify(params.filters));
 
     const query = searchParams.toString();
     return fetchJson<ViewSubgraphResponse>(
       `/workflows/${workflowId}/views/${viewId}${query ? `?${query}` : ''}`
     );
   },
+
+  getViewFilterSchema: (workflowId: string, viewId: string) =>
+    fetchJson<FilterSchema>(`/workflows/${workflowId}/views/${viewId}/filter-schema`),
 
   // Events
   listEvents: (

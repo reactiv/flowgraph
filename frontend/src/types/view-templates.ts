@@ -101,6 +101,86 @@ export interface FilterConfig {
   type: FilterType;
 }
 
+// ==================== Dynamic Filter Types ====================
+
+export type FilterOperator =
+  | 'eq'
+  | 'neq'
+  | 'contains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'notIn'
+  | 'isNull'
+  | 'isNotNull';
+
+export interface PropertyFilter {
+  type: 'property';
+  field: string;
+  operator: FilterOperator;
+  value?: unknown;
+}
+
+export interface RelationalFilter {
+  type: 'relational';
+  edgeType: string;
+  direction: 'outgoing' | 'incoming';
+  targetType: string;
+  targetFilter: PropertyFilter;
+  matchMode?: 'any' | 'all' | 'none';
+}
+
+export type NodeFilter = PropertyFilter | RelationalFilter;
+
+export interface FilterGroup {
+  logic: 'and' | 'or';
+  filters: (NodeFilter | FilterGroup)[];
+}
+
+export interface ViewFilterParams {
+  filters?: FilterGroup;
+}
+
+// ==================== Filter Schema Types (from /filter-schema endpoint) ====================
+
+export interface RelationPath {
+  edgeType: string;
+  direction: 'outgoing' | 'incoming';
+  targetType: string;
+}
+
+export interface FilterableField {
+  key: string;
+  label: string;
+  kind: string; // FieldKind: string, number, datetime, enum, person, json, tag[], file[]
+  nodeType: string;
+  values?: string[]; // For enum fields
+  isRelational: boolean;
+  relationPath?: RelationPath;
+}
+
+export interface FilterSchema {
+  propertyFields: FilterableField[];
+  relationalFields: FilterableField[];
+}
+
+// ==================== Active Filter State (for UI) ====================
+
+export interface ActiveFilter {
+  id: string; // Unique ID for React keys
+  filter: NodeFilter;
+  displayLabel: string;
+}
+
+export interface FilterState {
+  activeFilters: ActiveFilter[];
+  filterGroup: FilterGroup;
+}
+
 // ==================== View Template Types ====================
 
 export interface EdgeTraversal {
