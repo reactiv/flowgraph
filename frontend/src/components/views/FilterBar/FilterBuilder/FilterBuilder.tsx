@@ -20,12 +20,14 @@ import { OperatorSelector } from './OperatorSelector';
 import { ValueInput } from './ValueInput';
 
 interface FilterBuilderProps {
+  workflowId: string;
+  viewId: string;
   schema: FilterSchema;
   onAddFilter: (filter: NodeFilter, displayLabel: string) => void;
   onClose: () => void;
 }
 
-export function FilterBuilder({ schema, onAddFilter, onClose }: FilterBuilderProps) {
+export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose }: FilterBuilderProps) {
   const [selectedField, setSelectedField] = useState<FilterableField | null>(null);
   const [selectedOperator, setSelectedOperator] = useState<FilterOperator | null>(null);
   const [filterValue, setFilterValue] = useState<unknown>(null);
@@ -141,6 +143,8 @@ export function FilterBuilder({ schema, onAddFilter, onClose }: FilterBuilderPro
                 Value
               </label>
               <ValueInput
+                workflowId={workflowId}
+                viewId={viewId}
                 field={selectedField}
                 operator={selectedOperator}
                 value={filterValue}

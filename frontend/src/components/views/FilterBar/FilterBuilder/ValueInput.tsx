@@ -1,16 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import type { FilterableField, FilterOperator } from '@/types/view-templates';
 
 interface ValueInputProps {
+  workflowId: string;
+  viewId: string;
   field: FilterableField;
   operator: FilterOperator;
   value: unknown;
   onChange: (value: unknown) => void;
 }
 
-export function ValueInput({ field, operator, value, onChange }: ValueInputProps) {
+export function ValueInput({
+  workflowId,
+  viewId,
+  field,
+  operator,
+  value,
+  onChange,
+}: ValueInputProps) {
   // For multi-select operators with enum fields
   const isMultiSelect = (operator === 'in' || operator === 'notIn') && field.values;
 
@@ -19,16 +30,101 @@ export function ValueInput({ field, operator, value, onChange }: ValueInputProps
     Array.isArray(value) ? value : []
   );
 
-  // Handle string/text input
+  // Autocomplete state
+  const [inputValue, setInputValue] = useState<string>((value as string) || '');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Determine the field name for the API call
+  // For relational fields, we need to extract the actual field name (e.g., "EDGE_TYPE.title" -> "title")
+  const actualFieldName = field.isRelational
+    ? field.key.split('.')[1] || field.key
+    : field.key;
+
+  // Fetch suggestions for string/person fields
+  const shouldFetchSuggestions =
+    (field.kind === 'string' || field.kind === 'person') && !field.values;
+
+  const { data: suggestionsData } = useQuery({
+    queryKey: ['filterValues', workflowId, viewId, field.nodeType, actualFieldName],
+    queryFn: () =>
+      api.getFilterValues(workflowId, viewId, field.nodeType, actualFieldName, 50),
+    enabled: shouldFetchSuggestions,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  const suggestions = suggestionsData?.values || [];
+
+  // Filter suggestions based on current input
+  const filteredSuggestions = suggestions.filter(
+    (s) =>
+      s.toLowerCase().includes(inputValue.toLowerCase()) &&
+      s.toLowerCase() !== inputValue.toLowerCase()
+  );
+
+  // Sync inputValue with external value changes
+  useEffect(() => {
+    setInputValue((value as string) || '');
+  }, [value]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle string/text input with autocomplete
   if (field.kind === 'string' || field.kind === 'person') {
     return (
-      <input
-        type="text"
-        value={(value as string) || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Enter value..."
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            onChange(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          placeholder="Enter value..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {/* Suggestions dropdown */}
+        {showSuggestions && filteredSuggestions.length > 0 && (
+          <div
+            ref={suggestionsRef}
+            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+          >
+            {filteredSuggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => {
+                  setInputValue(suggestion);
+                  onChange(suggestion);
+                  setShowSuggestions(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     );
   }
 

@@ -570,6 +570,37 @@ def _build_filter_schema(
     )
 
 
+class FilterValuesResponse(BaseModel):
+    """Response with distinct values for a filter field."""
+
+    values: list[str]
+
+
+@router.get("/workflows/{workflow_id}/views/{view_id}/filter-values")
+async def get_filter_values(
+    workflow_id: str,
+    view_id: str,
+    node_type: str = Query(..., description="The node type to get values from"),
+    field: str = Query(..., description="The field to get distinct values for"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of values"),
+) -> FilterValuesResponse:
+    """Get distinct values for a filter field.
+
+    Used for autocomplete suggestions in the filter UI.
+    Returns unique non-null values for the specified field.
+    """
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Get distinct values from nodes
+    values = await graph_store.get_distinct_field_values(
+        workflow_id, node_type, field, limit
+    )
+    return FilterValuesResponse(values=values)
+
+
 @router.put("/workflows/{workflow_id}/views/{view_id}")
 async def update_view(
     workflow_id: str, view_id: str, update: ViewTemplateUpdate

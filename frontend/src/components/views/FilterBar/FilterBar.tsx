@@ -119,6 +119,8 @@ export function FilterBar({ workflowId, viewId, onFiltersChange }: FilterBarProp
       {/* Filter builder modal */}
       {isBuilderOpen && filterSchema && (
         <FilterBuilder
+          workflowId={workflowId}
+          viewId={viewId}
           schema={filterSchema}
           onAddFilter={handleAddFilter}
           onClose={() => setIsBuilderOpen(false)}

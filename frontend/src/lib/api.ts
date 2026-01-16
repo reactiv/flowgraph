@@ -189,6 +189,17 @@ export const api = {
   getViewFilterSchema: (workflowId: string, viewId: string) =>
     fetchJson<FilterSchema>(`/workflows/${workflowId}/views/${viewId}/filter-schema`),
 
+  getFilterValues: (
+    workflowId: string,
+    viewId: string,
+    nodeType: string,
+    field: string,
+    limit: number = 50
+  ) =>
+    fetchJson<{ values: string[] }>(
+      `/workflows/${workflowId}/views/${viewId}/filter-values?node_type=${encodeURIComponent(nodeType)}&field=${encodeURIComponent(field)}&limit=${limit}`
+    ),
+
   // Events
   listEvents: (
     workflowId: string,
