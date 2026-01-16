@@ -11,15 +11,29 @@ import json
 import logging
 import random
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, TypedDict
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
 from app.llm.gemini_client import GeminiClient, get_gemini_client
 from app.llm.scenario_generator import Scenario, ScenarioGenerator, ScenarioNode
 from app.models import EdgeCreate, NodeCreate, NodeType, WorkflowDefinition
+
+
+class SeedProgress(TypedDict):
+    """Progress update during seeding."""
+
+    phase: str  # "scenarios" | "expanding" | "summaries" | "saving" | "complete"
+    current: int  # Current batch/item number
+    total: int  # Total batches/items
+    message: str  # Human-readable progress message
+
+
+# Type alias for progress callback
+ProgressCallback = Callable[[SeedProgress], Awaitable[None]]
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +131,11 @@ class DataGenerator:
         return self._gemini_client
 
     async def seed_workflow(
-        self, workflow_id: str, definition: WorkflowDefinition, config: SeedConfig
+        self,
+        workflow_id: str,
+        definition: WorkflowDefinition,
+        config: SeedConfig,
+        on_progress: ProgressCallback | None = None,
     ) -> dict[str, Any]:
         """Seed a workflow with realistic demo data.
 
@@ -125,26 +143,71 @@ class DataGenerator:
             workflow_id: The workflow ID to seed
             definition: The workflow definition (schema)
             config: Seeding configuration
+            on_progress: Optional async callback for progress updates
 
         Returns:
             Summary of generated data
         """
         logger.info(f"Seeding workflow {workflow_id} with scale={config.scale}")
 
+        async def report_progress(progress: SeedProgress) -> None:
+            """Report progress if callback is provided."""
+            if on_progress:
+                await on_progress(progress)
+
         # Phase 1: Generate scenarios using Claude
+        total_batches = (config.num_scenarios + 1) // 2  # batch size is 2
+
+        async def scenario_progress(current: int, total: int) -> None:
+            await report_progress({
+                "phase": "scenarios",
+                "current": current,
+                "total": total,
+                "message": f"Generating scenarios ({current}/{total})...",
+            })
+
+        await report_progress({
+            "phase": "scenarios",
+            "current": 0,
+            "total": total_batches,
+            "message": "Starting scenario generation...",
+        })
+
         scenarios = await self._scenario_generator.generate_scenarios(
             definition,
             num_scenarios=config.num_scenarios,
             nodes_per_scenario=config.nodes_per_scenario,
+            on_progress=scenario_progress,
         )
 
         # Phase 2: Expand scenarios into nodes and edges
+        await report_progress({
+            "phase": "expanding",
+            "current": 1,
+            "total": 1,
+            "message": "Expanding scenarios into nodes...",
+        })
         nodes, edges = await self._expand_scenarios(scenarios, definition)
 
         # Phase 3: Generate rich content with relationship context
-        nodes = await self._populate_with_context(nodes, edges, definition)
+        total_summary_batches = (len(nodes) + 9) // 10  # batch size is 10
+        await report_progress({
+            "phase": "summaries",
+            "current": 0,
+            "total": total_summary_batches,
+            "message": "Generating content summaries...",
+        })
+        nodes = await self._populate_with_context(
+            nodes, edges, definition, on_progress=on_progress
+        )
 
         # Phase 4: Insert into database
+        await report_progress({
+            "phase": "saving",
+            "current": 1,
+            "total": 1,
+            "message": "Saving to database...",
+        })
         node_count, edge_count = await self._insert_into_db(
             workflow_id, nodes, edges
         )
@@ -367,6 +430,7 @@ class DataGenerator:
         nodes: list[GeneratedNode],
         edges: list[GeneratedEdge],
         definition: WorkflowDefinition,
+        on_progress: ProgressCallback | None = None,
     ) -> list[GeneratedNode]:
         """Generate summaries and descriptions with full relationship context."""
         # Build neighbor map
@@ -378,6 +442,23 @@ class DataGenerator:
             if node.node_type not in nodes_by_type:
                 nodes_by_type[node.node_type] = []
             nodes_by_type[node.node_type].append(node)
+
+        # Count total nodes needing summaries for progress tracking
+        total_nodes_needing_summaries = 0
+        for type_name, type_nodes in nodes_by_type.items():
+            type_def = self._get_node_type(definition, type_name)
+            if type_def is None or type_name == "Tag":
+                continue
+            summary_fields = [
+                f for f in type_def.fields
+                if "summary" in f.key.lower() or "description" in f.key.lower()
+            ]
+            if summary_fields:
+                total_nodes_needing_summaries += len(type_nodes)
+
+        batch_size = 10
+        total_batches = (total_nodes_needing_summaries + batch_size - 1) // batch_size
+        current_batch = 0
 
         # Process each type
         for type_name, type_nodes in nodes_by_type.items():
@@ -392,9 +473,22 @@ class DataGenerator:
             ]
 
             if summary_fields:
-                await self._generate_contextual_summaries(
-                    type_nodes, neighbors, definition, summary_fields[0].key
-                )
+                # Process in batches for this type
+                for i in range(0, len(type_nodes), batch_size):
+                    batch = type_nodes[i : i + batch_size]
+                    await self._generate_contextual_summaries_batch(
+                        batch, neighbors, definition, summary_fields[0].key
+                    )
+                    current_batch += 1
+
+                    # Report progress
+                    if on_progress:
+                        await on_progress({
+                            "phase": "summaries",
+                            "current": current_batch,
+                            "total": total_batches,
+                            "message": f"Generating summaries ({current_batch}/{total_batches})...",
+                        })
 
         return nodes
 
@@ -416,40 +510,34 @@ class DataGenerator:
 
         return neighbors
 
-    async def _generate_contextual_summaries(
+    async def _generate_contextual_summaries_batch(
         self,
-        nodes: list[GeneratedNode],
+        batch: list[GeneratedNode],
         neighbors: dict[str, list[GeneratedNode]],
         definition: WorkflowDefinition,
         summary_field: str,
     ) -> None:
-        """Generate summaries that reference connected nodes."""
+        """Generate summaries for a single batch of nodes."""
         # Use Gemini if available, otherwise Claude
         use_gemini = self._gemini_client is not None
 
-        # Process in batches
-        batch_size = 10
+        # Build context for each node
+        batch_contexts = []
+        for node in batch:
+            connected = neighbors.get(node.temp_id, [])
+            connected_info = [
+                f"- {n.title} ({n.node_type})" for n in connected[:5]
+            ]
 
-        for i in range(0, len(nodes), batch_size):
-            batch = nodes[i : i + batch_size]
+            batch_contexts.append({
+                "title": node.title,
+                "type": node.node_type,
+                "status": node.status,
+                "scenario_context": node.scenario_context,
+                "connected_nodes": connected_info,
+            })
 
-            # Build context for each node
-            batch_contexts = []
-            for node in batch:
-                connected = neighbors.get(node.temp_id, [])
-                connected_info = [
-                    f"- {n.title} ({n.node_type})" for n in connected[:5]
-                ]
-
-                batch_contexts.append({
-                    "title": node.title,
-                    "type": node.node_type,
-                    "status": node.status,
-                    "scenario_context": node.scenario_context,
-                    "connected_nodes": connected_info,
-                })
-
-            prompt = f"""Generate realistic summaries for these {len(batch)} workflow items.
+        prompt = f"""Generate realistic summaries for these {len(batch)} workflow items.
 
 Each summary should:
 - Be 2-4 sentences
@@ -466,33 +554,33 @@ Return JSON:
 
 Generate exactly {len(batch)} summaries."""
 
-            try:
-                system_prompt = (
-                    "You are generating realistic workflow documentation. "
-                    "Create professional, technical summaries that reference connected items."
+        try:
+            system_prompt = (
+                "You are generating realistic workflow documentation. "
+                "Create professional, technical summaries that reference connected items."
+            )
+
+            if use_gemini and self._gemini_client is not None:
+                result = await self._gemini_client.generate_json(
+                    prompt=prompt,
+                    system=system_prompt,
+                    temperature=0.8,
+                )
+            else:
+                result = await self._llm_client.generate_json(
+                    prompt=prompt,
+                    system=system_prompt,
+                    max_tokens=3000,
+                    temperature=0.8,
                 )
 
-                if use_gemini and self._gemini_client is not None:
-                    result = await self._gemini_client.generate_json(
-                        prompt=prompt,
-                        system=system_prompt,
-                        temperature=0.8,
-                    )
-                else:
-                    result = await self._llm_client.generate_json(
-                        prompt=prompt,
-                        system=system_prompt,
-                        max_tokens=3000,
-                        temperature=0.8,
-                    )
+            summaries = result.get("summaries", [])
+            for j, node in enumerate(batch):
+                if j < len(summaries):
+                    node.properties[summary_field] = summaries[j]
 
-                summaries = result.get("summaries", [])
-                for j, node in enumerate(batch):
-                    if j < len(summaries):
-                        node.properties[summary_field] = summaries[j]
-
-            except Exception as e:
-                logger.warning(f"Failed to generate summaries for batch: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to generate summaries for batch: {e}")
 
     async def _insert_into_db(
         self,

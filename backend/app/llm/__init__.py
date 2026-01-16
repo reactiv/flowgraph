@@ -1,7 +1,7 @@
 """LLM integration module for workflow data generation."""
 
 from app.llm.client import LLMClient, get_client
-from app.llm.data_generator import DataGenerator, SeedConfig
+from app.llm.data_generator import DataGenerator, ProgressCallback, SeedConfig, SeedProgress
 from app.llm.gemini_client import GeminiClient, gemini_available, get_gemini_client
 from app.llm.scenario_generator import Scenario, ScenarioGenerator, ScenarioNode
 from app.llm.schema_generator import (
@@ -22,6 +22,8 @@ __all__ = [
     # Data generation
     "DataGenerator",
     "SeedConfig",
+    "SeedProgress",
+    "ProgressCallback",
     # Scenario generation
     "ScenarioGenerator",
     "Scenario",

@@ -28,6 +28,8 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 │   ├── Dockerfile
 │   └── package.json
 ├── docker-compose.yml          # Run full stack
+├── scripts/
+│   └── dc                      # docker-compose wrapper for worktrees
 ├── data/                       # Runtime data (mounted volume)
 │   └── workflow.db
 ├── CLAUDE.md
@@ -73,22 +75,32 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 
 ## Key Commands
 
+Use `./scripts/dc` instead of `docker-compose` - it's a thin wrapper that handles unique project names and ports for multi-worktree environments.
+
 ```bash
 # Run full stack
-docker-compose up              # start all services
-docker-compose up --build      # rebuild and start
-docker-compose down            # stop all services
-docker-compose logs -f backend # tail backend logs
+./scripts/dc up -d             # start all services (detached)
+./scripts/dc up --build        # rebuild and start
+./scripts/dc down              # stop all services (IMPORTANT: always do this when done!)
+./scripts/dc logs -f backend   # tail backend logs
 
 # Backend development (in container)
-docker-compose exec backend uv run pytest        # run tests
-docker-compose exec backend uv add <package>     # add dependency
-docker-compose exec backend uv run alembic ...   # run migrations
+./scripts/dc exec -T backend uv run pytest        # run tests
+./scripts/dc exec -T backend uv run ruff check .  # lint
+./scripts/dc exec -T backend uv add <package>     # add dependency
 
 # Frontend development (in container)
-docker-compose exec frontend npm run lint        # lint code
-docker-compose exec frontend npm test            # run tests
+./scripts/dc exec -T frontend npm run lint        # lint code
+./scripts/dc exec -T frontend npm run typecheck   # type check
+./scripts/dc exec -T frontend npm test            # run tests
 ```
+
+### Port Mapping
+
+| Environment | Backend Port | Frontend Port |
+|-------------|--------------|---------------|
+| Default (no CONDUCTOR_PORT) | 8000 | 3000 |
+| Worktree (CONDUCTOR_PORT set) | $CONDUCTOR_PORT | $CONDUCTOR_PORT + 1 |
 
 ## Environment Variables
 
@@ -156,33 +168,33 @@ The create page allows users to:
 ### Backend (Python)
 | Tool | Purpose | Command |
 |------|---------|---------|
-| **pytest** | Testing | `docker-compose exec backend uv run pytest` |
-| **ruff** | Linting | `docker-compose exec backend uv run ruff check .` |
-| **ty** | Type checking | `docker-compose exec backend uv run ty check` |
-| **black** | Formatting | `docker-compose exec backend uv run black .` |
+| **pytest** | Testing | `./scripts/dc exec -T backend uv run pytest` |
+| **ruff** | Linting | `./scripts/dc exec -T backend uv run ruff check .` |
+| **ty** | Type checking | `./scripts/dc exec -T backend uv run ty check` |
+| **black** | Formatting | `./scripts/dc exec -T backend uv run black .` |
 
 ```bash
 # Run all checks
-docker-compose exec backend uv run ruff check . && uv run ty check && uv run pytest
+./scripts/dc exec -T backend sh -c "uv run ruff check . && uv run ty check && uv run pytest"
 
 # Auto-fix linting issues
-docker-compose exec backend uv run ruff check --fix .
+./scripts/dc exec -T backend uv run ruff check --fix .
 ```
 
 ### Frontend (TypeScript)
 | Tool | Purpose | Command |
 |------|---------|---------|
-| **Vitest** | Testing | `docker-compose exec frontend npm test` |
-| **ESLint** | Linting | `docker-compose exec frontend npm run lint` |
-| **TypeScript** | Type checking (strict mode) | `docker-compose exec frontend npm run typecheck` |
-| **Prettier** | Formatting | `docker-compose exec frontend npm run format` |
+| **Vitest** | Testing | `./scripts/dc exec -T frontend npm test` |
+| **ESLint** | Linting | `./scripts/dc exec -T frontend npm run lint` |
+| **TypeScript** | Type checking (strict mode) | `./scripts/dc exec -T frontend npm run typecheck` |
+| **Prettier** | Formatting | `./scripts/dc exec -T frontend npm run format` |
 
 ```bash
 # Run all checks
-docker-compose exec frontend npm run lint && npm run typecheck && npm test
+./scripts/dc exec -T frontend sh -c "npm run lint && npm run typecheck && npm test"
 
 # Auto-fix formatting
-docker-compose exec frontend npm run format:fix
+./scripts/dc exec -T frontend npm run format:fix
 ```
 
 ### Pre-commit

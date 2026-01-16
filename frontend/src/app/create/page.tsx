@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useSeedWorkflow } from '@/lib/use-seed-workflow';
 import { SchemaGraphPreview } from '@/components/schema-graph';
+import { SeedProgress } from '@/components/seed-progress';
 import type {
   WorkflowDefinition,
   SchemaGenerationOptions,
@@ -52,6 +54,9 @@ export default function CreateWorkflowPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Seeding with progress
+  const { seedWithProgress, progress: seedProgress, isSeeding } = useSeedWorkflow();
+
   // Handle schema generation
   const handleGenerate = async () => {
     if (!description.trim()) {
@@ -97,8 +102,8 @@ export default function CreateWorkflowPage() {
 
       const workflow = await api.createFromDefinition(definitionWithViews);
 
-      // Seed the workflow with demo data
-      await api.seedWorkflow(workflow.id, dataScale);
+      // Seed the workflow with demo data using SSE for progress
+      await seedWithProgress(workflow.id, dataScale);
 
       router.push(`/workflows/${workflow.id}`);
     } catch (err) {
@@ -378,7 +383,7 @@ export default function CreateWorkflowPage() {
                   id="data-scale"
                   value={dataScale}
                   onChange={(e) => setDataScale(e.target.value as 'small' | 'medium' | 'large')}
-                  disabled={isCreating}
+                  disabled={isCreating || isSeeding}
                   className="px-3 py-2 border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="small">Small (3-8 items per type)</option>
@@ -395,21 +400,29 @@ export default function CreateWorkflowPage() {
               </div>
             )}
 
+            {/* Seeding Progress */}
+            {isSeeding && seedProgress && (
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h3 className="font-medium mb-3">Generating Demo Data</h3>
+                <SeedProgress progress={seedProgress} />
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-4">
               <button
                 onClick={handleReset}
-                disabled={isCreating}
+                disabled={isCreating || isSeeding}
                 className="flex-1 py-3 px-4 border rounded-lg font-medium hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Start Over
               </button>
               <button
                 onClick={handleCreate}
-                disabled={isCreating || (validation !== null && !validation.isValid)}
+                disabled={isCreating || isSeeding || (validation !== null && !validation.isValid)}
                 className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isCreating ? 'Creating & Seeding...' : 'Create Workflow'}
+                {isSeeding ? 'Seeding Data...' : isCreating ? 'Creating Workflow...' : 'Create Workflow'}
               </button>
             </div>
           </div>

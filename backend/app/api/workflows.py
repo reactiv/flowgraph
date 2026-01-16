@@ -1,10 +1,12 @@
 """Workflow API routes."""
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.db import graph_store
@@ -460,3 +462,88 @@ async def seed_workflow(workflow_id: str, request: SeedRequest) -> dict[str, Any
     config = SeedConfig(scale=request.scale)
     result = await generator.seed_workflow(workflow_id, workflow, config)
     return result
+
+
+@router.get("/workflows/{workflow_id}/seed/stream")
+async def seed_workflow_stream(
+    workflow_id: str,
+    scale: str = Query("small", description="Scale: small, medium, or large"),
+) -> StreamingResponse:
+    """Seed a workflow with SSE progress updates.
+
+    This endpoint streams progress events as Server-Sent Events (SSE),
+    providing real-time feedback during the long-running seeding process.
+
+    Events are sent in the format:
+        data: {"phase": "scenarios", "current": 1, "total": 3, "message": "..."}
+
+    The final event will have phase="complete" and include the full result.
+    """
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Validate scale
+    if scale not in ("small", "medium", "large"):
+        raise HTTPException(status_code=400, detail="Invalid scale. Use small, medium, or large.")
+
+    # Create the data generator
+    try:
+        generator = DataGenerator(graph_store)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY environment variable.",
+        )
+
+    async def event_generator():
+        """Generate SSE events during seeding."""
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        async def progress_callback(progress: dict[str, Any]) -> None:
+            """Put progress events into the queue."""
+            await queue.put(progress)
+
+        # Start seeding in a background task
+        config = SeedConfig(scale=scale)
+        task = asyncio.create_task(
+            generator.seed_workflow(workflow_id, workflow, config, on_progress=progress_callback)
+        )
+
+        # Stream progress events
+        while not task.done():
+            try:
+                # Wait for next progress event with timeout
+                event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                yield f"data: {json.dumps(event)}\n\n"
+            except TimeoutError:
+                # Send keepalive comment to prevent connection timeout
+                yield ": keepalive\n\n"
+
+        # Drain any remaining events in the queue
+        while not queue.empty():
+            try:
+                event = queue.get_nowait()
+                yield f"data: {json.dumps(event)}\n\n"
+            except asyncio.QueueEmpty:
+                break
+
+        # Get the final result
+        try:
+            result = await task
+            final_event = {**result, "phase": "complete"}
+            yield f"data: {json.dumps(final_event)}\n\n"
+        except Exception as e:
+            error_event = {"phase": "error", "message": str(e)}
+            yield f"data: {json.dumps(error_event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )

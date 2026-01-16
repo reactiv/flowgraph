@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Wrapper for docker-compose that handles multi-worktree environments.
+# Automatically sets unique project names and ports based on CONDUCTOR_* vars.
+
+set -e
+
+# Project name: use workspace name if set, otherwise directory name
+PROJECT_NAME="${CONDUCTOR_WORKSPACE_NAME:-$(basename "$PWD")}"
+
+# Ports: use CONDUCTOR_PORT if set, otherwise defaults (8000/3000)
+export BACKEND_PORT="${CONDUCTOR_PORT:-8000}"
+export FRONTEND_PORT="$((${CONDUCTOR_PORT:-2999} + 1))"
+
+exec docker-compose -p "$PROJECT_NAME" "$@"
