@@ -12,6 +12,7 @@ services:
     environment:
       - DATABASE_PATH=/data/workflow.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     command: >
       sh -c "uv venv /app/.venv 2>/dev/null || true &&

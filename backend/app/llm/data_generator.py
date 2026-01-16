@@ -1,5 +1,13 @@
-"""Schema-aware data generator for workflows using Claude."""
+"""Schema-aware data generator for workflows using scenario-driven generation.
 
+This module generates realistic, coherent workflow data by:
+1. Using Claude to generate rich narrative scenarios
+2. Expanding scenarios into nodes with Gemini Flash
+3. Creating meaningful edges based on scenario structure
+4. Generating context-aware summaries that reference connected nodes
+"""
+
+import json
 import logging
 import random
 import uuid
@@ -9,7 +17,9 @@ from typing import Any
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
-from app.models import EdgeCreate, EdgeType, NodeCreate, NodeType, WorkflowDefinition
+from app.llm.gemini_client import GeminiClient, get_gemini_client
+from app.llm.scenario_generator import Scenario, ScenarioGenerator, ScenarioNode
+from app.models import EdgeCreate, NodeCreate, NodeType, WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +31,14 @@ class SeedConfig:
     scale: str = "small"  # small, medium, large
 
     @property
-    def node_counts(self) -> dict[str, tuple[int, int]]:
-        """Get min/max node counts per type based on scale."""
-        if self.scale == "small":
-            return {"default": (3, 8), "secondary": (5, 15), "tertiary": (2, 5)}
-        elif self.scale == "medium":
-            return {"default": (10, 25), "secondary": (20, 50), "tertiary": (5, 15)}
-        else:  # large
-            return {"default": (30, 60), "secondary": (50, 120), "tertiary": (15, 40)}
+    def num_scenarios(self) -> int:
+        """Get number of scenarios based on scale."""
+        return {"small": 3, "medium": 6, "large": 12}[self.scale]
+
+    @property
+    def nodes_per_scenario(self) -> tuple[int, int]:
+        """Get min/max nodes per scenario based on scale."""
+        return {"small": (3, 6), "medium": (5, 10), "large": (8, 15)}[self.scale]
 
 
 @dataclass
@@ -40,6 +50,7 @@ class GeneratedNode:
     title: str
     status: str
     properties: dict[str, Any]
+    scenario_context: str = ""  # Rich context from scenario
     db_id: str | None = None
 
 
@@ -50,48 +61,60 @@ class GeneratedEdge:
     edge_type: str
     from_temp_id: str
     to_temp_id: str
+    rationale: str = ""  # Why this edge exists
     properties: dict[str, Any] = field(default_factory=dict)
 
 
 # Person names for realistic data
 PERSON_NAMES = [
-    "Alice Chen",
+    "Dr. Alice Chen",
     "Bob Martinez",
-    "Carol Johnson",
+    "Dr. Carol Johnson",
     "David Kim",
     "Emma Wilson",
-    "Frank Garcia",
+    "Dr. Frank Garcia",
     "Grace Lee",
     "Henry Brown",
-    "Ivy Patel",
+    "Dr. Ivy Patel",
     "Jack Thompson",
     "Karen Davis",
-    "Leo Nguyen",
+    "Dr. Leo Nguyen",
 ]
 
 
 class DataGenerator:
-    """Generates realistic workflow data using Claude."""
+    """Generates realistic workflow data using scenario-driven generation."""
 
     def __init__(
-        self, graph_store: GraphStore, llm_client: LLMClient | None = None
+        self,
+        graph_store: GraphStore,
+        llm_client: LLMClient | None = None,
+        gemini_client: GeminiClient | None = None,
     ):
         """Initialize the generator.
 
         Args:
             graph_store: GraphStore instance for database operations
-            llm_client: Optional LLM client. If None, will create one (requires API key).
+            llm_client: Claude client for scenario generation
+            gemini_client: Gemini client for fast content generation
 
         Raises:
             ValueError: If no ANTHROPIC_API_KEY is set and no client provided.
         """
         self.graph_store = graph_store
         self._llm_client = llm_client or get_client()
+        self._gemini_client = gemini_client or get_gemini_client()
+        self._scenario_generator = ScenarioGenerator(self._llm_client)
 
     @property
     def llm_client(self) -> LLMClient:
-        """Get the LLM client."""
+        """Get the Claude LLM client."""
         return self._llm_client
+
+    @property
+    def gemini_client(self) -> GeminiClient | None:
+        """Get the Gemini client (may be None if not configured)."""
+        return self._gemini_client
 
     async def seed_workflow(
         self, workflow_id: str, definition: WorkflowDefinition, config: SeedConfig
@@ -108,13 +131,20 @@ class DataGenerator:
         """
         logger.info(f"Seeding workflow {workflow_id} with scale={config.scale}")
 
-        # Phase 1: Generate graph structure
-        nodes, edges = await self._generate_graph_structure(definition, config)
+        # Phase 1: Generate scenarios using Claude
+        scenarios = await self._scenario_generator.generate_scenarios(
+            definition,
+            num_scenarios=config.num_scenarios,
+            nodes_per_scenario=config.nodes_per_scenario,
+        )
 
-        # Phase 2: Generate field values (with LLM if available)
-        nodes = await self._populate_field_values(nodes, definition)
+        # Phase 2: Expand scenarios into nodes and edges
+        nodes, edges = await self._expand_scenarios(scenarios, definition)
 
-        # Phase 3: Insert into database
+        # Phase 3: Generate rich content with relationship context
+        nodes = await self._populate_with_context(nodes, edges, definition)
+
+        # Phase 4: Insert into database
         node_count, edge_count = await self._insert_into_db(
             workflow_id, nodes, edges
         )
@@ -122,221 +152,104 @@ class DataGenerator:
         return {
             "workflow_id": workflow_id,
             "scale": config.scale,
+            "scenarios_generated": len(scenarios),
             "nodes_created": node_count,
             "edges_created": edge_count,
         }
 
-    async def _generate_graph_structure(
-        self, definition: WorkflowDefinition, config: SeedConfig
+    async def _expand_scenarios(
+        self, scenarios: list[Scenario], definition: WorkflowDefinition
     ) -> tuple[list[GeneratedNode], list[GeneratedEdge]]:
-        """Generate the graph structure (nodes and edges).
-
-        Creates a coherent graph based on the schema's node types and edge types.
-        """
-        nodes: list[GeneratedNode] = []
-        edges: list[GeneratedEdge] = []
-        nodes_by_type: dict[str, list[GeneratedNode]] = {}
-
-        # Categorize node types by their role in the graph
-        primary_types, secondary_types, tertiary_types = self._categorize_node_types(
-            definition
-        )
-
-        counts = config.node_counts
-
-        # Generate primary nodes first (roots)
-        for node_type in primary_types:
-            type_def = self._get_node_type(definition, node_type)
-            if type_def is None:
-                continue
-
-            count = random.randint(*counts["default"])
-            type_nodes = self._generate_nodes_of_type(type_def, count)
-            nodes.extend(type_nodes)
-            nodes_by_type[node_type] = type_nodes
-
-        # Generate secondary nodes (linked to primary)
-        for node_type in secondary_types:
-            type_def = self._get_node_type(definition, node_type)
-            if type_def is None:
-                continue
-
-            count = random.randint(*counts["secondary"])
-            type_nodes = self._generate_nodes_of_type(type_def, count)
-            nodes.extend(type_nodes)
-            nodes_by_type[node_type] = type_nodes
-
-        # Generate tertiary nodes (tags, configs, etc.)
-        for node_type in tertiary_types:
-            type_def = self._get_node_type(definition, node_type)
-            if type_def is None:
-                continue
-
-            count = random.randint(*counts["tertiary"])
-            type_nodes = self._generate_nodes_of_type(type_def, count)
-            nodes.extend(type_nodes)
-            nodes_by_type[node_type] = type_nodes
-
-        # Generate edges based on edge types
-        for edge_type in definition.edge_types:
-            type_edges = self._generate_edges_for_type(
-                edge_type, nodes_by_type, definition
-            )
-            edges.extend(type_edges)
-
-        return nodes, edges
-
-    def _categorize_node_types(
-        self, definition: WorkflowDefinition
-    ) -> tuple[list[str], list[str], list[str]]:
-        """Categorize node types into primary, secondary, tertiary.
-
-        Primary: Root entities (usually have outgoing edges but few incoming)
-        Secondary: Main linked entities
-        Tertiary: Supporting entities (tags, configs, etc.)
-        """
-        primary = []
-        secondary = []
-        tertiary = ["Tag"]  # Tags are always tertiary
-
-        # Count incoming/outgoing edge types for each node type
-        outgoing_count: dict[str, int] = {}
-        incoming_count: dict[str, int] = {}
-
-        for nt in definition.node_types:
-            outgoing_count[nt.type] = 0
-            incoming_count[nt.type] = 0
-
-        for et in definition.edge_types:
-            outgoing_count[et.from_type] = outgoing_count.get(et.from_type, 0) + 1
-            incoming_count[et.to_type] = incoming_count.get(et.to_type, 0) + 1
-
-        for nt in definition.node_types:
-            if nt.type in tertiary:
-                continue
-
-            # Check if it's a supporting type
-            if nt.type in ["InstrumentConfig", "FamilyTree", "Config"]:
-                tertiary.append(nt.type)
-            elif outgoing_count.get(nt.type, 0) > incoming_count.get(nt.type, 0):
-                primary.append(nt.type)
-            else:
-                secondary.append(nt.type)
-
-        # Ensure we have at least one primary type
-        if not primary and secondary:
-            primary.append(secondary.pop(0))
-
-        return primary, secondary, tertiary
-
-    def _get_node_type(
-        self, definition: WorkflowDefinition, type_name: str
-    ) -> NodeType | None:
-        """Get a node type definition by name."""
-        for nt in definition.node_types:
-            if nt.type == type_name:
-                return nt
-        return None
-
-    def _generate_nodes_of_type(
-        self, type_def: NodeType, count: int
-    ) -> list[GeneratedNode]:
-        """Generate nodes of a specific type."""
-        nodes = []
+        """Expand scenarios into full nodes and edges."""
+        all_nodes: list[GeneratedNode] = []
+        all_edges: list[GeneratedEdge] = []
         base_date = datetime.now() - timedelta(days=90)
 
-        for i in range(count):
-            temp_id = f"temp_{type_def.type}_{i}_{uuid.uuid4().hex[:8]}"
+        for scenario_idx, scenario in enumerate(scenarios):
+            # Create nodes from scenario
+            for node in scenario.nodes:
+                type_def = self._get_node_type(definition, node.node_type)
+                if type_def is None:
+                    continue
 
-            # Generate initial title
-            title = self._generate_title(type_def, i)
+                # Generate properties from scenario context and type definition
+                properties = await self._generate_node_properties(
+                    node, type_def, definition, scenario, base_date, scenario_idx
+                )
 
-            # Determine status
-            status = self._generate_status(type_def)
+                # Determine status
+                status = node.status or self._generate_status(type_def)
 
-            # Generate basic properties
-            properties = self._generate_basic_properties(type_def, i, base_date)
-
-            nodes.append(
-                GeneratedNode(
-                    temp_id=temp_id,
-                    node_type=type_def.type,
-                    title=title,
+                all_nodes.append(GeneratedNode(
+                    temp_id=node.temp_id,
+                    node_type=node.node_type,
+                    title=node.title,
                     status=status,
                     properties=properties,
-                )
-            )
+                    scenario_context=node.description,
+                ))
 
-        return nodes
+            # Create edges from scenario
+            for edge in scenario.edges:
+                all_edges.append(GeneratedEdge(
+                    edge_type=edge.edge_type,
+                    from_temp_id=edge.from_temp_id,
+                    to_temp_id=edge.to_temp_id,
+                    rationale=edge.rationale,
+                ))
 
-    def _generate_title(self, type_def: NodeType, index: int) -> str:
-        """Generate a title for a node."""
-        type_name = type_def.type
-        prefixes = {
-            "Sample": ["Sample", "Batch", "Specimen"],
-            "Analysis": ["Analysis", "Test", "Measurement"],
-            "Hypothesis": ["Hypothesis", "Theory", "Prediction"],
-            "Tag": ["tag"],
-            "Dataset": ["Dataset", "Data"],
-            "Model": ["Model", "Surrogate"],
-            "Experiment": ["Experiment", "Trial"],
-            "Goal": ["Goal", "Objective"],
-            "Nonconformance": ["NC", "Issue"],
-            "Investigation": ["Investigation", "Inquiry"],
-            "BioSample": ["BioSample", "Specimen"],
-        }
+        # Add cross-scenario connections (tags if they exist)
+        tag_edges = self._generate_tag_edges(all_nodes, definition)
+        all_edges.extend(tag_edges)
 
-        prefix = random.choice(prefixes.get(type_name, [type_name]))
-        suffix = f"{index + 1:03d}"
+        return all_nodes, all_edges
 
-        return f"{prefix}-{suffix}"
-
-    def _generate_status(self, type_def: NodeType) -> str:
-        """Generate a status for a node based on its state machine."""
-        if type_def.states and type_def.states.enabled:
-            # Weighted distribution: more nodes in middle/complete states
-            values = type_def.states.values
-            if len(values) >= 3:
-                weights = [0.15] + [0.3] * (len(values) - 2) + [0.25]
-                # Normalize weights
-                total = sum(weights[: len(values)])
-                weights = [w / total for w in weights[: len(values)]]
-                return random.choices(values, weights=weights)[0]
-            return random.choice(values)
-        return "Active"
-
-    def _generate_basic_properties(
-        self, type_def: NodeType, index: int, base_date: datetime
+    async def _generate_node_properties(
+        self,
+        scenario_node: ScenarioNode,
+        type_def: NodeType,
+        definition: WorkflowDefinition,
+        scenario: Scenario,
+        base_date: datetime,
+        scenario_idx: int,
     ) -> dict[str, Any]:
-        """Generate basic properties for a node based on field definitions."""
+        """Generate properties for a node based on its scenario context."""
         properties: dict[str, Any] = {}
 
+        # Start with properties from scenario
+        properties.update(scenario_node.key_properties)
+
+        # Fill in remaining fields based on type definition
         for field_def in type_def.fields:
             key = field_def.key
             kind = field_def.kind.value
 
+            # Skip if already provided by scenario
+            if key in properties:
+                continue
+
             # Generate value based on field kind
             if kind == "string":
                 if "id" in key.lower():
-                    properties[key] = f"{type_def.type.upper()[:3]}-{index + 1:04d}"
+                    prefix = type_def.type.upper()[:3]
+                    properties[key] = f"{prefix}-{scenario_idx:02d}-{uuid.uuid4().hex[:4].upper()}"
                 elif "summary" in key.lower() or "description" in key.lower():
-                    properties[key] = None  # Will be filled by LLM
+                    properties[key] = None  # Will be filled with context-aware content
                 elif "name" in key.lower() or "title" in key.lower():
-                    properties[key] = self._generate_title(type_def, index)
+                    properties[key] = scenario_node.title
                 else:
-                    properties[key] = f"{key.replace('_', ' ').title()} {index + 1}"
+                    properties[key] = f"{key.replace('_', ' ').title()}"
 
             elif kind == "number":
                 if "count" in key.lower():
                     properties[key] = random.randint(1, 100)
                 elif "percent" in key.lower() or "score" in key.lower():
-                    properties[key] = round(random.uniform(0.5, 1.0), 3)
+                    properties[key] = round(random.uniform(0.7, 0.99), 3)
                 else:
-                    properties[key] = round(random.uniform(0.1, 100.0), 2)
+                    properties[key] = round(random.uniform(1.0, 100.0), 2)
 
             elif kind == "datetime":
-                # Generate dates in sequence
-                offset = timedelta(days=index * random.randint(1, 3))
+                offset = timedelta(days=scenario_idx * random.randint(2, 5))
                 properties[key] = (base_date + offset).isoformat()
 
             elif kind == "enum":
@@ -347,86 +260,118 @@ class DataGenerator:
                 properties[key] = random.choice(PERSON_NAMES)
 
             elif kind == "json":
-                # Generate placeholder JSON - could be enhanced
-                properties[key] = {"generated": True, "index": index}
+                # Generate contextual JSON based on the field name
+                properties[key] = self._generate_json_property(key, scenario_node)
 
             elif kind == "tag[]":
-                properties[key] = []  # Will be populated via edges
+                properties[key] = []  # Tags handled via edges
 
             elif kind == "file[]":
-                properties[key] = []  # Could add placeholder file metadata
+                properties[key] = []
 
         return properties
 
-    def _generate_edges_for_type(
-        self,
-        edge_type: EdgeType,
-        nodes_by_type: dict[str, list[GeneratedNode]],
-        definition: WorkflowDefinition,
+    def _generate_json_property(
+        self, field_key: str, scenario_node: ScenarioNode
+    ) -> dict[str, Any]:
+        """Generate a JSON property based on field name and context."""
+        key_lower = field_key.lower()
+
+        if "parameter" in key_lower or "config" in key_lower:
+            return {
+                "generated": True,
+                "context": scenario_node.description[:100] if scenario_node.description else "",
+            }
+        elif "result" in key_lower or "finding" in key_lower:
+            return {
+                "status": "completed",
+                "notes": scenario_node.description[:200] if scenario_node.description else "",
+            }
+        elif "detail" in key_lower:
+            return {"info": scenario_node.description[:150] if scenario_node.description else ""}
+        else:
+            return {"data": True}
+
+    def _get_node_type(
+        self, definition: WorkflowDefinition, type_name: str
+    ) -> NodeType | None:
+        """Get a node type definition by name."""
+        for nt in definition.node_types:
+            if nt.type == type_name:
+                return nt
+        return None
+
+    def _generate_status(self, type_def: NodeType) -> str:
+        """Generate a status for a node based on its state machine."""
+        if type_def.states and type_def.states.enabled:
+            values = type_def.states.values
+            if len(values) >= 3:
+                # Weighted: fewer at start, more in middle/end
+                weights = [0.1] + [0.35] * (len(values) - 2) + [0.2]
+                weights = weights[: len(values)]
+                total = sum(weights)
+                weights = [w / total for w in weights]
+                return random.choices(values, weights=weights)[0]
+            return random.choice(values)
+        return "Active"
+
+    def _generate_tag_edges(
+        self, nodes: list[GeneratedNode], definition: WorkflowDefinition
     ) -> list[GeneratedEdge]:
-        """Generate edges of a specific type."""
+        """Generate tag edges to connect nodes to shared tags."""
         edges = []
 
-        from_nodes = nodes_by_type.get(edge_type.from_type, [])
-        to_nodes = nodes_by_type.get(edge_type.to_type, [])
+        # Find tag-related edge types
+        tag_edge_types = [
+            et for et in definition.edge_types
+            if "tag" in et.type.lower()
+        ]
 
-        if not from_nodes or not to_nodes:
+        if not tag_edge_types:
             return edges
 
-        # Different linking strategies based on edge semantics
-        edge_name = edge_type.type.lower()
+        # Find Tag nodes
+        tag_nodes = [n for n in nodes if n.node_type == "Tag"]
+        if not tag_nodes:
+            return edges
 
-        if "tagged" in edge_name or "tag" in edge_name:
-            # Tags: each node gets 1-3 random tags
-            for from_node in from_nodes:
-                num_tags = random.randint(1, min(3, len(to_nodes)))
-                selected_tags = random.sample(to_nodes, num_tags)
-                for tag_node in selected_tags:
-                    edges.append(
-                        GeneratedEdge(
-                            edge_type=edge_type.type,
-                            from_temp_id=from_node.temp_id,
-                            to_temp_id=tag_node.temp_id,
-                        )
-                    )
+        # Connect non-tag nodes to random tags
+        non_tag_nodes = [n for n in nodes if n.node_type != "Tag"]
 
-        elif "parent" in edge_name or "child" in edge_name:
-            # Hierarchical: create tree structure
-            if len(from_nodes) > 1:
-                for i, node in enumerate(from_nodes[1:], 1):
-                    parent_idx = random.randint(0, min(i - 1, len(from_nodes) - 1))
-                    if parent_idx < len(to_nodes):
-                        edges.append(
-                            GeneratedEdge(
-                                edge_type=edge_type.type,
-                                from_temp_id=from_nodes[parent_idx].temp_id,
-                                to_temp_id=node.temp_id,
-                            )
-                        )
+        for node in non_tag_nodes:
+            # Find applicable tag edge type for this node type
+            applicable_edges = [
+                et for et in tag_edge_types
+                if et.from_type == node.node_type
+            ]
 
-        else:
-            # Default: create semi-random links
-            # Each "from" node links to 1-3 "to" nodes
-            for from_node in from_nodes:
-                num_links = random.randint(1, min(3, len(to_nodes)))
-                selected_to = random.sample(to_nodes, num_links)
-                for to_node in selected_to:
-                    # Avoid self-loops
-                    if from_node.temp_id != to_node.temp_id:
-                        edges.append(
-                            GeneratedEdge(
-                                edge_type=edge_type.type,
-                                from_temp_id=from_node.temp_id,
-                                to_temp_id=to_node.temp_id,
-                            )
-                        )
+            if not applicable_edges:
+                continue
+
+            edge_type = applicable_edges[0]
+            num_tags = random.randint(1, min(3, len(tag_nodes)))
+            selected_tags = random.sample(tag_nodes, num_tags)
+
+            for tag in selected_tags:
+                edges.append(GeneratedEdge(
+                    edge_type=edge_type.type,
+                    from_temp_id=node.temp_id,
+                    to_temp_id=tag.temp_id,
+                    rationale="Thematic tagging",
+                ))
 
         return edges
 
-    async def _populate_field_values(
-        self, nodes: list[GeneratedNode], definition: WorkflowDefinition
+    async def _populate_with_context(
+        self,
+        nodes: list[GeneratedNode],
+        edges: list[GeneratedEdge],
+        definition: WorkflowDefinition,
     ) -> list[GeneratedNode]:
-        """Populate field values using LLM for titles and summaries."""
+        """Generate summaries and descriptions with full relationship context."""
+        # Build neighbor map
+        neighbors = self._build_neighbor_map(nodes, edges)
+
         # Group nodes by type for batch processing
         nodes_by_type: dict[str, list[GeneratedNode]] = {}
         for node in nodes:
@@ -434,18 +379,11 @@ class DataGenerator:
                 nodes_by_type[node.node_type] = []
             nodes_by_type[node.node_type].append(node)
 
-        # Generate titles and summaries for each type
+        # Process each type
         for type_name, type_nodes in nodes_by_type.items():
             type_def = self._get_node_type(definition, type_name)
-            if type_def is None:
+            if type_def is None or type_name == "Tag":
                 continue
-
-            # Skip Tag nodes - keep simple names
-            if type_name == "Tag":
-                continue
-
-            # Generate creative titles with LLM
-            await self._generate_titles_with_llm(type_nodes, type_def, definition)
 
             # Check if this type has summary/description fields
             summary_fields = [
@@ -453,106 +391,100 @@ class DataGenerator:
                 if "summary" in f.key.lower() or "description" in f.key.lower()
             ]
 
-            if summary_fields and len(type_nodes) > 0:
-                await self._generate_summaries_with_llm(
-                    type_nodes, type_def, summary_fields[0].key, definition
+            if summary_fields:
+                await self._generate_contextual_summaries(
+                    type_nodes, neighbors, definition, summary_fields[0].key
                 )
 
         return nodes
 
-    async def _generate_titles_with_llm(
+    def _build_neighbor_map(
+        self, nodes: list[GeneratedNode], edges: list[GeneratedEdge]
+    ) -> dict[str, list[GeneratedNode]]:
+        """Build a map of node temp_id to connected nodes."""
+        node_map = {n.temp_id: n for n in nodes}
+        neighbors: dict[str, list[GeneratedNode]] = {}
+
+        for node in nodes:
+            neighbors[node.temp_id] = []
+
+        for edge in edges:
+            if edge.from_temp_id in node_map and edge.to_temp_id in node_map:
+                # Add bidirectional neighbors
+                neighbors[edge.from_temp_id].append(node_map[edge.to_temp_id])
+                neighbors[edge.to_temp_id].append(node_map[edge.from_temp_id])
+
+        return neighbors
+
+    async def _generate_contextual_summaries(
         self,
         nodes: list[GeneratedNode],
-        type_def: NodeType,
+        neighbors: dict[str, list[GeneratedNode]],
         definition: WorkflowDefinition,
-    ) -> None:
-        """Use LLM to generate creative, realistic titles for nodes."""
-        if not self.llm_client or len(nodes) == 0:
-            return
-
-        # Batch nodes for efficiency (max 20 at a time)
-        batch_size = 20
-
-        for i in range(0, len(nodes), batch_size):
-            batch = nodes[i : i + batch_size]
-
-            prompt = f"""Generate {len(batch)} creative, realistic titles for {type_def.display_name} items in a "{definition.name}" workflow.
-
-Context: {definition.description}
-
-Requirements:
-- Each title should be unique and memorable
-- Titles should sound realistic for this domain
-- Vary the style: some short, some descriptive
-- Don't use generic names like "Item 1" or "Test-001"
-- Make them sound like real projects/items someone would create
-
-Examples of good titles (adapt to the domain):
-- For projects: "Q4 Marketing Campaign", "Website Redesign 2024", "Customer Onboarding Flow"
-- For tasks: "Fix login timeout bug", "Update pricing page copy", "Review Q3 analytics"
-- For experiments: "Thermal Stability Analysis", "User Engagement A/B Test", "Compound X Efficacy Trial"
-- For samples: "Batch 7 Titanium Alloy", "Patient cohort  Alpha-3", "Soil sample - North Ridge"
-
-Return JSON:
-{{"titles": ["title1", "title2", ...]}}
-
-Generate exactly {len(batch)} titles."""
-
-            try:
-                result = await self.llm_client.generate_json(
-                    prompt=prompt,
-                    system=(
-                        "You are a creative data generator. Generate realistic, varied, "
-                        "domain-appropriate titles that sound like real items in a professional workflow. "
-                        "Be creative and specific. Return valid JSON only."
-                    ),
-                    max_tokens=2000,
-                    temperature=0.9,
-                )
-
-                titles = result.get("titles", [])
-                for j, node in enumerate(batch):
-                    if j < len(titles):
-                        node.title = titles[j]
-                        # Also update title in properties if present
-                        if "title" in node.properties:
-                            node.properties["title"] = titles[j]
-                        if "name" in node.properties:
-                            node.properties["name"] = titles[j]
-
-            except Exception as e:
-                logger.warning(f"Failed to generate titles for batch: {e}")
-
-    async def _generate_summaries_with_llm(
-        self,
-        nodes: list[GeneratedNode],
-        type_def: NodeType,
         summary_field: str,
-        definition: WorkflowDefinition,
     ) -> None:
-        """Use LLM to generate summaries for nodes."""
-        if not self.llm_client or len(nodes) == 0:
-            return
+        """Generate summaries that reference connected nodes."""
+        # Use Gemini if available, otherwise Claude
+        use_gemini = self._gemini_client is not None
 
-        # Batch nodes for efficiency (max 10 at a time)
+        # Process in batches
         batch_size = 10
 
         for i in range(0, len(nodes), batch_size):
             batch = nodes[i : i + batch_size]
 
-            prompt = self._build_summary_prompt(batch, type_def, definition)
+            # Build context for each node
+            batch_contexts = []
+            for node in batch:
+                connected = neighbors.get(node.temp_id, [])
+                connected_info = [
+                    f"- {n.title} ({n.node_type})" for n in connected[:5]
+                ]
+
+                batch_contexts.append({
+                    "title": node.title,
+                    "type": node.node_type,
+                    "status": node.status,
+                    "scenario_context": node.scenario_context,
+                    "connected_nodes": connected_info,
+                })
+
+            prompt = f"""Generate realistic summaries for these {len(batch)} workflow items.
+
+Each summary should:
+- Be 2-4 sentences
+- Reference at least one connected node by name when available
+- Use domain-appropriate technical language
+- Sound like real professional documentation
+- Be specific to the item's context
+
+Items to summarize:
+{json.dumps(batch_contexts, indent=2)}
+
+Return JSON:
+{{"summaries": ["summary for item 1", "summary for item 2", ...]}}
+
+Generate exactly {len(batch)} summaries."""
 
             try:
-                result = await self.llm_client.generate_json(
-                    prompt=prompt,
-                    system=(
-                        "You are a data generator for a workflow management system. "
-                        "Generate realistic, domain-appropriate summaries for workflow nodes. "
-                        "Return valid JSON only."
-                    ),
-                    max_tokens=2000,
-                    temperature=0.8,
+                system_prompt = (
+                    "You are generating realistic workflow documentation. "
+                    "Create professional, technical summaries that reference connected items."
                 )
+
+                if use_gemini and self._gemini_client is not None:
+                    result = await self._gemini_client.generate_json(
+                        prompt=prompt,
+                        system=system_prompt,
+                        temperature=0.8,
+                    )
+                else:
+                    result = await self._llm_client.generate_json(
+                        prompt=prompt,
+                        system=system_prompt,
+                        max_tokens=3000,
+                        temperature=0.8,
+                    )
 
                 summaries = result.get("summaries", [])
                 for j, node in enumerate(batch):
@@ -561,38 +493,6 @@ Generate exactly {len(batch)} titles."""
 
             except Exception as e:
                 logger.warning(f"Failed to generate summaries for batch: {e}")
-
-    def _build_summary_prompt(
-        self,
-        nodes: list[GeneratedNode],
-        type_def: NodeType,
-        definition: WorkflowDefinition,
-    ) -> str:
-        """Build a prompt for generating summaries."""
-        node_info = []
-        for node in nodes:
-            info = {
-                "title": node.title,
-                "status": node.status,
-                "type": node.node_type,
-            }
-            # Add relevant properties
-            for key in ["author", "sample_type", "analysis_type", "category"]:
-                if key in node.properties:
-                    info[key] = node.properties[key]
-            node_info.append(info)
-
-        return f"""Generate brief, realistic summaries for the following {type_def.display_name} items in a {definition.name} workflow.
-
-Each summary should be 1-2 sentences describing the item's purpose or findings.
-
-Items to summarize:
-{node_info}
-
-Return JSON in this exact format:
-{{"summaries": ["summary for item 1", "summary for item 2", ...]}}
-
-Generate {len(nodes)} summaries in the array, one for each item in order."""
 
     async def _insert_into_db(
         self,

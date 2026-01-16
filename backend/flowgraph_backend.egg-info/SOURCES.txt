@@ -10,6 +10,8 @@ app/db/graph_store.py
 app/llm/__init__.py
 app/llm/client.py
 app/llm/data_generator.py
+app/llm/gemini_client.py
+app/llm/scenario_generator.py
 app/llm/schema_generator.py
 app/llm/view_generator.py
 app/models/__init__.py

@@ -41,7 +41,8 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 - **FastAPI** - API framework
 - **SQLite** via `aiosqlite` - local persistence
 - **Pydantic** - data validation and models
-- **Anthropic SDK** - Claude API for data generation
+- **Anthropic SDK** - Claude API for schema/scenario generation
+- **Google GenAI SDK** - Gemini 3.0 Flash for fast content generation
 - **uv** - Python package management
 - **pytest** / **ruff** / **ty** / **black** - testing, linting, types, formatting
 
@@ -93,7 +94,10 @@ docker-compose exec frontend npm test            # run tests
 
 ```bash
 # Required
-ANTHROPIC_API_KEY=sk-ant-...    # Claude API key for data generation
+ANTHROPIC_API_KEY=sk-ant-...    # Claude API key for schema/scenario generation
+
+# Optional but recommended
+GOOGLE_API_KEY=...              # Gemini 3.0 Flash for fast content generation (falls back to Claude if not set)
 
 # Optional
 DATABASE_PATH=./data/workflow.db  # SQLite database location

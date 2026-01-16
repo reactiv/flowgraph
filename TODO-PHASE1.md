@@ -171,47 +171,59 @@
 
 ---
 
-## 5. LLM-Powered Data Generation (Anthropic Claude)
+## 5. LLM-Powered Data Generation (Claude + Gemini)
 
-> Data generation via Claude API produces realistic, coherent, domain-aware content that feels like real scientific data.
+> Data generation uses a "story-first" approach: Claude generates coherent scenarios, Gemini Flash expands them into rich content.
 
-### 5.1 Generation Strategy
-- [x] Two-phase generation:
-  1. **Graph structure**: Generate node/edge skeleton with IDs and relationships
-  2. **Content population**: LLM fills in realistic field values with full context
-- [x] Scales: Small (3-8 nodes), Medium (10-25 nodes), Large (30-60 nodes) per type
-- [x] Batch generation to minimize API calls (max 10 nodes per request)
-- [x] **File: `backend/app/llm/data_generator.py`** (636 lines)
+### 5.1 Generation Strategy (Scenario-Driven)
+- [x] Four-phase generation:
+  1. **Scenario generation** (Claude): Generate 2-6 coherent mini-stories with themes, nodes, and relationships
+  2. **Scenario expansion** (Gemini Flash): Expand scenarios into full nodes with properties
+  3. **Edge creation**: Create edges based on scenario structure (deterministic, not random)
+  4. **Context-aware summaries** (Gemini Flash): Generate summaries that reference connected nodes by name
+- [x] Scales: Small (3 scenarios), Medium (6 scenarios), Large (12 scenarios)
+- [x] Batched scenario generation (2 at a time) to avoid token limits
+- [x] **Files:**
+  - `backend/app/llm/data_generator.py` - Main orchestrator
+  - `backend/app/llm/scenario_generator.py` - Scenario generation logic
+  - `backend/app/llm/gemini_client.py` - Gemini 3.0 Flash client
 
 ### 5.2 LLM Prompt Design
-- [x] System prompt includes:
-  - Workflow definition (node types, fields, constraints)
-  - Domain context (e.g., "materials science R&D lab")
-  - Existing nodes for reference (maintains coherence)
-- [x] Structured output via JSON mode
-- [x] Schema validation on all LLM responses
+- [x] Scenario prompt includes:
+  - Workflow definition (node types, fields, edge types)
+  - Domain context from workflow description
+  - Request for diverse, realistic mini-stories
+- [x] Summary prompt includes:
+  - Node context (title, type, status, properties)
+  - Connected nodes (for cross-referencing)
+  - Requirement to reference neighbors by name
+- [x] Structured output via JSON mode (both Claude and Gemini)
 
 ### 5.3 Content Quality Requirements
 - [x] Domain-realistic values:
-  - Scientific IDs: "SMP-2024-0142", "PXRD-A-0891"
-  - Plausible parameters: `{ "2theta_range": "5-80°", "step_size": "0.02°" }`
+  - Scientific IDs: "TI-2024-117", "TGA-TI-007-A"
+  - Specific findings: "2.3% mass loss above 600°C"
   - Realistic author names from a consistent "team roster" (12 names)
-- [x] Coherent timelines (analyses dated after sample creation)
-- [x] Cross-references: Hypotheses mention specific sample nicknames
-- [x] Realistic status distributions (not all Complete)
+- [x] Coherent timelines (dates progress within scenarios)
+- [x] **Cross-references**: Summaries explicitly mention connected node names/IDs
+- [x] Realistic status distributions (weighted toward middle/end states)
 
 ### 5.4 Cohesion Features
-- [x] LLM sees previously generated nodes when creating new ones
-- [x] Hypotheses reference specific samples and analyses by name
-- [x] Tags cluster meaningfully (related samples share tags)
-- [x] Summaries synthesize information from linked nodes
-- [ ] ~~Fallback to rule-based generation if LLM unavailable~~ (removed - require LLM)
+- [x] Scenario-based: Nodes within a scenario tell a coherent story
+- [x] Meaningful edges: Relationships based on scenario context, not random
+- [x] Summaries reference connected nodes by name (e.g., "Analysis of TI-2024-117 showing...")
+- [x] Tags cluster by scenario theme
+- [x] Graceful fallback: Uses Claude if Gemini unavailable
 
 ### 5.5 API Integration
-- [x] Anthropic SDK (`anthropic` Python package)
-- [x] Uses Claude Sonnet 4 (claude-sonnet-4-20250514)
-- [x] Retry logic with exponential backoff (handles RateLimitError, 500+ errors)
-- [x] **File: `backend/app/llm/client.py`** (191 lines)
+- [x] Anthropic SDK (`anthropic` Python package) - Claude for scenario generation
+- [x] Google GenAI SDK (`google-genai` Python package) - Gemini 3.0 Flash for content
+- [x] Uses Claude Opus 4.5 for complex scenario reasoning
+- [x] Uses Gemini 3.0 Flash Preview for high-volume content generation
+- [x] Retry logic with exponential backoff (both clients)
+- [x] **Files:**
+  - `backend/app/llm/client.py` - Claude client wrapper
+  - `backend/app/llm/gemini_client.py` - Gemini client wrapper
 - [x] Seed endpoint wiring (wired up to DataGenerator)
 
 ---
@@ -537,9 +549,11 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   └── event.py
 │   │   └── llm/
 │   │       ├── __init__.py
-│   │       ├── client.py          # Anthropic SDK wrapper
+│   │       ├── client.py          # Anthropic SDK wrapper (Claude)
+│   │       ├── gemini_client.py   # Google GenAI wrapper (Gemini 3.0 Flash)
 │   │       ├── schema_generator.py # NL → WorkflowDefinition
-│   │       ├── data_generator.py  # Schema → realistic instance data
+│   │       ├── scenario_generator.py # Scenario generation for coherent data
+│   │       ├── data_generator.py  # Scenario-driven data generation
 │   │       └── view_generator.py  # NL → ViewTemplate
 │   ├── templates/                 # Built-in workflow JSON files
 │   │   ├── materials-rnd.workflow.json
