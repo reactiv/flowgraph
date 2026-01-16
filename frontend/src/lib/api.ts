@@ -11,6 +11,7 @@ import type {
   NodeUpdate,
   Edge,
   EdgeCreate,
+  EdgesResponse,
   Event,
   NodesResponse,
   NeighborsResponse,
@@ -25,6 +26,11 @@ import type {
   ViewTemplateCreate,
   ViewTemplateUpdate,
 } from '@/types/view-templates';
+import type {
+  SuggestionDirection,
+  SuggestionOptions,
+  SuggestionResponse,
+} from '@/types/suggestion';
 
 const API_BASE = '/api/v1';
 
@@ -132,7 +138,32 @@ export const api = {
     );
   },
 
+  suggestNode: (
+    workflowId: string,
+    nodeId: string,
+    edgeType: string,
+    direction: SuggestionDirection,
+    options?: SuggestionOptions
+  ) =>
+    fetchJson<SuggestionResponse>(`/workflows/${workflowId}/nodes/${nodeId}/suggest`, {
+      method: 'POST',
+      body: JSON.stringify({ edge_type: edgeType, direction, options }),
+    }),
+
   // Edges
+  listEdges: (
+    workflowId: string,
+    params?: { type?: string; limit?: number; offset?: number }
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+    const query = searchParams.toString();
+    return fetchJson<EdgesResponse>(`/workflows/${workflowId}/edges${query ? `?${query}` : ''}`);
+  },
+
   createEdge: (workflowId: string, edge: EdgeCreate) =>
     fetchJson<Edge>(`/workflows/${workflowId}/edges`, {
       method: 'POST',

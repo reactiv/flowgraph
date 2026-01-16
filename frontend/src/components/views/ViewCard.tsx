@@ -52,6 +52,22 @@ function CardsIcon({ className }: { className?: string }) {
   );
 }
 
+function GraphIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  );
+}
+
+function NetworkIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+    </svg>
+  );
+}
+
 function SparklesIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -77,7 +93,7 @@ function TrashIcon({ className }: { className?: string }) {
 }
 
 interface ViewCardProps {
-  view: ViewTemplate | { id: 'list'; name: string; description?: string };
+  view: ViewTemplate | { id: 'list' | 'schema' | 'graph'; name: string; description?: string };
   isSelected: boolean;
   isBuiltIn?: boolean;
   onSelect: () => void;
@@ -99,6 +115,13 @@ export function ViewCard({
   const getIcon = () => {
     if (view.id === 'list') {
       return <ListIcon className="h-5 w-5" />;
+    }
+    if (view.id === 'schema') {
+      return <GraphIcon className="h-5 w-5" />;
+    }
+
+    if (view.id === 'graph') {
+      return <NetworkIcon className="h-5 w-5" />;
     }
 
     // Get the style from the first level config
