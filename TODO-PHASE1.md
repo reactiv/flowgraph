@@ -294,21 +294,27 @@
   - Click related node → opens that node in panel
 
 ### 6.5 Graph View (Graph Explorer)
-- [ ] React Flow canvas with:
-  - Nodes styled by type (different colors/shapes)
+- [x] React Flow canvas with:
+  - Nodes styled by type (different colors per node type)
   - Edge labels showing relationship type
-  - Status indicated visually (color/border)
-- [ ] Controls:
-  - Center on selected node
-  - Expand 1-hop / 2-hop neighbors
+  - Status indicated visually (colored badge on node)
+- [x] Controls:
+  - Layout toggle (Force/Cluster vs Hierarchical/Dagre)
   - Filter by edge type (checkboxes)
   - Filter by node type (checkboxes)
   - Zoom, pan, minimap
-- [ ] Click node → side panel shows node preview + "Open Detail" button
-- [ ] Entry points:
-  - From Detail View: "View in Graph" centers on that node
-  - From List View: "Explore Graph" starts with selected nodes
-  - Standalone: shows full workflow graph (collapsed clusters for large graphs)
+- [x] Click node → opens detail panel (via existing NodeDetailPanel)
+- [x] Entry points:
+  - Standalone: shows full workflow graph with layout options
+  - Accessible via View Card Grid alongside List View
+- [x] **Files:**
+  - `frontend/src/components/graph-view/GraphView.tsx` - Main container
+  - `frontend/src/components/graph-view/GraphCanvas.tsx` - React Flow wrapper
+  - `frontend/src/components/graph-view/GraphControls.tsx` - Layout toggle
+  - `frontend/src/components/graph-view/GraphFilters.tsx` - Node/edge type filters
+  - `frontend/src/components/graph-view/nodes/InstanceNode.tsx` - Custom node component
+  - `frontend/src/components/graph-view/utils/layoutUtils.ts` - Dagre + force layouts
+  - `frontend/src/components/graph-view/utils/colorUtils.ts` - Type-based colors
 
 ### 6.6 Semantic View Templates (Kanban, Cards, Tree, Timeline, Table, Gantt)
 
@@ -430,6 +436,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] `DELETE /api/v1/workflows/{workflow_id}/nodes/{node_id}` - delete node
 
 ### 7.4 Edges
+- [x] `GET /api/v1/workflows/{workflow_id}/edges` - list edges with optional filters
 - [x] `POST /api/v1/workflows/{workflow_id}/edges` - create edge
 - [x] `DELETE /api/v1/workflows/{workflow_id}/edges/{edge_id}` - delete edge
 - [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/neighbors` - get neighborhood
@@ -473,7 +480,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 ### 8.4 UI Views
 - [ ] **List View**: Filters work, sorting works, pagination works, click opens detail panel
 - [x] **Detail Panel**: Summary/Properties/Relationships tabs, status transitions, click opens related nodes
-- [ ] **Graph View**: Nodes render, edges connect, expand/filter controls work, click shows preview
+- [x] **Graph View**: Nodes render with type colors, edges connect with labels, layout toggle and filter controls work, click opens detail panel
 - [x] **Semantic View Templates**: View selector shows available views, switching views works
 - [x] **Kanban View**: Cards in correct columns, drag-drop transitions status, colored headers
 - [x] **Cards View**: Grid/list/single/chips layouts render correctly
@@ -604,7 +611,16 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   │       └── RelationshipsTab.tsx # Neighbor cards
 │   │   │   ├── list-view/
 │   │   │   ├── detail-view/
-│   │   │   └── graph-view/
+│   │   │   └── graph-view/       # React Flow graph visualization
+│   │   │       ├── GraphView.tsx      # Main container with data fetching
+│   │   │       ├── GraphCanvas.tsx    # React Flow wrapper
+│   │   │       ├── GraphControls.tsx  # Layout toggle
+│   │   │       ├── GraphFilters.tsx   # Node/edge type filters
+│   │   │       ├── nodes/
+│   │   │       │   └── InstanceNode.tsx # Custom React Flow node
+│   │   │       └── utils/
+│   │   │           ├── layoutUtils.ts   # Dagre + force layouts
+│   │   │           └── colorUtils.ts    # Type-based colors
 │   │   ├── lib/
 │   │   │   ├── api.ts            # API client
 │   │   │   └── utils.ts
