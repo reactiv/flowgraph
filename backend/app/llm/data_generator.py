@@ -229,6 +229,13 @@ class DataGenerator:
         base_date = datetime.now() - timedelta(days=90)
 
         for scenario_idx, scenario in enumerate(scenarios):
+            # Build mapping from scenario temp_ids to globally unique temp_ids
+            # This prevents collisions when LLM reuses temp_ids like "node_1" across scenarios
+            temp_id_map: dict[str, str] = {}
+            for node in scenario.nodes:
+                unique_temp_id = f"s{scenario_idx}_{node.temp_id}"
+                temp_id_map[node.temp_id] = unique_temp_id
+
             # Create nodes from scenario
             for node in scenario.nodes:
                 type_def = self._get_node_type(definition, node.node_type)
@@ -244,7 +251,7 @@ class DataGenerator:
                 status = node.status or self._generate_status(type_def)
 
                 all_nodes.append(GeneratedNode(
-                    temp_id=node.temp_id,
+                    temp_id=temp_id_map[node.temp_id],
                     node_type=node.node_type,
                     title=node.title,
                     status=status,
@@ -252,14 +259,17 @@ class DataGenerator:
                     scenario_context=node.description,
                 ))
 
-            # Create edges from scenario
+            # Create edges from scenario using mapped temp_ids
             for edge in scenario.edges:
-                all_edges.append(GeneratedEdge(
-                    edge_type=edge.edge_type,
-                    from_temp_id=edge.from_temp_id,
-                    to_temp_id=edge.to_temp_id,
-                    rationale=edge.rationale,
-                ))
+                from_temp_id = temp_id_map.get(edge.from_temp_id)
+                to_temp_id = temp_id_map.get(edge.to_temp_id)
+                if from_temp_id and to_temp_id:
+                    all_edges.append(GeneratedEdge(
+                        edge_type=edge.edge_type,
+                        from_temp_id=from_temp_id,
+                        to_temp_id=to_temp_id,
+                        rationale=edge.rationale,
+                    ))
 
         # Add cross-scenario connections (tags if they exist)
         tag_edges = self._generate_tag_edges(all_nodes, definition)
