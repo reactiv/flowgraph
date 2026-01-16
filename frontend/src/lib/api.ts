@@ -23,6 +23,11 @@ import type {
   ViewTemplateCreate,
   ViewTemplateUpdate,
 } from '@/types/view-templates';
+import type {
+  SuggestionDirection,
+  SuggestionOptions,
+  SuggestionResponse,
+} from '@/types/suggestion';
 
 const API_BASE = '/api/v1';
 
@@ -129,6 +134,18 @@ export const api = {
       `/workflows/${workflowId}/nodes/${nodeId}/neighbors${query ? `?${query}` : ''}`
     );
   },
+
+  suggestNode: (
+    workflowId: string,
+    nodeId: string,
+    edgeType: string,
+    direction: SuggestionDirection,
+    options?: SuggestionOptions
+  ) =>
+    fetchJson<SuggestionResponse>(`/workflows/${workflowId}/nodes/${nodeId}/suggest`, {
+      method: 'POST',
+      body: JSON.stringify({ edge_type: edgeType, direction, options }),
+    }),
 
   // Edges
   createEdge: (workflowId: string, edge: EdgeCreate) =>

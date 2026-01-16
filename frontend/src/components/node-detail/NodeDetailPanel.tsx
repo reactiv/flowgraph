@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { WorkflowDefinition, NodeType } from '@/types/workflow';
+import type { WorkflowDefinition, NodeType, NodeCreate, EdgeCreate } from '@/types/workflow';
+import type { SuggestionDirection } from '@/types/suggestion';
 import { NodeDetailHeader } from './NodeDetailHeader';
 import { SummaryTab } from './tabs/SummaryTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
@@ -95,6 +96,32 @@ export function NodeDetailPanel({
       onNodeSelect(relatedNodeId);
     }
   }, [onNodeSelect]);
+
+  // Handle accepting a suggested node
+  const handleSuggestAccept = useCallback(async (
+    nodeCreate: NodeCreate,
+    edgeType: string,
+    direction: SuggestionDirection
+  ) => {
+    // Create the node first
+    const createdNode = await api.createNode(workflowId, nodeCreate);
+
+    // Then create the edge
+    const edgeCreate: EdgeCreate = direction === 'outgoing'
+      ? { type: edgeType, from_node_id: nodeId!, to_node_id: createdNode.id }
+      : { type: edgeType, from_node_id: createdNode.id, to_node_id: nodeId! };
+
+    await api.createEdge(workflowId, edgeCreate);
+
+    // Invalidate queries to refresh the UI
+    queryClient.invalidateQueries({ queryKey: ['neighbors', workflowId, nodeId] });
+    queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
+
+    // Navigate to the newly created node
+    if (onNodeSelect) {
+      onNodeSelect(createdNode.id);
+    }
+  }, [workflowId, nodeId, queryClient, onNodeSelect]);
 
   if (!nodeId) return null;
 
@@ -187,10 +214,14 @@ export function NodeDetailPanel({
               )}
               {activeTab === 'relationships' && (
                 <RelationshipsTab
+                  workflowId={workflowId}
+                  workflowDefinition={workflowDefinition}
+                  node={node}
                   neighbors={neighbors}
                   edgeTypes={workflowDefinition.edgeTypes}
                   isLoading={neighborsLoading}
                   onNodeClick={handleRelatedNodeClick}
+                  onSuggestAccept={handleSuggestAccept}
                 />
               )}
             </div>

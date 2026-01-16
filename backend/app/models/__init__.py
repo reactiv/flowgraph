@@ -3,6 +3,13 @@
 from app.models.edge import Edge, EdgeCreate
 from app.models.event import Event, EventCreate
 from app.models.node import Node, NodeCreate, NodeUpdate
+from app.models.suggestion import (
+    NodeSuggestion,
+    SuggestionContext,
+    SuggestionOptions,
+    SuggestionRequest,
+    SuggestionResponse,
+)
 from app.models.workflow import (
     EdgeType,
     Field,
@@ -34,4 +41,10 @@ __all__ = [
     "EdgeCreate",
     "Event",
     "EventCreate",
+    # Suggestions
+    "SuggestionRequest",
+    "SuggestionOptions",
+    "NodeSuggestion",
+    "SuggestionContext",
+    "SuggestionResponse",
 ]

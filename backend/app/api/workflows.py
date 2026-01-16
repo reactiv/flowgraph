@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.db import graph_store
 from app.llm import (
     DataGenerator,
+    NodeSuggestionGenerator,
     SchemaGenerationOptions,
     SchemaGenerator,
     SchemaValidationResult,
@@ -25,6 +26,8 @@ from app.models import (
     Node,
     NodeCreate,
     NodeUpdate,
+    SuggestionRequest,
+    SuggestionResponse,
     WorkflowDefinition,
 )
 from app.models.workflow import (
@@ -240,6 +243,64 @@ async def get_neighbors(
     return await graph_store.get_neighbors(
         workflow_id, node_id, depth=depth, edge_types=edge_type_list
     )
+
+
+@router.post("/workflows/{workflow_id}/nodes/{node_id}/suggest")
+async def suggest_node(
+    workflow_id: str,
+    node_id: str,
+    request: SuggestionRequest,
+) -> SuggestionResponse:
+    """Suggest a new node to link to the specified node.
+
+    Uses LLM to generate a contextually appropriate node based on:
+    - The source node's properties and status
+    - Connected nodes for context
+    - Similar nodes of the target type as examples
+    - The workflow schema
+
+    The direction parameter specifies the edge direction relative to the source node:
+    - "outgoing": source → suggested (e.g., Sample → Analysis)
+    - "incoming": suggested → source (e.g., ExperimentPlan → Hypothesis)
+
+    The generated node is returned for preview but NOT created.
+    Call POST /nodes to create the node, then POST /edges to create the edge.
+    """
+    # Verify node exists
+    node = await graph_store.get_node(workflow_id, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Verify edge type exists in workflow
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    valid_edge_types = {et.type for et in workflow.edge_types}
+    if request.edge_type not in valid_edge_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Edge type '{request.edge_type}' not found in workflow schema",
+        )
+
+    try:
+        generator = NodeSuggestionGenerator(graph_store=graph_store)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        return await generator.suggest_node(
+            workflow_id=workflow_id,
+            source_node_id=node_id,
+            edge_type=request.edge_type,
+            direction=request.direction,
+            options=request.options,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ==================== Edges ====================
