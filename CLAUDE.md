@@ -135,6 +135,7 @@ POST   /api/v1/workflows/{id}/nodes
 GET    /api/v1/workflows/{id}/nodes/{node_id}
 PATCH  /api/v1/workflows/{id}/nodes/{node_id}
 GET    /api/v1/workflows/{id}/nodes/{node_id}/neighbors
+GET    /api/v1/workflows/{id}/edges             # List edges (for Graph View)
 POST   /api/v1/workflows/{id}/edges
 POST   /api/v1/workflows/{id}/seed          # LLM data generation (long-running)
 POST   /api/v1/workflows/{id}/reset

@@ -69,6 +69,15 @@ class NodesResponse(BaseModel):
     offset: int
 
 
+class EdgesResponse(BaseModel):
+    """Response for edge list queries."""
+
+    edges: list[Edge]
+    total: int
+    limit: int
+    offset: int
+
+
 # ==================== Workflows ====================
 
 
@@ -243,6 +252,25 @@ async def get_neighbors(
 
 
 # ==================== Edges ====================
+
+
+@router.get("/workflows/{workflow_id}/edges")
+async def list_edges(
+    workflow_id: str,
+    type: str | None = Query(None, description="Filter by edge type"),
+    limit: int = Query(1000, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
+) -> EdgesResponse:
+    """List edges in a workflow with optional filters."""
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    edges, total = await graph_store.query_edges(
+        workflow_id, edge_type=type, limit=limit, offset=offset
+    )
+    return EdgesResponse(edges=edges, total=total, limit=limit, offset=offset)
 
 
 @router.post("/workflows/{workflow_id}/edges")

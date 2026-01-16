@@ -1,0 +1,62 @@
+'use client';
+
+import type { LayoutType } from './utils/layoutUtils';
+
+interface GraphControlsProps {
+  layout: LayoutType;
+  onLayoutChange: (layout: LayoutType) => void;
+  nodeCount: number;
+  edgeCount: number;
+}
+
+/**
+ * Control bar for the graph view with layout toggle and stats.
+ */
+export function GraphControls({
+  layout,
+  onLayoutChange,
+  nodeCount,
+  edgeCount,
+}: GraphControlsProps) {
+  return (
+    <div className="absolute top-4 left-4 z-10 flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-md px-4 py-2 border">
+      {/* Layout Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-700">Layout:</span>
+        <div className="flex rounded-md border overflow-hidden">
+          <button
+            onClick={() => onLayoutChange('force')}
+            className={`px-3 py-1 text-xs font-medium transition-colors ${
+              layout === 'force'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+            title="Cluster by node type"
+          >
+            Cluster
+          </button>
+          <button
+            onClick={() => onLayoutChange('dagre')}
+            className={`px-3 py-1 text-xs font-medium border-l transition-colors ${
+              layout === 'dagre'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+            title="Hierarchical top-to-bottom layout"
+          >
+            Hierarchy
+          </button>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-4 w-px bg-gray-300" />
+
+      {/* Stats */}
+      <div className="flex items-center gap-3 text-sm text-gray-500">
+        <span>{nodeCount} nodes</span>
+        <span>{edgeCount} edges</span>
+      </div>
+    </div>
+  );
+}

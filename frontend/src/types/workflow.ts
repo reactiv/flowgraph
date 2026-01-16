@@ -166,6 +166,13 @@ export interface Edge {
   created_at: string;
 }
 
+export interface EdgesResponse {
+  edges: Edge[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // ==================== Neighbors ====================
 
 export interface NeighborResult {
