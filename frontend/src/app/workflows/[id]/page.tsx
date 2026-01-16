@@ -14,6 +14,7 @@ import { CreateViewModal } from '@/components/views/CreateViewModal';
 import { EditViewModal } from '@/components/views/EditViewModal';
 import { DeleteViewDialog } from '@/components/views/DeleteViewDialog';
 import { NodeDetailPanel } from '@/components/node-detail';
+import { SchemaGraphPreview } from '@/components/schema-graph/SchemaGraphPreview';
 
 export default function WorkflowPage() {
   const params = useParams();
@@ -163,7 +164,16 @@ export default function WorkflowPage() {
       </div>
 
       {/* Content Area */}
-      {selectedViewTemplate ? (
+      {selectedViewId === 'schema' ? (
+        // Render the schema graph view
+        <div className="flex-1 overflow-hidden p-4">
+          <SchemaGraphPreview
+            definition={workflow}
+            className="rounded-lg border bg-white"
+            height="100%"
+          />
+        </div>
+      ) : selectedViewTemplate ? (
         // Render the selected semantic view
         <div className="flex-1 overflow-hidden">
           <ViewRenderer

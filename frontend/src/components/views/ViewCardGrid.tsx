@@ -20,11 +20,17 @@ export function ViewCardGrid({
   onEditView,
   onDeleteView,
 }: ViewCardGridProps) {
-  // List View is always first (built-in)
+  // Built-in views
   const listView = {
     id: 'list' as const,
     name: 'List View',
     description: 'View all items in a table',
+  };
+
+  const schemaView = {
+    id: 'schema' as const,
+    name: 'Schema Graph',
+    description: 'Visualize node types and relationships',
   };
 
   return (
@@ -36,6 +42,14 @@ export function ViewCardGrid({
           isSelected={selectedViewId === null}
           isBuiltIn={true}
           onSelect={() => onViewSelect(null)}
+        />
+
+        {/* Schema Graph card (built-in) */}
+        <ViewCard
+          view={schemaView}
+          isSelected={selectedViewId === 'schema'}
+          isBuiltIn={true}
+          onSelect={() => onViewSelect('schema')}
         />
 
         {/* Template view cards */}

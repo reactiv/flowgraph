@@ -20,6 +20,7 @@ import { NodeTypeCard } from './NodeTypeCard';
 interface SchemaGraphPreviewProps {
   definition: WorkflowDefinition;
   className?: string;
+  height?: number | string;
 }
 
 // Register custom node types - using type assertion for compatibility
@@ -67,6 +68,7 @@ function getEdgeColor(edgeType: string): string {
 export function SchemaGraphPreview({
   definition,
   className,
+  height = 400,
 }: SchemaGraphPreviewProps) {
   // Convert WorkflowDefinition to React Flow nodes and edges
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -113,7 +115,7 @@ export function SchemaGraphPreview({
   }, []);
 
   return (
-    <div className={className} style={{ height: 400, width: '100%' }}>
+    <div className={className} style={{ height, width: '100%' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
