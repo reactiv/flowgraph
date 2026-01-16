@@ -17,7 +17,7 @@ RETRY_DELAY = 1.0  # seconds
 RETRY_MULTIPLIER = 2.0
 
 # Model to use
-GEMINI_MODEL = "gemini-3.0-flash-preview"
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 
 class GeminiClient:

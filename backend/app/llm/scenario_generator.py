@@ -7,6 +7,7 @@ groups of nodes and their relationships, rather than random data.
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -80,6 +81,7 @@ class ScenarioGenerator:
         definition: WorkflowDefinition,
         num_scenarios: int,
         nodes_per_scenario: tuple[int, int] = (4, 8),
+        on_progress: Callable[[int, int], Awaitable[None]] | None = None,
     ) -> list[Scenario]:
         """Generate coherent scenarios for a workflow.
 
@@ -87,6 +89,7 @@ class ScenarioGenerator:
             definition: The workflow definition
             num_scenarios: Number of scenarios to generate
             nodes_per_scenario: Min/max nodes per scenario
+            on_progress: Optional async callback (current_batch, total_batches)
 
         Returns:
             List of generated scenarios
@@ -94,8 +97,10 @@ class ScenarioGenerator:
         # Generate in batches of 2 to avoid token limit issues
         batch_size = 2
         all_scenarios: list[Scenario] = []
+        total_batches = (num_scenarios + batch_size - 1) // batch_size
 
         for batch_start in range(0, num_scenarios, batch_size):
+            batch_num = batch_start // batch_size + 1
             batch_count = min(batch_size, num_scenarios - batch_start)
 
             prompt = self._build_scenario_prompt(
@@ -116,9 +121,13 @@ class ScenarioGenerator:
                         all_scenarios.append(scenario)
 
                 logger.info(
-                    f"Generated batch {batch_start // batch_size + 1}: "
+                    f"Generated batch {batch_num}: "
                     f"{len(result.get('scenarios', []))} scenarios"
                 )
+
+                # Report progress after each batch
+                if on_progress:
+                    await on_progress(batch_num, total_batches)
 
             except Exception as e:
                 logger.error(f"Failed to generate scenario batch: {e}")
