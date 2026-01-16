@@ -30,10 +30,11 @@ export function FilterBar({ workflowId, viewId, onFiltersChange }: FilterBarProp
     if (activeFilters.length === 0) {
       onFiltersChange(null);
     } else {
-      onFiltersChange({
-        logic: 'and',
+      const filterGroup = {
+        logic: 'and' as const,
         filters: activeFilters.map((af) => af.filter),
-      });
+      };
+      onFiltersChange(filterGroup);
     }
   }, [activeFilters, onFiltersChange]);
 

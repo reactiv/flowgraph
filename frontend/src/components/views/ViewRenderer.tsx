@@ -48,8 +48,10 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
 
   // Handle filter changes
   const handleFiltersChange = useCallback((filters: FilterGroup | null) => {
+    console.log('[ViewRenderer] handleFiltersChange received:', filters);
     setFilterGroup(filters);
   }, []);
+
 
   // Fetch the subgraph data for this view
   const { data, isLoading, error } = useQuery({
@@ -72,45 +74,46 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
     await updateNodeMutation.mutateAsync({ nodeId, status: newStatus });
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">Loading view...</div>
-      </div>
-    );
-  }
+  // Render content area - handles loading/error states while keeping FilterBar mounted
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-gray-500">Loading view...</div>
+        </div>
+      );
+    }
 
-  if (error) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-red-500">Error loading view: {error.message}</div>
-      </div>
-    );
-  }
+    if (error) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-red-500">Error loading view: {error.message}</div>
+        </div>
+      );
+    }
 
-  if (!data) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">No data available</div>
-      </div>
-    );
-  }
+    if (!data) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-gray-500">No data available</div>
+        </div>
+      );
+    }
 
-  // Get the root level config
-  const rootLevelConfig = viewTemplate.levels[viewTemplate.rootType];
-  if (!rootLevelConfig) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-red-500">Invalid view template: missing root level config</div>
-      </div>
-    );
-  }
+    // Get the root level config
+    const rootLevelConfig = viewTemplate.levels[viewTemplate.rootType];
+    if (!rootLevelConfig) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <div className="text-red-500">Invalid view template: missing root level config</div>
+        </div>
+      );
+    }
 
-  // Get the nodes for the root level
-  const rootNodes = data.levels[viewTemplate.rootType]?.nodes || [];
+    // Get the nodes for the root level
+    const rootNodes = data.levels[viewTemplate.rootType]?.nodes || [];
 
-  // Render the view content based on style
-  const renderViewContent = () => {
+    // Render based on view style
     switch (rootLevelConfig.style) {
       case 'kanban':
         return (
@@ -203,7 +206,7 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
     }
   };
 
-  // Render with FilterBar
+  // FilterBar is ALWAYS rendered to preserve its state during loading
   return (
     <div className="flex flex-col h-full">
       <FilterBar
@@ -211,7 +214,7 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
         viewId={viewTemplate.id}
         onFiltersChange={handleFiltersChange}
       />
-      <div className="flex-1 overflow-auto">{renderViewContent()}</div>
+      <div className="flex-1 overflow-auto">{renderContent()}</div>
     </div>
   );
 }

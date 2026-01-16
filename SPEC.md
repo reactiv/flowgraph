@@ -433,6 +433,25 @@ When provided, colors are converted to rgba with transparency for backgrounds.
 
 View templates are stored in `WorkflowDefinition.viewTemplates[]` alongside node types and edge types, allowing each workflow to define its own semantic views.
 
+#### View Filtering
+Views support dynamic filtering with both property and relational filters:
+
+**Property Filters**: Filter nodes by their direct field values
+- Operators: `eq`, `neq`, `contains`, `startsWith`, `endsWith`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`, `isNull`, `isNotNull`
+- Example: `status = "Active"` or `priority > 3`
+
+**Relational Filters**: Filter nodes based on properties of connected nodes via edges
+- Traverse relationships to filter by neighbor properties
+- Example: "Parts belonging to Device X" (Part --BELONGS_TO--> Device where Device.name = "X")
+- Supports `any`, `all`, `none` match modes
+
+**Filter Schema API**: `GET /views/{view_id}/filter-schema` returns available filterable fields including:
+- Property fields from the root node type
+- Relational fields from connected node types via edges
+- Field metadata (kind, allowed values for enums)
+
+**Autocomplete**: `GET /views/{view_id}/filter-values` provides distinct values for text fields to aid user input.
+
 ---
 
 ## 10) Ability to generate new nodes/properties

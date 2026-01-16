@@ -393,10 +393,19 @@
 - [x] Components use config colors with hex-to-rgba conversion for badges
 - [x] Falls back to hardcoded colors when config not provided
 
+#### View Filtering
+- [x] Filter models (backend): `PropertyFilter`, `RelationalFilter`, `FilterGroup`
+- [x] `FilterEvaluator` service for evaluating filters against nodes
+- [x] `GET /filter-schema` endpoint returns filterable fields (property + relational)
+- [x] `GET /filter-values` endpoint for autocomplete suggestions
+- [x] `FilterBar` component with add/remove/clear filters
+- [x] `FilterBuilder` modal with field/operator/value selection
+- [x] Autocomplete for string/person fields
+- [x] Relational filters (filter by connected node properties via edges)
+
 #### Pending (Phase 2-4)
 - [ ] Hierarchical edge traversal (multi-level views)
 - [ ] Drag-drop validation against allowed transitions
-- [ ] Filter bar integration
 
 ### 6.7 Shared UI Patterns
 - [ ] Loading states (skeletons)
