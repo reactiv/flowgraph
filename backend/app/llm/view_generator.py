@@ -7,8 +7,8 @@ from pydantic import ValidationError
 from app.llm.client import LLMClient, get_client
 from app.models import WorkflowDefinition
 from app.models.workflow import (
-    CardTemplate,
     CardsConfig,
+    CardTemplate,
     GanttConfig,
     KanbanConfig,
     LevelConfig,

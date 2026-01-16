@@ -228,6 +228,42 @@
 
 ---
 
+## 5b. LLM-Powered Node Suggestion
+
+> Generate contextually appropriate nodes based on graph context. Given a source node and relationship type, suggest new nodes that would be appropriate to link.
+
+### 5b.1 Backend Implementation
+- [x] `NodeSuggestionGenerator` class in `backend/app/llm/node_suggestion_generator.py`
+- [x] Context gathering: source node, neighbors, similar nodes, schema
+- [x] Pydantic models in `backend/app/models/suggestion.py`:
+  - `SuggestionOptions` (include_similar, num_suggestions, guidance)
+  - `SuggestionRequest` (edge_type, direction, options)
+  - `NodeSuggestion` (node, rationale)
+  - `SuggestionResponse` (suggestions, context)
+- [x] `POST /api/v1/workflows/{workflow_id}/nodes/{node_id}/suggest` endpoint
+
+### 5b.2 Frontend Implementation
+- [x] TypeScript types in `frontend/src/types/suggestion.ts`
+- [x] `api.suggestNode()` method in `frontend/src/lib/api.ts`
+- [x] `SuggestNodeModal` component with:
+  - Generate button with loading state
+  - Optional guidance textarea for steering suggestions
+  - Suggested node preview (title, status, properties)
+  - LLM rationale display
+  - Edit title/status before accepting
+  - Accept (creates node + edge), Regenerate, Cancel actions
+- [x] "Suggest New Relationships" section in `RelationshipsTab.tsx`
+  - Shows buttons for each possible edge type (both directions)
+  - Opens `SuggestNodeModal` on click
+
+### 5b.3 Features
+- [x] Supports both directions (outgoing and incoming edges)
+- [x] User guidance input to steer LLM suggestions
+- [x] Schema validation of generated properties
+- [x] Auto-navigation to created node after acceptance
+
+---
+
 ## 6. UI Components (High Polish)
 
 > **This is where we spend the most time.** The UI must feel alive immediately after seeding.
@@ -280,7 +316,8 @@
     - Outgoing edges grouped by edge type
     - Incoming edges grouped by edge type
     - Each panel shows linked node cards with click to navigate
-    - [ ] "Create linked" and "Link existing" buttons (deferred)
+    - [x] "Suggest Linked Node" via LLM (see Section 5b)
+    - [ ] "Link existing" button (deferred)
   - [ ] **Files**: Attachment list (deferred to Phase 2)
   - [ ] **Timeline**: Event feed for this node only (deferred to Phase 2)
 - [ ] Sidebar actions (deferred to Phase 2):
@@ -434,6 +471,7 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 - [x] `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}` - get single node
 - [x] `PATCH /api/v1/workflows/{workflow_id}/nodes/{node_id}` - update node
 - [x] `DELETE /api/v1/workflows/{workflow_id}/nodes/{node_id}` - delete node
+- [x] `POST /api/v1/workflows/{workflow_id}/nodes/{node_id}/suggest` - LLM-powered node suggestion
 
 ### 7.4 Edges
 - [x] `GET /api/v1/workflows/{workflow_id}/edges` - list edges with optional filters
@@ -553,7 +591,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   ├── workflow.py        # WorkflowDefinition Pydantic models
 │   │   │   ├── node.py
 │   │   │   ├── edge.py
-│   │   │   └── event.py
+│   │   │   ├── event.py
+│   │   │   └── suggestion.py      # Node suggestion request/response models
 │   │   └── llm/
 │   │       ├── __init__.py
 │   │       ├── client.py          # Anthropic SDK wrapper (Claude)
@@ -561,7 +600,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │       ├── schema_generator.py # NL → WorkflowDefinition
 │   │       ├── scenario_generator.py # Scenario generation for coherent data
 │   │       ├── data_generator.py  # Scenario-driven data generation
-│   │       └── view_generator.py  # NL → ViewTemplate
+│   │       ├── view_generator.py  # NL → ViewTemplate
+│   │       └── node_suggestion_generator.py # Context-aware node suggestions
 │   ├── templates/                 # Built-in workflow JSON files
 │   │   ├── materials-rnd.workflow.json
 │   │   ├── capa.workflow.json
@@ -605,10 +645,11 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   │   ├── NodeDetailHeader.tsx  # Header with status dropdown
 │   │   │   │   ├── StatusDropdown.tsx    # Status transition dropdown
 │   │   │   │   ├── RelationshipCard.tsx  # Card for linked nodes
+│   │   │   │   ├── SuggestNodeModal.tsx  # LLM node suggestion modal
 │   │   │   │   └── tabs/
 │   │   │   │       ├── SummaryTab.tsx    # Read-only field display
 │   │   │   │       ├── PropertiesTab.tsx # Editable form
-│   │   │   │       └── RelationshipsTab.tsx # Neighbor cards
+│   │   │   │       └── RelationshipsTab.tsx # Neighbor cards + suggest buttons
 │   │   │   ├── list-view/
 │   │   │   ├── detail-view/
 │   │   │   └── graph-view/       # React Flow graph visualization
@@ -626,7 +667,8 @@ All endpoints prefixed with `/api/v1`. Pydantic models for request/response vali
 │   │   │   └── utils.ts
 │   │   └── types/
 │   │       ├── workflow.ts       # TypeScript types (mirror Pydantic)
-│   │       └── view-templates.ts # ViewTemplate types for semantic views
+│   │       ├── view-templates.ts # ViewTemplate types for semantic views
+│   │       └── suggestion.ts     # Node suggestion types
 │   ├── __tests__/                # Vitest tests
 │   │   ├── components/
 │   │   └── lib/
