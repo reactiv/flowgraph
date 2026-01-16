@@ -15,6 +15,7 @@ import { EditViewModal } from '@/components/views/EditViewModal';
 import { DeleteViewDialog } from '@/components/views/DeleteViewDialog';
 import { NodeDetailPanel } from '@/components/node-detail';
 import { SchemaGraphPreview } from '@/components/schema-graph/SchemaGraphPreview';
+import { GraphView } from '@/components/graph-view';
 
 export default function WorkflowPage() {
   const params = useParams();
@@ -97,14 +98,14 @@ export default function WorkflowPage() {
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
 
-  // Fetch nodes (filtered by selected type) - only when in list view
+  // Fetch nodes (filtered by selected type) - only when in list view (not graph or semantic views)
   const {
     data: nodesResponse,
     isLoading: nodesLoading,
   } = useQuery({
     queryKey: ['nodes', workflowId, selectedType],
     queryFn: () => api.listNodes(workflowId, { type: selectedType || undefined, limit: 100 }),
-    enabled: !!workflow && !selectedViewId, // Only fetch for list view
+    enabled: !!workflow && selectedViewId === null, // Only fetch for list view
   });
 
   // Set default selected type once workflow loads
@@ -171,6 +172,15 @@ export default function WorkflowPage() {
             definition={workflow}
             className="rounded-lg border bg-white"
             height="100%"
+          />
+        </div>
+      ) : selectedViewId === 'graph' ? (
+        // Render the instance graph view
+        <div className="flex-1 overflow-hidden">
+          <GraphView
+            workflowId={workflowId}
+            workflowDefinition={workflow}
+            onNodeClick={handleNodeClick}
           />
         </div>
       ) : selectedViewTemplate ? (

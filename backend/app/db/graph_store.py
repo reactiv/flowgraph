@@ -389,6 +389,61 @@ class GraphStore:
         await db.commit()
         return cursor.rowcount > 0
 
+    async def query_edges(
+        self,
+        workflow_id: str,
+        edge_type: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> tuple[list[Edge], int]:
+        """Query edges with filters. Returns (edges, total_count)."""
+        db = await get_db()
+
+        # Build query
+        where_clauses = ["workflow_id = ?"]
+        params: list[Any] = [workflow_id]
+
+        if edge_type:
+            where_clauses.append("type = ?")
+            params.append(edge_type)
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Get total count
+        cursor = await db.execute(
+            f"SELECT COUNT(*) as count FROM edges WHERE {where_sql}",
+            params,
+        )
+        row = await cursor.fetchone()
+        total = row["count"] if row else 0
+
+        # Get edges
+        cursor = await db.execute(
+            f"""
+            SELECT id, workflow_id, type, from_node_id, to_node_id, properties_json, created_at
+            FROM edges WHERE {where_sql}
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit, offset],
+        )
+        rows = await cursor.fetchall()
+
+        edges = [
+            Edge(
+                id=row["id"],
+                workflow_id=row["workflow_id"],
+                type=row["type"],
+                from_node_id=row["from_node_id"],
+                to_node_id=row["to_node_id"],
+                properties=json.loads(row["properties_json"]),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+        return edges, total
+
     async def get_neighbors(
         self,
         workflow_id: str,

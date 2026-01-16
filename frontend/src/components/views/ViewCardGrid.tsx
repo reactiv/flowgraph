@@ -33,6 +33,12 @@ export function ViewCardGrid({
     description: 'Visualize node types and relationships',
   };
 
+  const graphView = {
+    id: 'graph' as const,
+    name: 'Graph View',
+    description: 'Explore node relationships visually',
+  };
+
   return (
     <div className="w-full">
       <div className="flex items-stretch gap-3 overflow-x-auto pb-2">
@@ -50,6 +56,14 @@ export function ViewCardGrid({
           isSelected={selectedViewId === null}
           isBuiltIn={true}
           onSelect={() => onViewSelect(null)}
+        />
+
+        {/* Graph View card (built-in) */}
+        <ViewCard
+          view={graphView}
+          isSelected={selectedViewId === 'graph'}
+          isBuiltIn={true}
+          onSelect={() => onViewSelect('graph')}
         />
 
         {/* Template view cards */}

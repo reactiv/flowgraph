@@ -11,6 +11,7 @@ import type {
   NodeUpdate,
   Edge,
   EdgeCreate,
+  EdgesResponse,
   Event,
   NodesResponse,
   NeighborsResponse,
@@ -148,6 +149,19 @@ export const api = {
     }),
 
   // Edges
+  listEdges: (
+    workflowId: string,
+    params?: { type?: string; limit?: number; offset?: number }
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+    const query = searchParams.toString();
+    return fetchJson<EdgesResponse>(`/workflows/${workflowId}/edges${query ? `?${query}` : ''}`);
+  },
+
   createEdge: (workflowId: string, edge: EdgeCreate) =>
     fetchJson<Edge>(`/workflows/${workflowId}/edges`, {
       method: 'POST',
