@@ -11,7 +11,7 @@ from app.llm.transformer.models import (
     TransformRun,
     compute_schema_hash,
 )
-from app.llm.transformer.orchestrator import DataTransformer
+from app.llm.transformer.orchestrator import DataTransformer, EventCallback
 from app.llm.transformer.validator import (
     ValidationResult,
     get_schema_description,
@@ -23,6 +23,7 @@ from app.llm.transformer.validator import (
 __all__ = [
     # Main class
     "DataTransformer",
+    "EventCallback",
     # Models
     "TransformConfig",
     "TransformManifest",

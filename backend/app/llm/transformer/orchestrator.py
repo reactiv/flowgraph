@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
@@ -32,6 +33,10 @@ from app.llm.transformer.validator import get_schema_description, validate_artif
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+# Callback type for streaming events
+# event_type: iteration_start, text, tool_call, tool_result, validation, complete, error
+EventCallback = Callable[[str, dict[str, Any]], None]
 
 
 DIRECT_MODE_SYSTEM_PROMPT = """You are an expert data transformer.
@@ -127,6 +132,7 @@ class DataTransformer:
         instruction: str,
         output_model: type[T],
         config: TransformConfig | None = None,
+        on_event: EventCallback | None = None,
     ) -> TransformRun[T]:
         """Transform input files into validated Pydantic objects.
 
@@ -135,6 +141,9 @@ class DataTransformer:
             instruction: Natural language instruction describing the transformation.
             output_model: Pydantic model class that each output item should match.
             config: Optional configuration for the transformation.
+            on_event: Optional callback for streaming events. Called with (event_type, data).
+                Event types: iteration_start, text, tool_call, tool_result, validation,
+                complete, error
 
         Returns:
             TransformRun with the manifest, parsed items, and debug info.
@@ -183,6 +192,7 @@ class DataTransformer:
                 output_file=output_file,
                 config=config,
                 run_id=run_id,
+                on_event=on_event,
             )
 
             elapsed = time.time() - start_time
@@ -205,6 +215,7 @@ class DataTransformer:
         output_file: str,
         config: TransformConfig,
         run_id: str,
+        on_event: EventCallback | None = None,
     ) -> TransformRun[T]:
         """Run the agentic loop to transform data.
 
@@ -215,10 +226,16 @@ class DataTransformer:
             output_file: Path to the output file.
             config: Transformation configuration.
             run_id: Unique run identifier.
+            on_event: Optional callback for streaming events.
 
         Returns:
             TransformRun with results.
         """
+
+        def emit(event_type: str, data: dict[str, Any]) -> None:
+            """Emit an event to the callback if set."""
+            if on_event:
+                on_event(event_type, data)
         # Get schema description
         schema_json = get_schema_description(output_model)
 
@@ -265,6 +282,7 @@ class DataTransformer:
         while iteration < config.max_iterations and not validation_passed:
             iteration += 1
             debug["iterations"] = iteration
+            emit("iteration_start", {"iteration": iteration, "max": config.max_iterations})
 
             # Call Claude
             try:
@@ -275,11 +293,18 @@ class DataTransformer:
                 )
             except Exception as e:
                 logger.error(f"Claude API call failed: {e}")
+                emit("error", {"error": str(e)})
                 raise ValueError(f"Claude API call failed: {e}") from e
 
             # Process response
             assistant_content = response.content
             messages.append({"role": "assistant", "content": assistant_content})
+
+            # Emit text blocks from assistant response
+            for block in assistant_content:
+                if block.type == "text":
+                    text_block = cast(anthropic.types.TextBlock, block)
+                    emit("text", {"text": text_block.text})
 
             # Check for tool use blocks
             tool_use_blocks: list[anthropic.types.ToolUseBlock] = [
@@ -298,6 +323,11 @@ class DataTransformer:
                         config.output_format,
                     )
                     validation_passed = final_validation.valid
+                    emit("validation", {
+                        "valid": validation_passed,
+                        "item_count": final_validation.item_count,
+                        "errors": final_validation.errors,
+                    })
                 break
 
             # Execute tools and collect results
@@ -305,6 +335,8 @@ class DataTransformer:
             for tool_use in tool_use_blocks:
                 tool_name = tool_use.name
                 tool_input = cast(dict[str, Any], tool_use.input)
+
+                emit("tool_call", {"tool": tool_name, "input": tool_input})
 
                 debug["tool_calls"].append({
                     "iteration": iteration,
@@ -314,15 +346,23 @@ class DataTransformer:
 
                 result = execute_tool(ctx, tool_name, tool_input)
 
+                emit("tool_result", {"tool": tool_name, "result": result})
+
                 # Track learned code
                 file_path = str(tool_input.get("file_path", ""))
                 if tool_name == "write_file" and "transform.py" in file_path:
                     learned_code = cast(str | None, tool_input.get("content"))
 
                 # Check for validation success
-                if tool_name == "validate_artifact" and result.get("valid"):
-                    validation_passed = True
-                    final_validation = result
+                if tool_name == "validate_artifact":
+                    emit("validation", {
+                        "valid": result.get("valid", False),
+                        "item_count": result.get("item_count", 0),
+                        "errors": result.get("errors", []),
+                    })
+                    if result.get("valid"):
+                        validation_passed = True
+                        final_validation = result
 
                 tool_results.append({
                     "type": "tool_result",
@@ -391,6 +431,12 @@ class DataTransformer:
         learned = None
         if learned_code:
             learned = LearnedAssets(transformer_code=learned_code)
+
+        emit("complete", {
+            "item_count": item_count,
+            "artifact_path": str(output_path),
+            "iterations": iteration,
+        })
 
         return TransformRun(
             manifest=manifest,
