@@ -1,18 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { Node, NodeType, Field } from '@/types/workflow';
+import { SuggestFieldValueModal } from '../SuggestFieldValueModal';
 
 interface PropertiesTabProps {
+  workflowId: string;
   node: Node;
   nodeType: NodeType;
   onSave: (properties: Record<string, unknown>) => void;
   isSaving: boolean;
 }
 
-export function PropertiesTab({ node, nodeType, onSave, isSaving }: PropertiesTabProps) {
+export function PropertiesTab({ workflowId, node, nodeType, onSave, isSaving }: PropertiesTabProps) {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [isDirty, setIsDirty] = useState(false);
+  const [suggestModal, setSuggestModal] = useState<{
+    isOpen: boolean;
+    field: Field | null;
+  }>({ isOpen: false, field: null });
 
   // Initialize form data from node properties
   useEffect(() => {
@@ -35,6 +42,21 @@ export function PropertiesTab({ node, nodeType, onSave, isSaving }: PropertiesTa
     setIsDirty(false);
   };
 
+  const handleSuggestClick = (field: Field) => {
+    setSuggestModal({ isOpen: true, field });
+  };
+
+  const handleSuggestClose = () => {
+    setSuggestModal({ isOpen: false, field: null });
+  };
+
+  const handleSuggestAccept = (value: unknown) => {
+    if (suggestModal.field) {
+      handleFieldChange(suggestModal.field.key, value);
+    }
+    handleSuggestClose();
+  };
+
   return (
     <div className="p-4">
       <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
@@ -46,6 +68,7 @@ export function PropertiesTab({ node, nodeType, onSave, isSaving }: PropertiesTa
               value={formData[field.key]}
               onChange={(value) => handleFieldChange(field.key, value)}
               disabled={isSaving}
+              onSuggestClick={() => handleSuggestClick(field)}
             />
           ))}
         </div>
@@ -71,6 +94,19 @@ export function PropertiesTab({ node, nodeType, onSave, isSaving }: PropertiesTa
           </div>
         )}
       </form>
+
+      {/* Suggest Field Value Modal */}
+      {suggestModal.field && (
+        <SuggestFieldValueModal
+          workflowId={workflowId}
+          node={node}
+          field={suggestModal.field}
+          currentValue={formData[suggestModal.field.key]}
+          isOpen={suggestModal.isOpen}
+          onClose={handleSuggestClose}
+          onAccept={handleSuggestAccept}
+        />
+      )}
     </div>
   );
 }
@@ -80,9 +116,12 @@ interface FieldInputProps {
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
+  onSuggestClick?: () => void;
 }
 
-function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
+function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldInputProps) {
+  // Can suggest for all field types except file[]
+  const canSuggest = field.kind !== 'file[]';
   const inputClasses =
     'w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500';
 
@@ -256,10 +295,24 @@ function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
 
   return (
     <div>
-      <label htmlFor={field.key} className="block text-sm font-medium text-gray-700 mb-1">
-        {field.label}
-        {field.required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+      <div className="flex items-center justify-between mb-1">
+        <label htmlFor={field.key} className="block text-sm font-medium text-gray-700">
+          {field.label}
+          {field.required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+        {canSuggest && onSuggestClick && (
+          <button
+            type="button"
+            onClick={onSuggestClick}
+            disabled={disabled}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-50 disabled:hover:bg-transparent"
+            title={`Suggest ${field.label}`}
+          >
+            <Sparkles className="h-3 w-3" />
+            Suggest
+          </button>
+        )}
+      </div>
       {renderInput()}
     </div>
   );

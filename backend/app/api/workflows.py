@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.db import graph_store
 from app.llm import (
     DataGenerator,
+    FieldValueSuggestionGenerator,
     NodeSuggestionGenerator,
     SchemaGenerationOptions,
     SchemaGenerator,
@@ -23,6 +24,8 @@ from app.models import (
     Edge,
     EdgeCreate,
     Event,
+    FieldValueSuggestionRequest,
+    FieldValueSuggestionResponse,
     FilterableField,
     FilterSchema,
     Node,
@@ -311,6 +314,77 @@ async def suggest_node(
             source_node_id=node_id,
             edge_type=request.edge_type,
             direction=request.direction,
+            options=request.options,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workflows/{workflow_id}/nodes/{node_id}/fields/{field_key}/suggest")
+async def suggest_field_value(
+    workflow_id: str,
+    node_id: str,
+    field_key: str,
+    request: FieldValueSuggestionRequest,
+) -> FieldValueSuggestionResponse:
+    """Suggest a value for a specific field on a node.
+
+    Uses LLM to generate a contextually appropriate field value based on:
+    - The node's existing properties and status
+    - Connected nodes for relationship context
+    - Similar nodes' values for this field as examples
+    - The field definition from the workflow schema
+
+    The generated value is returned for preview but NOT applied.
+    Call PATCH /nodes/{node_id} to update the node with the suggested value.
+    """
+    # Verify node exists
+    node = await graph_store.get_node(workflow_id, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Verify field exists in node type schema
+    node_type = next(
+        (nt for nt in workflow.node_types if nt.type == node.type), None
+    )
+    if node_type is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Node type '{node.type}' not found in workflow schema",
+        )
+
+    field_def = next((f for f in node_type.fields if f.key == field_key), None)
+    if field_def is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Field '{field_key}' not found in node type '{node.type}'",
+        )
+
+    # Cannot suggest file[] fields
+    if field_def.kind.value == "file[]":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot generate suggestions for file[] fields",
+        )
+
+    try:
+        generator = FieldValueSuggestionGenerator(graph_store=graph_store)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        return await generator.suggest_field_value(
+            workflow_id=workflow_id,
+            node_id=node_id,
+            field_key=field_key,
             options=request.options,
         )
     except ValueError as e:

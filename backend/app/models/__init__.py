@@ -4,6 +4,11 @@ from app.models.edge import Edge, EdgeCreate
 from app.models.event import Event, EventCreate
 from app.models.node import Node, NodeCreate, NodeUpdate
 from app.models.suggestion import (
+    FieldValueSuggestion,
+    FieldValueSuggestionContext,
+    FieldValueSuggestionOptions,
+    FieldValueSuggestionRequest,
+    FieldValueSuggestionResponse,
     NodeSuggestion,
     SuggestionContext,
     SuggestionOptions,
@@ -58,10 +63,16 @@ __all__ = [
     "EdgeCreate",
     "Event",
     "EventCreate",
-    # Suggestions
+    # Node Suggestions
     "SuggestionRequest",
     "SuggestionOptions",
     "NodeSuggestion",
     "SuggestionContext",
     "SuggestionResponse",
+    # Field Value Suggestions
+    "FieldValueSuggestionRequest",
+    "FieldValueSuggestionOptions",
+    "FieldValueSuggestion",
+    "FieldValueSuggestionContext",
+    "FieldValueSuggestionResponse",
 ]

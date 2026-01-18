@@ -206,6 +206,7 @@ export function NodeDetailPanel({
               )}
               {activeTab === 'properties' && (
                 <PropertiesTab
+                  workflowId={workflowId}
                   node={node}
                   nodeType={nodeType}
                   onSave={handlePropertiesSave}

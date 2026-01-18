@@ -1,6 +1,6 @@
-"""Pydantic models for LLM-powered node suggestions."""
+"""Pydantic models for LLM-powered node and field suggestions."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -67,4 +67,65 @@ class SuggestionResponse(BaseModel):
     """List of suggested nodes."""
 
     context: SuggestionContext
+    """Context information used to generate the suggestions."""
+
+
+# Field Value Suggestion Models
+
+
+class FieldValueSuggestionOptions(BaseModel):
+    """Options for field value suggestion generation."""
+
+    guidance: str | None = None
+    """Optional user guidance to steer the suggestion."""
+
+    num_suggestions: int = Field(default=1, ge=1, le=3)
+    """Number of alternative suggestions to generate."""
+
+    include_similar: bool = True
+    """Include similar nodes' field values as examples for the LLM."""
+
+    max_similar_examples: int = Field(default=5, ge=0, le=10)
+    """Maximum number of similar nodes to include as examples."""
+
+
+class FieldValueSuggestionRequest(BaseModel):
+    """Request model for suggesting a field value."""
+
+    options: FieldValueSuggestionOptions = Field(
+        default_factory=FieldValueSuggestionOptions
+    )
+
+
+class FieldValueSuggestion(BaseModel):
+    """A single field value suggestion with metadata."""
+
+    value: Any
+    """The suggested value for the field (type depends on field kind)."""
+
+    rationale: str
+    """Explanation of why this value was suggested."""
+
+
+class FieldValueSuggestionContext(BaseModel):
+    """Context information used to generate field value suggestions."""
+
+    node_id: str
+    node_title: str
+    node_type: str
+    field_key: str
+    field_kind: str
+    field_label: str
+    current_value: Any | None
+    similar_values_count: int
+    neighbors_count: int
+
+
+class FieldValueSuggestionResponse(BaseModel):
+    """Response model for field value suggestions."""
+
+    suggestions: list[FieldValueSuggestion]
+    """List of suggested field values."""
+
+    context: FieldValueSuggestionContext
     """Context information used to generate the suggestions."""
