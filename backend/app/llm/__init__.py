@@ -2,6 +2,7 @@
 
 from app.llm.client import LLMClient, get_client
 from app.llm.data_generator import DataGenerator, ProgressCallback, SeedConfig, SeedProgress
+from app.llm.field_suggestion_generator import FieldValueSuggestionGenerator
 from app.llm.gemini_client import GeminiClient, gemini_available, get_gemini_client
 from app.llm.node_suggestion_generator import NodeSuggestionGenerator
 from app.llm.scenario_generator import Scenario, ScenarioGenerator, ScenarioNode
@@ -37,4 +38,6 @@ __all__ = [
     "ViewGenerator",
     # Node suggestion
     "NodeSuggestionGenerator",
+    # Field value suggestion
+    "FieldValueSuggestionGenerator",
 ]

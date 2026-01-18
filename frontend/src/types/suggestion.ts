@@ -38,3 +38,38 @@ export interface SuggestionResponse {
   suggestions: NodeSuggestion[];
   context: SuggestionContext;
 }
+
+// Field Value Suggestion Types
+
+export interface FieldValueSuggestionOptions {
+  guidance?: string;
+  num_suggestions?: number;
+  include_similar?: boolean;
+  max_similar_examples?: number;
+}
+
+export interface FieldValueSuggestionRequest {
+  options?: FieldValueSuggestionOptions;
+}
+
+export interface FieldValueSuggestion {
+  value: unknown;
+  rationale: string;
+}
+
+export interface FieldValueSuggestionContext {
+  node_id: string;
+  node_title: string;
+  node_type: string;
+  field_key: string;
+  field_kind: string;
+  field_label: string;
+  current_value: unknown | null;
+  similar_values_count: number;
+  neighbors_count: number;
+}
+
+export interface FieldValueSuggestionResponse {
+  suggestions: FieldValueSuggestion[];
+  context: FieldValueSuggestionContext;
+}

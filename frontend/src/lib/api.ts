@@ -27,6 +27,8 @@ import type {
   ViewTemplateUpdate,
 } from '@/types/view-templates';
 import type {
+  FieldValueSuggestionOptions,
+  FieldValueSuggestionResponse,
   SuggestionDirection,
   SuggestionOptions,
   SuggestionResponse,
@@ -149,6 +151,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ edge_type: edgeType, direction, options }),
     }),
+
+  suggestFieldValue: (
+    workflowId: string,
+    nodeId: string,
+    fieldKey: string,
+    options?: FieldValueSuggestionOptions
+  ) =>
+    fetchJson<FieldValueSuggestionResponse>(
+      `/workflows/${workflowId}/nodes/${nodeId}/fields/${encodeURIComponent(fieldKey)}/suggest`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ options }),
+      }
+    ),
 
   // Edges
   listEdges: (
