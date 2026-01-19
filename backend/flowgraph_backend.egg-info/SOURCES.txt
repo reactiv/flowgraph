@@ -16,6 +16,13 @@ app/llm/node_suggestion_generator.py
 app/llm/scenario_generator.py
 app/llm/schema_generator.py
 app/llm/view_generator.py
+app/llm/transformer/__init__.py
+app/llm/transformer/cli.py
+app/llm/transformer/models.py
+app/llm/transformer/orchestrator.py
+app/llm/transformer/seed_models.py
+app/llm/transformer/tools.py
+app/llm/transformer/validator.py
 app/models/__init__.py
 app/models/edge.py
 app/models/event.py
