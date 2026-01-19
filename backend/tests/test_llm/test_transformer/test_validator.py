@@ -1,13 +1,10 @@
 """Tests for transformer validator."""
 
-import tempfile
 from pathlib import Path
 
-import pytest
 from pydantic import BaseModel
 
 from app.llm.transformer.validator import (
-    ValidationResult,
     get_schema_description,
     validate_artifact,
     validate_json_file,

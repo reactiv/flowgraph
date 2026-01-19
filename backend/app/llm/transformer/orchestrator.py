@@ -1,33 +1,37 @@
 """Main orchestrator for the agentic data transformer.
 
-The DataTransformer class orchestrates Claude to transform input files
-into validated Pydantic-schema-compliant artifacts.
+Uses the Claude Agent SDK to transform input files into validated
+Pydantic-schema-compliant artifacts.
 """
 
-import asyncio
 import json
 import logging
-import os
 import shutil
 import tempfile
 import time
 import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
-import anthropic
-import anthropic.types
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    ResultMessage,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 from pydantic import BaseModel
 
 from app.llm.transformer.models import (
-    LearnedAssets,
     TransformConfig,
     TransformManifest,
     TransformRun,
     compute_schema_hash,
 )
-from app.llm.transformer.tools import ToolContext, execute_tool, get_tools_for_mode
+from app.llm.transformer.tools import create_transformer_tools
 from app.llm.transformer.validator import get_schema_description, validate_artifact
 
 logger = logging.getLogger(__name__)
@@ -35,24 +39,22 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # Callback type for streaming events
-# event_type: iteration_start, text, tool_call, tool_result, validation, complete, error
 EventCallback = Callable[[str, dict[str, Any]], None]
 
 
-DIRECT_MODE_SYSTEM_PROMPT = """You are an expert data transformer.
+SYSTEM_PROMPT = """You are an expert data transformer.
 
 Your task is to transform input files into a specific output format that matches a Pydantic schema.
 
 ## Instructions
 
-1. First, use list_files to see what input files are available in ./inputs/
-2. Use read_file to explore the input files and understand their structure
-3. Transform the data according to the user's instruction
-4. Write the transformed data to {output_file}
+1. First, explore the input files in the working directory to understand their structure
+2. Transform the data according to the user's instruction
+3. Write the transformed data to {output_file}
    - For json format: Write a single JSON object
    - For jsonl format: Write one JSON object per line (no array wrapper)
-5. Call validate_artifact to check your output against the schema
-6. If validation fails, read the errors, fix your output, and try again
+4. Call validate_artifact to check your output against the schema
+5. If validation fails, read the errors, fix your output, and try again
 
 ## Output Schema (Pydantic)
 
@@ -66,65 +68,17 @@ Your task is to transform input files into a specific output format that matches
 - Do not wrap jsonl output in an array - each line is independent
 """
 
-CODE_MODE_SYSTEM_PROMPT = """You are an expert data transformer.
-
-Your task is to write Python code that transforms input files into a specific output format.
-
-## Instructions
-
-1. First, use list_files to see what input files are available in ./inputs/
-2. Use read_file to explore the input files and understand their structure
-3. Write a Python script to ./transform.py that:
-   - Reads from ./inputs/
-   - Transforms the data according to the user's instruction
-   - Writes to {output_file}
-4. Call run_transformer to execute your script
-5. Call validate_artifact to check the output against the schema
-6. If validation fails, fix your code and repeat steps 4-5
-
-## Output Schema (Pydantic)
-
-{schema_json}
-
-## transform.py Contract
-
-Your script should:
-- Read input files from ./inputs/
-- Write output to {output_file}
-- For json format: json.dump(result, f, indent=2)
-- For jsonl format: One json.dumps(record) per line
-- Use standard library (csv, json) or simple parsing
-- Handle errors gracefully with clear error messages
-
-## Important
-
-- Always validate your output before finishing
-- Fix all validation errors - the output MUST pass validation
-- Keep code simple and readable
-"""
-
 
 class DataTransformer:
     """Orchestrates Claude to transform data into validated Pydantic outputs.
 
-    The transformer supports two modes:
-    - direct: Claude writes the output directly (good for small outputs)
-    - code: Claude writes Python code to transform the data (good for large outputs)
+    Uses the Claude Agent SDK with built-in tools (Bash, Read, Write, etc.)
+    plus a custom validate_artifact tool.
     """
 
-    def __init__(self, api_key: str | None = None):
-        """Initialize the transformer.
-
-        Args:
-            api_key: Anthropic API key. If not provided, uses ANTHROPIC_API_KEY env var.
-        """
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "Anthropic API key required. Set ANTHROPIC_API_KEY environment variable "
-                "or pass api_key parameter."
-            )
-        self._client = anthropic.Anthropic(api_key=self.api_key)
+    def __init__(self):
+        """Initialize the transformer."""
+        pass  # No API key needed - SDK handles authentication
 
     async def transform(
         self,
@@ -141,16 +95,10 @@ class DataTransformer:
             instruction: Natural language instruction describing the transformation.
             output_model: Pydantic model class that each output item should match.
             config: Optional configuration for the transformation.
-            on_event: Optional callback for streaming events. Called with (event_type, data).
-                Event types: iteration_start, text, tool_call, tool_result, validation,
-                complete, error
+            on_event: Optional callback for streaming events.
 
         Returns:
             TransformRun with the manifest, parsed items, and debug info.
-
-        Raises:
-            ValueError: If transformation fails after max iterations.
-            TimeoutError: If transformation exceeds the configured timeout.
         """
         if config is None:
             config = TransformConfig()
@@ -168,28 +116,22 @@ class DataTransformer:
             cleanup_work_dir = True
 
         try:
-            # Set up inputs directory
-            inputs_dir = work_dir / "inputs"
-            inputs_dir.mkdir(exist_ok=True)
-
+            # Copy inputs to work directory
             for input_path in input_paths:
                 input_path = Path(input_path)
+                dest = work_dir / input_path.name
                 if input_path.is_file():
-                    shutil.copy(input_path, inputs_dir / input_path.name)
+                    shutil.copy(input_path, dest)
                 elif input_path.is_dir():
-                    shutil.copytree(input_path, inputs_dir / input_path.name)
+                    shutil.copytree(input_path, dest)
                 else:
                     raise ValueError(f"Input path not found: {input_path}")
 
-            # Determine output file path
-            output_file = f"./output.{config.output_format}"
-
-            # Run the agentic loop
+            # Run the agent
             result = await self._run_agent(
                 work_dir=work_dir,
                 instruction=instruction,
                 output_model=output_model,
-                output_file=output_file,
                 config=config,
                 run_id=run_id,
                 on_event=on_event,
@@ -212,59 +154,47 @@ class DataTransformer:
         work_dir: Path,
         instruction: str,
         output_model: type[T],
-        output_file: str,
         config: TransformConfig,
         run_id: str,
         on_event: EventCallback | None = None,
     ) -> TransformRun[T]:
-        """Run the agentic loop to transform data.
-
-        Args:
-            work_dir: Working directory for the transformation.
-            instruction: User instruction for the transformation.
-            output_model: Pydantic model for validation.
-            output_file: Path to the output file.
-            config: Transformation configuration.
-            run_id: Unique run identifier.
-            on_event: Optional callback for streaming events.
-
-        Returns:
-            TransformRun with results.
-        """
+        """Run the Claude Agent SDK to transform data."""
 
         def emit(event_type: str, data: dict[str, Any]) -> None:
-            """Emit an event to the callback if set."""
             if on_event:
                 on_event(event_type, data)
-        # Get schema description
-        schema_json = get_schema_description(output_model)
 
         # Build system prompt
-        if config.mode == "direct":
-            system_prompt = DIRECT_MODE_SYSTEM_PROMPT.format(
-                output_file=output_file,
-                schema_json=schema_json,
-            )
-        else:
-            system_prompt = CODE_MODE_SYSTEM_PROMPT.format(
-                output_file=output_file,
-                schema_json=schema_json,
-            )
+        output_file = f"./output.{config.output_format}"
+        schema_json = get_schema_description(output_model)
+        system_prompt = SYSTEM_PROMPT.format(
+            output_file=output_file,
+            schema_json=schema_json,
+        )
 
-        # Get tools for this mode
-        tools = get_tools_for_mode(config.mode)
-
-        # Create tool context
-        ctx = ToolContext(
+        # Create custom MCP tools
+        mcp_server = create_transformer_tools(
             work_dir=work_dir,
             output_model=output_model,
             output_format=config.output_format,
         )
 
-        # Initialize conversation
-        messages: list[dict[str, Any]] = [
-            {"role": "user", "content": instruction},
-        ]
+        # Configure the agent
+        options = ClaudeAgentOptions(
+            system_prompt=system_prompt,
+            cwd=str(work_dir),
+            max_turns=config.max_iterations,
+            allowed_tools=[
+                "Bash",
+                "Read",
+                "Write",
+                "Glob",
+                "Grep",
+                "mcp__transformer-tools__validate_artifact",
+            ],
+            permission_mode="acceptEdits",
+            mcp_servers={"transformer-tools": mcp_server},
+        )
 
         debug: dict[str, Any] = {
             "iterations": 0,
@@ -273,145 +203,90 @@ class DataTransformer:
             "output_format": config.output_format,
         }
 
-        # Agentic loop
+        validation_result = None
         iteration = 0
-        validation_passed = False
-        final_validation = None
-        learned_code: str | None = None
 
-        while iteration < config.max_iterations and not validation_passed:
-            iteration += 1
-            debug["iterations"] = iteration
-            emit("iteration_start", {"iteration": iteration, "max": config.max_iterations})
+        emit("iteration_start", {"iteration": 1, "max": config.max_iterations})
 
-            # Call Claude
-            try:
-                response = await self._call_claude(
-                    system=system_prompt,
-                    messages=messages,
-                    tools=tools,
-                )
-            except Exception as e:
-                logger.error(f"Claude API call failed: {e}")
-                emit("error", {"error": str(e)})
-                raise ValueError(f"Claude API call failed: {e}") from e
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(instruction)
 
-            # Process response
-            assistant_content = response.content
-            messages.append({"role": "assistant", "content": assistant_content})
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            emit("text", {"text": block.text})
+                        elif isinstance(block, ToolUseBlock):
+                            iteration += 1
+                            debug["iterations"] = iteration
+                            tool_name = block.name
+                            tool_input = block.input
 
-            # Emit text blocks from assistant response
-            for block in assistant_content:
-                if block.type == "text":
-                    text_block = cast(anthropic.types.TextBlock, block)
-                    emit("text", {"text": text_block.text})
+                            emit("tool_call", {"tool": tool_name, "input": tool_input})
+                            debug["tool_calls"].append({
+                                "iteration": iteration,
+                                "tool": tool_name,
+                                "input": tool_input,
+                            })
+                        elif isinstance(block, ToolResultBlock):
+                            # Tool result from SDK's internal execution
+                            content = block.content if hasattr(block, "content") else ""
 
-            # Check for tool use blocks
-            tool_use_blocks: list[anthropic.types.ToolUseBlock] = [
-                cast(anthropic.types.ToolUseBlock, block)
-                for block in assistant_content
-                if block.type == "tool_use"
-            ]
+                            # Check if this is a validation result
+                            content_str = str(content)
+                            if '"valid"' in content_str:
+                                try:
+                                    # Extract JSON from content
+                                    if isinstance(content, list) and content:
+                                        first = content[0]
+                                        if isinstance(first, dict):
+                                            text = first.get("text", "")
+                                        else:
+                                            text = str(first)
+                                    else:
+                                        text = content_str
+                                    validation_result = json.loads(text)
+                                    emit("validation", {
+                                        "valid": validation_result.get("valid", False),
+                                        "item_count": validation_result.get("item_count", 0),
+                                        "errors": validation_result.get("errors", []),
+                                    })
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
 
-            if not tool_use_blocks:
-                # No tool use - check if we have a valid output
-                output_path = work_dir / output_file.lstrip("./")
-                if output_path.exists():
-                    final_validation = validate_artifact(
-                        output_path,
-                        output_model,
-                        config.output_format,
-                    )
-                    validation_passed = final_validation.valid
-                    emit("validation", {
-                        "valid": validation_passed,
-                        "item_count": final_validation.item_count,
-                        "errors": final_validation.errors,
-                    })
-                break
+                            emit("tool_result", {"tool": "unknown", "result": content_str[:500]})
 
-            # Execute tools and collect results
-            tool_results = []
-            for tool_use in tool_use_blocks:
-                tool_name = tool_use.name
-                tool_input = cast(dict[str, Any], tool_use.input)
+                elif isinstance(message, ResultMessage):
+                    # Agent completed
+                    pass
 
-                emit("tool_call", {"tool": tool_name, "input": tool_input})
-
-                debug["tool_calls"].append({
-                    "iteration": iteration,
-                    "tool": tool_name,
-                    "input": tool_input,
-                })
-
-                result = execute_tool(ctx, tool_name, tool_input)
-
-                emit("tool_result", {"tool": tool_name, "result": result})
-
-                # Track learned code
-                file_path = str(tool_input.get("file_path", ""))
-                if tool_name == "write_file" and "transform.py" in file_path:
-                    learned_code = cast(str | None, tool_input.get("content"))
-
-                # Check for validation success
-                if tool_name == "validate_artifact":
-                    emit("validation", {
-                        "valid": result.get("valid", False),
-                        "item_count": result.get("item_count", 0),
-                        "errors": result.get("errors", []),
-                    })
-                    if result.get("valid"):
-                        validation_passed = True
-                        final_validation = result
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use.id,
-                    "content": json.dumps(result),
-                })
-
-            messages.append({"role": "user", "content": tool_results})
-
-        # Build result
+        # Final validation check
         output_path = work_dir / output_file.lstrip("./")
-        schema_hash = compute_schema_hash(output_model)
-
-        if final_validation is None and output_path.exists():
-            final_validation = validate_artifact(
-                output_path,
-                output_model,
-                config.output_format,
+        if output_path.exists() and validation_result is None:
+            final_result = validate_artifact(
+                file_path=output_path,
+                model=output_model,
+                format=config.output_format,
             )
+            validation_result = {
+                "valid": final_result.valid,
+                "item_count": final_result.item_count,
+                "errors": final_result.errors,
+                "sample": final_result.sample,
+            }
 
-        if final_validation is None:
+        if validation_result is None:
+            raise ValueError(f"Transformation failed: no output produced at {output_file}")
+
+        if not validation_result.get("valid", False):
             raise ValueError(
-                f"Transformation failed after {iteration} iterations: no output produced"
-            )
-
-        # Handle both dict (from tool result) and ValidationResult types
-        if isinstance(final_validation, dict):
-            is_valid = final_validation.get("valid", False)
-            errors = final_validation.get("errors", [])
-        else:
-            is_valid = final_validation.valid
-            errors = final_validation.errors
-
-        if not is_valid:
-            raise ValueError(
-                f"Transformation failed after {iteration} iterations. "
-                f"Validation errors: {errors}"
+                f"Transformation failed. Validation errors: {validation_result.get('errors', [])}"
             )
 
         # Parse items for small outputs
         items: list[T] | None = None
-        if isinstance(final_validation, dict):
-            item_count = final_validation.get("item_count", 0)
-            sample = final_validation.get("sample")
-        else:
-            item_count = final_validation.item_count
-            sample = final_validation.sample
+        item_count = validation_result.get("item_count", 0)
 
-        # Read and parse output for small item counts
         if item_count <= 100 and output_path.exists():
             try:
                 items = self._parse_output(output_path, output_model, config.output_format)
@@ -422,15 +297,11 @@ class DataTransformer:
             artifact_path=str(output_path),
             artifact_format=config.output_format,
             item_count=item_count,
-            schema_hash=schema_hash,
+            schema_hash=compute_schema_hash(output_model),
             validation_passed=True,
-            sample=sample,
+            sample=validation_result.get("sample"),
             run_id=run_id,
         )
-
-        learned = None
-        if learned_code:
-            learned = LearnedAssets(transformer_code=learned_code)
 
         emit("complete", {
             "item_count": item_count,
@@ -441,39 +312,9 @@ class DataTransformer:
         return TransformRun(
             manifest=manifest,
             items=items,
-            learned=learned,
+            learned=None,
             debug=debug,
         )
-
-    async def _call_claude(
-        self,
-        system: str,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
-    ) -> anthropic.types.Message:
-        """Call the Claude API with tools.
-
-        Args:
-            system: System prompt.
-            messages: Conversation messages.
-            tools: Tool definitions.
-
-        Returns:
-            API response.
-        """
-        # Run sync client in thread pool
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: self._client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=8192,
-                system=system,
-                messages=messages,
-                tools=tools,
-            ),
-        )
-        return response
 
     def _parse_output(
         self,
@@ -481,16 +322,7 @@ class DataTransformer:
         output_model: type[T],
         output_format: str,
     ) -> list[T]:
-        """Parse output file into Pydantic models.
-
-        Args:
-            output_path: Path to the output file.
-            output_model: Pydantic model class.
-            output_format: 'json' or 'jsonl'.
-
-        Returns:
-            List of parsed models.
-        """
+        """Parse output file into Pydantic models."""
         items: list[T] = []
 
         if output_format == "json":

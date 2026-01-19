@@ -1,6 +1,5 @@
 """Tests for transformer models."""
 
-import pytest
 from pydantic import BaseModel
 
 from app.llm.transformer.models import (
