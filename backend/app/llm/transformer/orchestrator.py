@@ -51,7 +51,7 @@ Your task is to transform input files into a specific output format that matches
 
 1. First, explore the input files in the working directory to understand their structure
 2. Transform the data according to the user's instruction
-3. Write the transformed data to {output_file}
+3. Write the transformed data DIRECTLY to {output_file} using the Write tool
    - For json format: Write a single JSON object
    - For jsonl format: Write one JSON object per line (no array wrapper)
 4. Call validate_artifact to check your output against the schema
@@ -63,6 +63,9 @@ Your task is to transform input files into a specific output format that matches
 
 ## Important
 
+- DO NOT write Python scripts or code files - write the JSON output directly
+- DO NOT create transform.py or any .py files
+- Use the Write tool to write the output JSON directly to {output_file}
 - Always validate your output before finishing
 - Fix all validation errors - the output MUST pass validation
 - For jsonl format, each line must be a complete, valid JSON object
@@ -102,6 +105,58 @@ Your script should:
 - Keep code simple and readable
 """
 
+FILE_TYPE_HANDLING_PROMPT = """
+Use the following tools to handle file types:
+
+### .zip file: 
+- Write python code to investigate the zip file and ensure that your
+final script operates on the zip file, which is what the user wants to transform.
+
+### .pdf file:
+Use google.genai to process pdf files:
+
+**Reading**
+```python
+from google import genai
+from google.genai import types
+import pathlib
+
+client = genai.Client()
+
+# Retrieve and encode the PDF byte
+filepath = pathlib.Path('file.pdf')
+
+prompt = "Parse this pdf file: verbatim text and short descriptions for images inline"
+response = client.models.generate_content(
+  model="gemini-3-flash-preview",
+  contents=[
+      types.Part.from_bytes(
+        data=filepath.read_bytes(),
+        mime_type='application/pdf',
+      ),
+      prompt])
+print(response.text)
+
+**Extracting structured data**
+
+Use Pydantic models to extract structured data from the pdf file.
+
+```python
+class Model(BaseModel):
+    ...
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-flash-preview",
+    contents=prompt,
+    config={
+        "response_mime_type": "application/json",
+        "response_json_schema": Model.model_json_schema(),
+    },
+)
+```
+"""
 
 class DataTransformer:
     """Orchestrates Claude to transform data into validated Pydantic outputs.
@@ -168,6 +223,7 @@ class DataTransformer:
                 output_model=output_model,
                 config=config,
                 run_id=run_id,
+                input_paths=[str(p) for p in input_paths],
                 on_event=on_event,
             )
 
@@ -190,6 +246,7 @@ class DataTransformer:
         output_model: type[T],
         config: TransformConfig,
         run_id: str,
+        input_paths: list[str],
         on_event: EventCallback | None = None,
     ) -> TransformRun[T]:
         """Run the Claude Agent SDK to transform data."""
@@ -201,7 +258,7 @@ class DataTransformer:
         # Build system prompt based on mode
         output_file = f"./output.{config.output_format}"
         schema_json = get_schema_description(output_model)
-
+        
         if config.mode == "code":
             system_prompt = CODE_MODE_PROMPT.format(
                 output_file=output_file,
@@ -212,12 +269,13 @@ class DataTransformer:
                 output_file=output_file,
                 schema_json=schema_json,
             )
-
+        system_prompt += FILE_TYPE_HANDLING_PROMPT
         # Create custom MCP tools
         mcp_server = create_transformer_tools(
             work_dir=work_dir,
             output_model=output_model,
             output_format=config.output_format,
+            input_paths=input_paths,
         )
 
         # Build allowed tools list
@@ -261,22 +319,53 @@ class DataTransformer:
         async def post_tool_hook(input_data: dict, tool_use_id: str, context: Any) -> dict:
             nonlocal validation_result
             tool_name = input_data.get("tool_name", "unknown")
-            tool_result = input_data.get("tool_result", "")
+            # The correct key is tool_response (from PostToolUseHookInput)
+            raw_response = input_data.get("tool_response", "")
 
-            result_str = str(tool_result)[:500]
+            # Extract text from content block format if needed
+            # Response may be: str, list of dicts with 'type'/'text', or other
+            tool_result = ""
+            if isinstance(raw_response, str):
+                tool_result = raw_response
+            elif isinstance(raw_response, list):
+                # Extract text from content blocks: [{'type': 'text', 'text': '...'}]
+                texts = []
+                for block in raw_response:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        texts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        texts.append(block)
+                tool_result = "\n".join(texts)
+            elif isinstance(raw_response, dict):
+                # Might be a single content block
+                if raw_response.get("type") == "text":
+                    tool_result = raw_response.get("text", "")
+                else:
+                    tool_result = json.dumps(raw_response)
+
+            result_str = str(tool_result)[:500] if tool_result else "(no result)"
             emit("tool_result", {"tool": tool_name, "result": result_str})
 
             # Check for validation results
-            if "validate_artifact" in tool_name and '"valid"' in result_str:
+            if "validate_artifact" in tool_name:
                 try:
-                    validation_result = json.loads(str(tool_result))
-                    emit("validation", {
-                        "valid": validation_result.get("valid", False),
-                        "item_count": validation_result.get("item_count", 0),
-                        "errors": validation_result.get("errors", []),
-                    })
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                    # Try to parse as JSON
+                    if isinstance(tool_result, str):
+                        parsed = json.loads(tool_result)
+                    elif isinstance(tool_result, dict):
+                        parsed = tool_result
+                    else:
+                        parsed = json.loads(str(tool_result))
+
+                    if "valid" in parsed:
+                        validation_result = parsed
+                        emit("validation", {
+                            "valid": validation_result.get("valid", False),
+                            "item_count": validation_result.get("item_count", 0),
+                            "errors": validation_result.get("errors", []),
+                        })
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Failed to parse validation result: {e}")
 
             return {}
 
@@ -345,11 +434,19 @@ class DataTransformer:
         items: list[T] | None = None
         item_count = validation_result.get("item_count", 0)
 
+        logger.debug(f"Parsing output: item_count={item_count}, path={output_path}, exists={output_path.exists()}")
+
         if item_count <= 100 and output_path.exists():
             try:
                 items = self._parse_output(output_path, output_model, config.output_format)
+                logger.info(f"Parsed {len(items) if items else 0} items")
             except Exception as e:
-                logger.warning(f"Failed to parse output items: {e}")
+                logger.error(f"Failed to parse output items: {e}", exc_info=True)
+                # Re-raise so the caller knows parsing failed
+                raise ValueError(f"Output validation passed but parsing failed: {e}") from e
+        elif not output_path.exists():
+            logger.error(f"Output file does not exist: {output_path}")
+            raise ValueError(f"Output file not found at {output_path}")
 
         manifest = TransformManifest(
             artifact_path=str(output_path),
@@ -361,7 +458,7 @@ class DataTransformer:
             run_id=run_id,
         )
 
-        emit("complete", {
+        emit("transform_complete", {
             "item_count": item_count,
             "artifact_path": str(output_path),
             "iterations": tool_call_count,

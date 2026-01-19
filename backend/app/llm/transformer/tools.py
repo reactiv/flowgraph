@@ -5,8 +5,10 @@ built-in tools for Bash, Read, Write, etc.
 """
 
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,7 @@ def create_transformer_tools(
     work_dir: Path,
     output_model: type[BaseModel],
     output_format: str = "jsonl",
+    input_paths: list[str] | None = None,
 ):
     """Create custom MCP tools for the transformer.
 
@@ -27,6 +30,7 @@ def create_transformer_tools(
         work_dir: Working directory for the transformation.
         output_model: Pydantic model for validation.
         output_format: Output format ('json' or 'jsonl').
+        input_paths: Original input file paths for validation.
 
     Returns:
         SDK MCP server with custom tools.
@@ -77,12 +81,13 @@ def create_transformer_tools(
     @tool(
         "run_transformer",
         "Execute the transform.py script you wrote to transform the input files. "
-        "The script should read from the inputs in the working directory and write "
-        "to the output file. Returns stdout, stderr, and exit code.",
+        "IMPORTANT: The script is validated against fresh copies of the original input "
+        "files, not the work directory. Your script must handle any file extraction "
+        "(e.g., unzipping) itself. Returns stdout, stderr, and exit code.",
         {"script_path": str},
     )
     async def run_transformer(args: dict[str, Any]) -> dict[str, Any]:
-        """Execute the transformer script."""
+        """Execute the transformer script against fresh copies of input files."""
         script_path = args.get("script_path", "./transform.py")
 
         # Resolve path relative to work_dir
@@ -99,14 +104,35 @@ def create_transformer_tools(
             error = f'{{"success": false, "error": "Script not found: {script_path}"}}'
             return {"content": [{"type": "text", "text": error}]}
 
+        # Create a fresh temp directory for validation
+        # This ensures the script works on original input files, not work_dir contents
+        validation_dir = Path(tempfile.mkdtemp(prefix="transformer_validate_"))
+
         try:
+            # Copy original input files to validation directory
+            if input_paths:
+                for input_path in input_paths:
+                    src = Path(input_path)
+                    if src.is_file():
+                        shutil.copy(src, validation_dir / src.name)
+                    elif src.is_dir():
+                        shutil.copytree(src, validation_dir / src.name)
+
+            # Copy the script to validation directory
+            shutil.copy(resolved_path, validation_dir / "transform.py")
+
             result = subprocess.run(
-                [sys.executable, str(resolved_path)],
-                cwd=str(work_dir),
+                [sys.executable, str(validation_dir / "transform.py")],
+                cwd=str(validation_dir),
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=600,  # 10 minutes - transformations can be slow
             )
+
+            # Copy output.json back to work_dir if it was created
+            output_file = validation_dir / "output.json"
+            if output_file.exists():
+                shutil.copy(output_file, work_dir / "output.json")
 
             response = {
                 "success": result.returncode == 0,
@@ -115,9 +141,15 @@ def create_transformer_tools(
                 "stderr": result.stderr[-4000:] if len(result.stderr) > 4000 else result.stderr,
             }
         except subprocess.TimeoutExpired:
-            response = {"success": False, "error": "Script timed out after 60 seconds"}
+            response = {"success": False, "error": "Script timed out after 10 minutes"}
         except Exception as e:
             response = {"success": False, "error": f"Execution failed: {e}"}
+        finally:
+            # Clean up validation directory
+            try:
+                shutil.rmtree(validation_dir)
+            except Exception:
+                pass
 
         return {
             "content": [

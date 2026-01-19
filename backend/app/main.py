@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+import asyncio
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -8,16 +10,53 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import close_database, init_database
+from app.storage.upload_store import get_upload_store
+
+logger = logging.getLogger(__name__)
+
+# Background task handle
+_cleanup_task: asyncio.Task | None = None
+
+
+async def cleanup_uploads_periodically() -> None:
+    """Background task to clean up expired uploads every 15 minutes."""
+    store = get_upload_store()
+    while True:
+        try:
+            deleted = await store.cleanup_expired()
+            if deleted > 0:
+                logger.info(f"Cleanup task removed {deleted} expired upload(s)")
+        except Exception as e:
+            logger.exception(f"Error in cleanup task: {e}")
+
+        # Wait 15 minutes before next cleanup
+        await asyncio.sleep(15 * 60)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup and shutdown."""
+    global _cleanup_task
+
     # Startup
     db_path = os.getenv("DATABASE_PATH", "./data/workflow.db")
     await init_database(db_path)
+
+    # Start background cleanup task
+    _cleanup_task = asyncio.create_task(cleanup_uploads_periodically())
+    logger.info("Started upload cleanup background task")
+
     yield
+
     # Shutdown
+    if _cleanup_task:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Stopped upload cleanup background task")
+
     await close_database()
 
 
@@ -45,7 +84,8 @@ async def health_check() -> dict[str, str]:
 
 
 # Import and include routers after app is created to avoid circular imports
-from app.api import templates, workflows  # noqa: E402
+from app.api import files, templates, workflows  # noqa: E402
 
+app.include_router(files.router, prefix="/api/v1", tags=["files"])
 app.include_router(templates.router, prefix="/api/v1", tags=["templates"])
 app.include_router(workflows.router, prefix="/api/v1", tags=["workflows"])

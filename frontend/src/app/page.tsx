@@ -1,11 +1,18 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { WorkflowSummary, TemplateSummary } from '@/types/workflow';
 
 export default function Home() {
+  const router = useRouter();
+
+  const handleCreateFromTemplate = (templateId: string) => {
+    router.push(`/create?template=${encodeURIComponent(templateId)}`);
+  };
+
   const {
     data: workflows,
     isLoading: workflowsLoading,
@@ -89,9 +96,10 @@ export default function Home() {
           ) : templates && templates.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map((template: TemplateSummary) => (
-                <div
+                <button
                   key={template.id}
-                  className="border rounded-lg p-4 hover:border-primary transition-colors"
+                  onClick={() => handleCreateFromTemplate(template.id)}
+                  className="border rounded-lg p-4 hover:border-primary transition-colors text-left"
                 >
                   <h3 className="font-medium">{template.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
@@ -100,7 +108,7 @@ export default function Home() {
                     <span>&middot;</span>
                     <span>{template.edge_type_count} edge types</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : (

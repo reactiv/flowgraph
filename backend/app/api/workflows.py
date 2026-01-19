@@ -13,6 +13,8 @@ from app.db import graph_store
 from app.llm import (
     DataGenerator,
     FieldValueSuggestionGenerator,
+    FileSchemaGenerator,
+    FileSeeder,
     NodeSuggestionGenerator,
     SchemaGenerationOptions,
     SchemaGenerator,
@@ -44,6 +46,7 @@ from app.models.workflow import (
     ViewTemplateUpdate,
     WorkflowSummary,
 )
+from app.storage.upload_store import get_upload_store
 
 router = APIRouter()
 
@@ -87,6 +90,14 @@ class EdgesResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ConfirmTransformRequest(BaseModel):
+    """Request to confirm and execute a transform script."""
+
+    upload_id: str
+    script_content: str
+    seed_data_json: str | None = None  # Cached output from preview - skips re-execution
 
 
 # ==================== Workflows ====================
@@ -153,6 +164,70 @@ async def create_from_language(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/workflows/from-files/stream")
+async def create_from_files_stream(
+    upload_id: str = Query(..., description="Upload session ID"),
+    description: str = Query(..., description="Workflow description"),
+    include_states: bool = Query(True, description="Include state machines"),
+    include_tags: bool = Query(True, description="Include tagging system"),
+    scientific_terminology: bool = Query(False, description="Use scientific terminology"),
+) -> StreamingResponse:
+    """Generate a workflow schema from uploaded files with SSE progress updates.
+
+    This endpoint uses the agentic data transformer to analyze uploaded files
+    and generate a WorkflowDefinition schema. Progress events are streamed
+    in real-time using Server-Sent Events.
+
+    Events are sent in the format:
+        data: {"event": "tool_call", "tool": "Read", "input": {...}}
+        data: {"event": "tool_result", "tool": "Read", "result": "..."}
+        data: {"event": "validation", "valid": true, "errors": []}
+        data: {"event": "complete", "definition": {...}, "validation": {...}}
+
+    The final event will have event="complete" and include the generated schema.
+    """
+    # Verify upload exists
+    store = get_upload_store()
+    try:
+        await store.get_manifest(upload_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Upload session {upload_id} not found or expired",
+        )
+
+    options = SchemaGenerationOptions(
+        include_states=include_states,
+        include_tags=include_tags,
+        scientific_terminology=scientific_terminology,
+    )
+
+    generator = FileSchemaGenerator(upload_store=store)
+
+    async def event_generator():
+        """Generate SSE events during schema generation."""
+        async for event in generator.generate_schema_with_events(
+            upload_id=upload_id,
+            description=description,
+            options=options,
+        ):
+            # Skip keepalive events in SSE format
+            if event.get("event") == "keepalive":
+                yield ": keepalive\n\n"
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/workflows/from-definition")
@@ -975,5 +1050,195 @@ async def seed_workflow_stream(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
+
+
+@router.get("/workflows/{workflow_id}/seed-from-files/stream")
+async def seed_from_files_stream(
+    workflow_id: str,
+    upload_id: str = Query(..., description="Upload session ID"),
+    instruction: str | None = Query(None, description="Additional transformation instructions"),
+) -> StreamingResponse:
+    """Seed a workflow from uploaded files with SSE progress updates.
+
+    This endpoint uses the agentic data transformer to extract data from
+    uploaded files and insert it into the workflow as nodes and edges.
+    Progress events are streamed in real-time using Server-Sent Events.
+
+    Events are sent in the format:
+        data: {"event": "phase", "phase": "transforming", "message": "..."}
+        data: {"event": "tool_call", "tool": "Read", "input": {...}}
+        data: {"event": "progress", "current": 10, "total": 100, "message": "..."}
+        data: {"event": "complete", "nodes_created": 50, "edges_created": 120}
+
+    The final event will have event="complete" and include the creation counts.
+    """
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Verify upload exists
+    store = get_upload_store()
+    try:
+        await store.get_manifest(upload_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Upload session {upload_id} not found or expired",
+        )
+
+    seeder = FileSeeder(upload_store=store)
+
+    async def event_generator():
+        """Generate SSE events during file-based seeding."""
+        async for event in seeder.seed_from_files_with_events(
+            workflow_id=workflow_id,
+            definition=workflow,
+            upload_id=upload_id,
+            instruction=instruction,
+        ):
+            # Skip keepalive events in SSE format
+            if event.get("event") == "keepalive":
+                yield ": keepalive\n\n"
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/workflows/{workflow_id}/seed-from-files/preview/stream")
+async def preview_seed_from_files(
+    workflow_id: str,
+    upload_id: str = Query(..., description="Upload session ID"),
+    instruction: str | None = Query(None, description="Additional transformation instructions"),
+) -> StreamingResponse:
+    """Generate and execute transform script, return preview without inserting.
+
+    This endpoint runs the full transformer (generates and executes transform.py)
+    but stops before inserting data into the database. It returns the script
+    content and a preview of what would be imported.
+
+    Events are sent in the format:
+        data: {"event": "phase", "phase": "transforming", "message": "..."}
+        data: {"event": "tool_call", "tool": "Read", "input": {...}}
+        data: {"event": "complete", "script_content": "...", "instruction": "...",
+               "preview": {"node_count": 50, "edge_count": 120, "sample_nodes": [...]}}
+
+    The final event will have event="complete" and include:
+    - script_content: The generated Python transformation script
+    - instruction: The instruction used (for regeneration)
+    - preview: Object with node_count, edge_count, and sample_nodes
+    """
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Verify upload exists
+    store = get_upload_store()
+    try:
+        await store.get_manifest(upload_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Upload session {upload_id} not found or expired",
+        )
+
+    seeder = FileSeeder(upload_store=store)
+
+    async def event_generator():
+        """Generate SSE events during preview transformation."""
+        async for event in seeder.preview_transform(
+            workflow_id=workflow_id,
+            definition=workflow,
+            upload_id=upload_id,
+            instruction=instruction,
+        ):
+            # Skip keepalive events in SSE format
+            if event.get("event") == "keepalive":
+                yield ": keepalive\n\n"
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/workflows/{workflow_id}/seed-from-files/confirm/stream")
+async def confirm_seed_from_files(
+    workflow_id: str,
+    request: ConfirmTransformRequest,
+) -> StreamingResponse:
+    """Re-execute the provided transform script and insert data.
+
+    Takes a script previously generated via the preview endpoint, re-executes
+    it against the same input files, validates the output, and inserts the
+    data into the database.
+
+    Events are sent in the format:
+        data: {"event": "phase", "phase": "executing", "message": "..."}
+        data: {"event": "phase", "phase": "validating", "message": "..."}
+        data: {"event": "phase", "phase": "inserting", "message": "..."}
+        data: {"event": "progress", "current": 10, "total": 100, "message": "..."}
+        data: {"event": "complete", "nodes_created": 50, "edges_created": 120}
+
+    The final event will have event="complete" and include the creation counts.
+    """
+    # Verify workflow exists
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Verify upload exists
+    store = get_upload_store()
+    try:
+        await store.get_manifest(request.upload_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Upload session {request.upload_id} not found or expired",
+        )
+
+    seeder = FileSeeder(upload_store=store)
+
+    async def event_generator():
+        """Generate SSE events during confirm transformation."""
+        async for event in seeder.confirm_transform(
+            workflow_id=workflow_id,
+            definition=workflow,
+            upload_id=request.upload_id,
+            script_content=request.script_content,
+            seed_data_json=request.seed_data_json,
+        ):
+            # Skip keepalive events in SSE format
+            if event.get("event") == "keepalive":
+                yield ": keepalive\n\n"
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
         },
     )

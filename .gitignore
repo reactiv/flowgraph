@@ -10,6 +10,7 @@ venv/
 out/
 dist/
 build/
+*.egg-info/
 
 # Environment
 .env
@@ -18,6 +19,12 @@ build/
 
 # Database
 data/*.db
+
+# Uploads (temporary file storage)
+data/uploads/
+
+# Transformer work directories
+data/transformer_work/
 
 # IDE
 .idea/
