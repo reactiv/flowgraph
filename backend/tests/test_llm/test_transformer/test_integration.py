@@ -90,4 +90,4 @@ class TestDataTransformerSetup:
         config = TransformConfig()
         assert config.mode == "direct"
         assert config.output_format == "jsonl"
-        assert config.max_iterations == 5
+        assert config.max_iterations == 80

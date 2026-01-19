@@ -19,7 +19,7 @@ class TestTransformConfig:
         config = TransformConfig()
         assert config.mode == "direct"
         assert config.output_format == "jsonl"
-        assert config.max_iterations == 5
+        assert config.max_iterations == 80
         assert config.timeout_seconds == 300
         assert config.work_dir is None
 

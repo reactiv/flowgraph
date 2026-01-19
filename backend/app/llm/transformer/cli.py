@@ -291,10 +291,10 @@ async def main():
         help="Output format (default: jsonl)",
     )
     parser.add_argument(
-        "--max-iterations",
+        "--max-turns",
         type=int,
-        default=5,
-        help="Maximum iterations (default: 5)",
+        default=80,
+        help="Maximum agent turns (default: 80)",
     )
     parser.add_argument(
         "--work-dir", "-w",
@@ -337,7 +337,7 @@ async def main():
     config = TransformConfig(
         mode=args.mode,
         output_format=args.format,
-        max_iterations=args.max_iterations,
+        max_iterations=args.max_turns,
         work_dir=args.work_dir,
     )
 

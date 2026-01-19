@@ -85,8 +85,8 @@ class TransformConfig(BaseModel):
     - 'jsonl': Multiple records, one JSON object per line
     """
 
-    max_iterations: int = 5
-    """Maximum number of validation/fix iterations."""
+    max_iterations: int = 80
+    """Maximum number of agent turns (model calls). Each turn can include text or tool use."""
 
     timeout_seconds: int = 300
     """Overall timeout for the transformation."""
