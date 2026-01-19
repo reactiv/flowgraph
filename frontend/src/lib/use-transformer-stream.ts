@@ -3,9 +3,16 @@
 import { useState, useCallback, useRef } from 'react';
 import type { TransformerEvent } from '@/components/transformer-progress';
 
+interface StartOptions {
+  /** HTTP method (default: GET) */
+  method?: 'GET' | 'POST';
+  /** Request body for POST requests */
+  body?: string;
+}
+
 interface UseTransformerStreamReturn<T> {
   /** Start streaming from a URL */
-  start: (url: string) => Promise<T>;
+  start: (url: string, options?: StartOptions) => Promise<T>;
   /** All received events */
   events: TransformerEvent[];
   /** Final result (available after completion) */
@@ -44,11 +51,16 @@ export function useTransformerStream<T>(): UseTransformerStreamReturn<T> {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const cancel = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
     setIsRunning(false);
   }, []);
@@ -60,13 +72,79 @@ export function useTransformerStream<T>(): UseTransformerStreamReturn<T> {
     setError(null);
   }, [cancel]);
 
+  /**
+   * Process SSE data from a fetch response body.
+   * Returns a promise that resolves with the complete event data.
+   */
+  const processSSEStream = useCallback(
+    async (
+      reader: ReadableStreamDefaultReader<Uint8Array>,
+      resolve: (value: T) => void,
+      reject: (reason: Error) => void
+    ) => {
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            setIsRunning(false);
+            reject(new Error('Stream ended unexpectedly'));
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6)) as TransformerEvent;
+                setEvents((prev) => [...prev, data]);
+
+                if (data.event === 'complete') {
+                  setIsRunning(false);
+                  setResult(data as unknown as T);
+                  resolve(data as unknown as T);
+                  return;
+                }
+
+                if (data.event === 'error') {
+                  setIsRunning(false);
+                  const errorMessage =
+                    (data.message as string) || 'Transformation failed';
+                  setError(errorMessage);
+                  reject(new Error(errorMessage));
+                  return;
+                }
+              } catch (parseError) {
+                console.error('Failed to parse SSE event:', parseError);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') {
+          // Cancelled by user
+          return;
+        }
+        setIsRunning(false);
+        const errorMessage = (err as Error).message || 'Connection lost';
+        setError(errorMessage);
+        reject(new Error(errorMessage));
+      }
+    },
+    []
+  );
+
   const start = useCallback(
-    (url: string): Promise<T> => {
+    (url: string, options?: StartOptions): Promise<T> => {
       return new Promise((resolve, reject) => {
         // Clean up any existing connection
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-        }
+        cancel();
 
         setIsRunning(true);
         setError(null);
@@ -81,50 +159,88 @@ export function useTransformerStream<T>(): UseTransformerStreamReturn<T> {
         // If URL starts with /, prepend backend URL
         const fullUrl = url.startsWith('/') ? `${backendUrl}${url}` : url;
 
-        const eventSource = new EventSource(fullUrl);
-        eventSourceRef.current = eventSource;
+        const method = options?.method || 'GET';
 
-        eventSource.onmessage = (msgEvent) => {
-          try {
-            const data = JSON.parse(msgEvent.data) as TransformerEvent;
+        if (method === 'POST') {
+          // Use fetch for POST requests
+          const abortController = new AbortController();
+          abortControllerRef.current = abortController;
 
-            // Add to events list
-            setEvents((prev) => [...prev, data]);
-
-            // Handle completion
-            if (data.event === 'complete') {
-              eventSource.close();
-              eventSourceRef.current = null;
+          fetch(fullUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: options?.body,
+            signal: abortController.signal,
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              if (!response.body) {
+                throw new Error('Response body is null');
+              }
+              const reader = response.body.getReader();
+              return processSSEStream(reader, resolve, reject);
+            })
+            .catch((err) => {
+              if ((err as Error).name === 'AbortError') {
+                return;
+              }
               setIsRunning(false);
-              setResult(data as unknown as T);
-              resolve(data as unknown as T);
-            }
-
-            // Handle error
-            if (data.event === 'error') {
-              eventSource.close();
-              eventSourceRef.current = null;
-              setIsRunning(false);
-              const errorMessage = (data.message as string) || 'Transformation failed';
+              const errorMessage = (err as Error).message || 'Connection failed';
               setError(errorMessage);
               reject(new Error(errorMessage));
-            }
-          } catch (parseError) {
-            console.error('Failed to parse SSE event:', parseError);
-          }
-        };
+            });
+        } else {
+          // Use EventSource for GET requests
+          const eventSource = new EventSource(fullUrl);
+          eventSourceRef.current = eventSource;
 
-        eventSource.onerror = (err) => {
-          console.error('SSE connection error:', err);
-          eventSource.close();
-          eventSourceRef.current = null;
-          setIsRunning(false);
-          setError('Connection lost');
-          reject(new Error('Connection lost'));
-        };
+          eventSource.onmessage = (msgEvent) => {
+            try {
+              const data = JSON.parse(msgEvent.data) as TransformerEvent;
+
+              // Add to events list
+              setEvents((prev) => [...prev, data]);
+
+              // Handle completion
+              if (data.event === 'complete') {
+                eventSource.close();
+                eventSourceRef.current = null;
+                setIsRunning(false);
+                setResult(data as unknown as T);
+                resolve(data as unknown as T);
+              }
+
+              // Handle error
+              if (data.event === 'error') {
+                eventSource.close();
+                eventSourceRef.current = null;
+                setIsRunning(false);
+                const errorMessage =
+                  (data.message as string) || 'Transformation failed';
+                setError(errorMessage);
+                reject(new Error(errorMessage));
+              }
+            } catch (parseError) {
+              console.error('Failed to parse SSE event:', parseError);
+            }
+          };
+
+          eventSource.onerror = (err) => {
+            console.error('SSE connection error:', err);
+            eventSource.close();
+            eventSourceRef.current = null;
+            setIsRunning(false);
+            setError('Connection lost');
+            reject(new Error('Connection lost'));
+          };
+        }
       });
     },
-    []
+    [cancel, processSSEStream]
   );
 
   return {

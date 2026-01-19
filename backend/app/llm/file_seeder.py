@@ -1,7 +1,12 @@
 """Seed workflows from uploaded files using the agentic data transformer."""
 
 import asyncio
+import json
 import logging
+import shutil
+import subprocess
+import sys
+import tempfile
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -9,6 +14,7 @@ from typing import Any
 from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
 from app.llm.transformer.seed_models import SeedData
+from app.llm.transformer.validator import validate_artifact
 from app.models import EdgeCreate, NodeCreate, WorkflowDefinition
 from app.storage.upload_store import UploadStore, get_upload_store
 
@@ -262,6 +268,333 @@ class FileSeeder:
             "nodes_created": nodes_created,
             "edges_created": edges_created,
         }
+
+    async def preview_transform(
+        self,
+        workflow_id: str,
+        definition: WorkflowDefinition,
+        upload_id: str,
+        instruction: str | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Generate and execute transform.py, return preview without inserting.
+
+        Runs the full transformer (generate script + execute) but stops before
+        inserting into the database. Returns the script content and a preview
+        of what would be imported.
+
+        Args:
+            workflow_id: The workflow to seed.
+            definition: The workflow definition schema.
+            upload_id: The upload session ID containing the files.
+            instruction: Optional additional instructions for transformation.
+
+        Yields:
+            Events with structure: {"event": "...", ...data}
+
+        Events:
+            - phase: Phase transition (transforming)
+            - tool_call: Agent calling a tool
+            - tool_result: Tool execution result
+            - validation: Schema validation result
+            - text: Agent thinking/output text
+            - complete: Preview complete with script_content and preview stats
+            - error: Error occurred
+        """
+        # Get uploaded files
+        try:
+            files = await self.upload_store.get_files(upload_id)
+        except FileNotFoundError:
+            yield {
+                "event": "error",
+                "message": f"Upload session {upload_id} not found or expired",
+            }
+            return
+
+        if not files:
+            yield {"event": "error", "message": "No files found in upload session"}
+            return
+
+        yield {"event": "phase", "phase": "transforming", "message": "Analyzing files..."}
+
+        # Build instruction with schema context
+        schema_json = definition.model_dump_json(indent=2, by_alias=True)
+        user_instruction = instruction or "Extract all relevant data from the input files."
+
+        full_instruction = SEED_FROM_FILES_INSTRUCTION.format(
+            schema_json=schema_json,
+            instruction=user_instruction,
+        )
+
+        # Use a temp work directory for preview (will be cleaned up)
+        work_dir = Path(tempfile.mkdtemp(prefix=f"preview_{workflow_id}_"))
+
+        config = TransformConfig(
+            mode="code",
+            output_format="json",
+            max_iterations=80,
+            work_dir=str(work_dir),
+        )
+
+        # Create event queue for streaming
+        events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        transform_result = None
+        transform_error = None
+
+        def on_event(event_type: str, data: dict[str, Any]) -> None:
+            """Callback to capture transformer events."""
+            events_queue.put_nowait({"event": event_type, **data})
+
+        # Run transformer in background task
+        async def run_transform():
+            nonlocal transform_result, transform_error
+            try:
+                transform_result = await self.transformer.transform(
+                    input_paths=[str(f) for f in files],
+                    instruction=full_instruction,
+                    output_model=SeedData,
+                    config=config,
+                    on_event=on_event,
+                )
+            except Exception as e:
+                transform_error = e
+                logger.exception(f"Preview transformation failed: {e}")
+
+        task = asyncio.create_task(run_transform())
+
+        # Stream transformer events
+        while not task.done():
+            try:
+                event = await asyncio.wait_for(events_queue.get(), timeout=1.0)
+                yield event
+            except TimeoutError:
+                yield {"event": "keepalive"}
+
+        # Drain remaining events
+        while not events_queue.empty():
+            try:
+                event = events_queue.get_nowait()
+                yield event
+            except asyncio.QueueEmpty:
+                break
+
+        # Check for errors
+        if transform_error:
+            # Clean up work_dir on error
+            try:
+                shutil.rmtree(work_dir)
+            except Exception:
+                pass
+            yield {"event": "error", "message": str(transform_error)}
+            return
+
+        if transform_result is None or not transform_result.items:
+            # Clean up work_dir on error
+            try:
+                shutil.rmtree(work_dir)
+            except Exception:
+                pass
+            yield {"event": "error", "message": "Transformation did not produce seed data"}
+            return
+
+        # Get the generated seed data
+        seed_data: SeedData = transform_result.items[0]
+
+        # Read the generated transform.py script
+        script_path = work_dir / "transform.py"
+        script_content = ""
+        if script_path.exists():
+            script_content = script_path.read_text()
+
+        # Build preview with counts and sample nodes
+        sample_nodes = []
+        for node in seed_data.nodes[:10]:  # First 10 nodes as sample
+            sample_nodes.append({
+                "node_type": node.node_type,
+                "title": node.title,
+                "status": node.status,
+            })
+
+        # Clean up work_dir
+        try:
+            shutil.rmtree(work_dir)
+        except Exception as e:
+            logger.warning(f"Failed to clean up preview work_dir: {e}")
+
+        yield {
+            "event": "complete",
+            "script_content": script_content,
+            "instruction": user_instruction,
+            "preview": {
+                "node_count": len(seed_data.nodes),
+                "edge_count": len(seed_data.edges),
+                "sample_nodes": sample_nodes,
+            },
+        }
+
+    async def confirm_transform(
+        self,
+        workflow_id: str,
+        definition: WorkflowDefinition,
+        upload_id: str,
+        script_content: str,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Re-execute the provided transform script and insert data.
+
+        Takes a script previously generated via preview_transform, re-executes
+        it against the same input files, validates the output, and inserts
+        the data into the database.
+
+        Args:
+            workflow_id: The workflow to seed.
+            definition: The workflow definition schema.
+            upload_id: The upload session ID containing the files.
+            script_content: The Python script to execute.
+
+        Yields:
+            Events with structure: {"event": "...", ...data}
+
+        Events:
+            - phase: Phase transition (executing, validating, inserting)
+            - progress: Insertion progress
+            - complete: Seeding complete with counts
+            - error: Error occurred
+        """
+        # Get uploaded files
+        try:
+            files = await self.upload_store.get_files(upload_id)
+        except FileNotFoundError:
+            yield {
+                "event": "error",
+                "message": f"Upload session {upload_id} not found or expired",
+            }
+            return
+
+        if not files:
+            yield {"event": "error", "message": "No files found in upload session"}
+            return
+
+        if not script_content.strip():
+            yield {"event": "error", "message": "No script content provided"}
+            return
+
+        # Create temp work directory
+        work_dir = Path(tempfile.mkdtemp(prefix=f"confirm_{workflow_id}_"))
+
+        try:
+            yield {
+                "event": "phase",
+                "phase": "executing",
+                "message": "Re-executing transform script...",
+            }
+
+            # Copy input files to work directory
+            for file_path in files:
+                dest = work_dir / Path(file_path).name
+                shutil.copy(file_path, dest)
+
+            # Write the script
+            script_path = work_dir / "transform.py"
+            script_path.write_text(script_content)
+
+            # Execute the script
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(script_path)],
+                    cwd=str(work_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+            except subprocess.TimeoutExpired:
+                yield {"event": "error", "message": "Script timed out after 60 seconds"}
+                return
+            except Exception as e:
+                yield {"event": "error", "message": f"Script execution failed: {e}"}
+                return
+
+            if result.returncode != 0:
+                error_msg = result.stderr[:2000] if result.stderr else "Unknown error"
+                yield {
+                    "event": "error",
+                    "message": f"Script failed with exit code {result.returncode}: {error_msg}",
+                }
+                return
+
+            yield {
+                "event": "phase",
+                "phase": "validating",
+                "message": "Validating transformation output...",
+            }
+
+            # Validate the output
+            output_path = work_dir / "output.json"
+            if not output_path.exists():
+                yield {"event": "error", "message": "Script did not produce output.json"}
+                return
+
+            validation_result = validate_artifact(
+                file_path=output_path,
+                model=SeedData,
+                format="json",
+            )
+
+            if not validation_result.valid:
+                errors = "; ".join(validation_result.errors[:5])
+                yield {"event": "error", "message": f"Validation failed: {errors}"}
+                return
+
+            # Parse the seed data
+            try:
+                output_content = output_path.read_text()
+                seed_data = SeedData.model_validate(json.loads(output_content))
+            except Exception as e:
+                yield {"event": "error", "message": f"Failed to parse output: {e}"}
+                return
+
+            # Insert into database
+            yield {
+                "event": "phase",
+                "phase": "inserting",
+                "message": (
+                    f"Inserting {len(seed_data.nodes)} nodes "
+                    f"and {len(seed_data.edges)} edges..."
+                ),
+            }
+
+            # Create event queue for progress updates
+            events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+            nodes_created, edges_created = await self._insert_seed_data(
+                workflow_id,
+                seed_data,
+                lambda current, total, msg: events_queue.put_nowait({
+                    "event": "progress",
+                    "current": current,
+                    "total": total,
+                    "message": msg,
+                }),
+            )
+
+            # Drain progress events
+            while not events_queue.empty():
+                try:
+                    event = events_queue.get_nowait()
+                    yield event
+                except asyncio.QueueEmpty:
+                    break
+
+            yield {
+                "event": "complete",
+                "nodes_created": nodes_created,
+                "edges_created": edges_created,
+            }
+
+        finally:
+            # Clean up work directory
+            try:
+                shutil.rmtree(work_dir)
+            except Exception as e:
+                logger.warning(f"Failed to clean up confirm work_dir: {e}")
 
     async def _insert_seed_data(
         self,

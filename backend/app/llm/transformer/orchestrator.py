@@ -171,6 +171,7 @@ class DataTransformer:
                 output_model=output_model,
                 config=config,
                 run_id=run_id,
+                input_paths=[str(p) for p in input_paths],
                 on_event=on_event,
             )
 
@@ -193,6 +194,7 @@ class DataTransformer:
         output_model: type[T],
         config: TransformConfig,
         run_id: str,
+        input_paths: list[str],
         on_event: EventCallback | None = None,
     ) -> TransformRun[T]:
         """Run the Claude Agent SDK to transform data."""
@@ -221,6 +223,7 @@ class DataTransformer:
             work_dir=work_dir,
             output_model=output_model,
             output_format=config.output_format,
+            input_paths=input_paths,
         )
 
         # Build allowed tools list

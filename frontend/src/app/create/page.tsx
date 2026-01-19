@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useSeedWorkflow } from '@/lib/use-seed-workflow';
 import { useFileUpload } from '@/lib/use-file-upload';
@@ -11,6 +10,10 @@ import { SchemaGraphPreview } from '@/components/schema-graph';
 import { SeedProgress } from '@/components/seed-progress';
 import { FileDropzone } from '@/components/file-dropzone';
 import { TransformerProgress } from '@/components/transformer-progress';
+import {
+  TransformConfirmationModal,
+  TransformPreview,
+} from '@/components/transform-confirmation-modal';
 import type {
   WorkflowDefinition,
   SchemaGenerationOptions,
@@ -46,8 +49,31 @@ interface SchemaStreamResult {
   view_templates?: ViewTemplateCreate[];
 }
 
-// Type for file-based seeding result from SSE
+// Type for file-based seeding result from SSE (deprecated - kept for direct seeding)
 interface SeedFromFilesResult {
+  event: string;
+  nodes_created?: number;
+  edges_created?: number;
+}
+
+// Type for preview transform result from SSE
+interface PreviewTransformResult {
+  event: string;
+  script_content?: string;
+  instruction?: string;
+  preview?: {
+    node_count: number;
+    edge_count: number;
+    sample_nodes: Array<{
+      node_type: string;
+      title: string;
+      status?: string | null;
+    }>;
+  };
+}
+
+// Type for confirm transform result from SSE
+interface ConfirmTransformResult {
   event: string;
   nodes_created?: number;
   edges_created?: number;
@@ -55,6 +81,12 @@ interface SeedFromFilesResult {
 
 export default function CreateWorkflowPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get('template');
+
+  // Template loading state
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState<string | null>(null);
 
   // Form state
   const [description, setDescription] = useState('');
@@ -65,6 +97,7 @@ export default function CreateWorkflowPage() {
   });
   const [dataScale, setDataScale] = useState<'small' | 'medium' | 'large'>('medium');
   const [seedSource, setSeedSource] = useState<'synthetic' | 'files'>('synthetic');
+  const [seedInstruction, setSeedInstruction] = useState('');
 
   // Generation state
   const [generatedDefinition, setGeneratedDefinition] = useState<WorkflowDefinition | null>(null);
@@ -89,11 +122,45 @@ export default function CreateWorkflowPage() {
   // Transformer stream for schema generation
   const schemaStream = useTransformerStream<SchemaStreamResult>();
 
-  // Transformer stream for file-based seeding
+  // Transformer stream for file-based seeding (deprecated - kept for direct seeding)
   const seedStream = useTransformerStream<SeedFromFilesResult>();
+
+  // Preview transform stream (generates + executes script, returns preview)
+  const previewStream = useTransformerStream<PreviewTransformResult>();
+
+  // Confirm transform stream (re-executes script and inserts data)
+  const confirmStream = useTransformerStream<ConfirmTransformResult>();
+
+  // Confirmation modal state
+  const [showTransformConfirmation, setShowTransformConfirmation] = useState(false);
+  const [transformScript, setTransformScript] = useState('');
+  const [transformPreview, setTransformPreview] = useState<TransformPreview | null>(null);
+  const [transformInstruction, setTransformInstruction] = useState('');
+  const [pendingWorkflowId, setPendingWorkflowId] = useState<string | null>(null);
 
   // Seeding with progress (synthetic data)
   const { seedWithProgress, progress: seedProgress, isSeeding } = useSeedWorkflow();
+
+  // Load template if specified in URL
+  useEffect(() => {
+    if (templateId && !generatedDefinition && !isLoadingTemplate) {
+      setIsLoadingTemplate(true);
+      api.getTemplate(templateId)
+        .then((template) => {
+          setGeneratedDefinition(template);
+          setTemplateName(template.name);
+          setGeneratedViews(template.viewTemplates || []);
+          // Default to file-based seeding for templates
+          setSeedSource('files');
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : 'Failed to load template');
+        })
+        .finally(() => {
+          setIsLoadingTemplate(false);
+        });
+    }
+  }, [templateId, generatedDefinition, isLoadingTemplate]);
 
   // Check if we have files that can be used for seeding
   const hasUploadedFiles = uploadId !== null;
@@ -159,6 +226,13 @@ export default function CreateWorkflowPage() {
     setError(null);
 
     try {
+      // If seeding from files and files haven't been uploaded yet, upload them first
+      let currentUploadId = uploadId;
+      if (seedSource === 'files' && !uploadId && selectedFiles.length > 0) {
+        const uploadResult = await upload();
+        currentUploadId = uploadResult.upload_id;
+      }
+
       // Merge generated views into the definition
       // Convert ViewTemplateCreate to ViewTemplate by adding generated IDs
       const viewTemplatesWithIds = generatedViews.map((view, index) => ({
@@ -175,25 +249,99 @@ export default function CreateWorkflowPage() {
       const workflow = await api.createFromDefinition(definitionWithViews);
 
       // Seed based on selected source
-      if (seedSource === 'files' && uploadId) {
-        // Seed from uploaded files
-        const params = new URLSearchParams({
-          upload_id: uploadId,
-        });
+      if (seedSource === 'files' && currentUploadId) {
+        // Store workflow ID for later use in confirmation
+        setPendingWorkflowId(workflow.id);
 
-        await seedStream.start(
-          `/api/v1/workflows/${workflow.id}/seed-from-files/stream?${params.toString()}`
+        // Generate preview (runs transformer, gets script + preview)
+        const params = new URLSearchParams({
+          upload_id: currentUploadId,
+        });
+        if (seedInstruction.trim()) {
+          params.set('instruction', seedInstruction.trim());
+        }
+
+        const result = await previewStream.start(
+          `/api/v1/workflows/${workflow.id}/seed-from-files/preview/stream?${params.toString()}`
         );
+
+        // Show confirmation modal with script and preview
+        if (result.script_content && result.preview) {
+          setTransformScript(result.script_content);
+          setTransformPreview(result.preview);
+          setTransformInstruction(result.instruction || '');
+          setShowTransformConfirmation(true);
+          setIsCreating(false);
+        } else {
+          throw new Error('Preview did not return script or preview data');
+        }
       } else {
         // Seed with synthetic demo data using SSE for progress
         await seedWithProgress(workflow.id, dataScale);
+        router.push(`/workflows/${workflow.id}`);
       }
-
-      router.push(`/workflows/${workflow.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workflow');
       setIsCreating(false);
     }
+  };
+
+  // Handle confirmation of transform
+  const handleConfirmTransform = async () => {
+    if (!pendingWorkflowId || !uploadId) return;
+
+    try {
+      await confirmStream.start(
+        `/api/v1/workflows/${pendingWorkflowId}/seed-from-files/confirm/stream`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            upload_id: uploadId,
+            script_content: transformScript,
+          }),
+        }
+      );
+
+      setShowTransformConfirmation(false);
+      router.push(`/workflows/${pendingWorkflowId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import data');
+    }
+  };
+
+  // Handle regeneration of transform
+  const handleRegenerateTransform = async (instruction: string) => {
+    if (!pendingWorkflowId || !uploadId) return;
+
+    previewStream.reset();
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({
+        upload_id: uploadId,
+        instruction: instruction,
+      });
+
+      const result = await previewStream.start(
+        `/api/v1/workflows/${pendingWorkflowId}/seed-from-files/preview/stream?${params.toString()}`
+      );
+
+      if (result.script_content && result.preview) {
+        setTransformScript(result.script_content);
+        setTransformPreview(result.preview);
+        setTransformInstruction(result.instruction || instruction);
+      } else {
+        throw new Error('Regeneration did not return script or preview data');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate transform');
+    }
+  };
+
+  // Handle closing confirmation modal
+  const handleCloseConfirmation = () => {
+    setShowTransformConfirmation(false);
+    // Note: workflow is already created but empty, user can still access it
   };
 
   // Reset to start over
@@ -205,32 +353,65 @@ export default function CreateWorkflowPage() {
     clearFiles();
     schemaStream.reset();
     seedStream.reset();
+    previewStream.reset();
+    confirmStream.reset();
+    setShowTransformConfirmation(false);
+    setTransformScript('');
+    setTransformPreview(null);
+    setTransformInstruction('');
+    setSeedInstruction('');
+    setPendingWorkflowId(null);
   };
 
   const isProcessing = isGenerating || isUploading || schemaStream.isRunning;
   const isSeedingFromFiles = seedStream.isRunning;
-  const displayError = error || uploadError || schemaStream.error || seedStream.error;
+  const isPreviewingTransform = previewStream.isRunning;
+  const isConfirmingTransform = confirmStream.isRunning;
+  const displayError = error || uploadError || schemaStream.error || seedStream.error || previewStream.error || confirmStream.error;
 
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link
+          <a
             href="/"
             className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block"
           >
             &larr; Back to Home
-          </Link>
-          <h1 className="text-3xl font-bold mb-2">Create Workflow from Description</h1>
-          <p className="text-muted-foreground">
-            Describe your workflow in natural language and we&apos;ll generate a schema for you.
-            Optionally upload files to help inform the schema or seed with real data.
-          </p>
+          </a>
+          {templateId ? (
+            <>
+              <h1 className="text-3xl font-bold mb-2">
+                {isLoadingTemplate ? 'Loading Template...' : `Create from ${templateName || 'Template'}`}
+              </h1>
+              <p className="text-muted-foreground">
+                Upload files to import data into your workflow, or use synthetic demo data.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold mb-2">Create Workflow from Description</h1>
+              <p className="text-muted-foreground">
+                Describe your workflow in natural language and we&apos;ll generate a schema for you.
+                Optionally upload files to help inform the schema or seed with real data.
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Step 1: Description Input (shown when no generated definition) */}
-        {!generatedDefinition && (
+        {/* Loading Template State */}
+        {isLoadingTemplate && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading template...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Description Input (shown when no generated definition and not loading template) */}
+        {!generatedDefinition && !isLoadingTemplate && !templateId && (
           <div className="space-y-6">
             {/* Description Input */}
             <div>
@@ -498,38 +679,34 @@ export default function CreateWorkflowPage() {
             <div className="border rounded-lg p-4">
               <h3 className="font-medium mb-3">Demo Data</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                {hasUploadedFiles
-                  ? 'Choose how to populate your workflow with data.'
-                  : 'Generate realistic sample data to populate your workflow.'}
+                Choose how to populate your workflow with data.
               </p>
 
-              {/* Seed Source Toggle (only shown if files were uploaded) */}
-              {hasUploadedFiles && (
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => setSeedSource('synthetic')}
-                    disabled={isCreating || isSeeding || isSeedingFromFiles}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      seedSource === 'synthetic'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'border hover:bg-muted'
-                    }`}
-                  >
-                    Synthetic Data
-                  </button>
-                  <button
-                    onClick={() => setSeedSource('files')}
-                    disabled={isCreating || isSeeding || isSeedingFromFiles}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      seedSource === 'files'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'border hover:bg-muted'
-                    }`}
-                  >
-                    Import from Files
-                  </button>
-                </div>
-              )}
+              {/* Seed Source Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setSeedSource('synthetic')}
+                  disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    seedSource === 'synthetic'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border hover:bg-muted'
+                  }`}
+                >
+                  Synthetic Data
+                </button>
+                <button
+                  onClick={() => setSeedSource('files')}
+                  disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    seedSource === 'files'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border hover:bg-muted'
+                  }`}
+                >
+                  Import from Files
+                </button>
+              </div>
 
               {/* Scale selector (only for synthetic data) */}
               {seedSource === 'synthetic' && (
@@ -551,11 +728,48 @@ export default function CreateWorkflowPage() {
                 </div>
               )}
 
-              {/* Info for file-based seeding */}
+              {/* File upload for file-based seeding */}
               {seedSource === 'files' && (
-                <p className="text-sm text-muted-foreground">
-                  Data will be extracted from your uploaded files and imported into the workflow.
-                </p>
+                <div className="space-y-4">
+                  {hasUploadedFiles ? (
+                    <p className="text-sm text-green-600">
+                      Files uploaded. Data will be extracted and imported into the workflow.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        Upload files to import data into your workflow.
+                      </p>
+                      <FileDropzone
+                        onFilesSelected={addFiles}
+                        selectedFiles={selectedFiles}
+                        onRemoveFile={removeFile}
+                        disabled={isCreating || isUploading || isPreviewingTransform}
+                        error={uploadError}
+                      />
+                    </>
+                  )}
+
+                  {/* Instructions for transformation */}
+                  {(selectedFiles.length > 0 || hasUploadedFiles) && (
+                    <div>
+                      <label
+                        htmlFor="seed-instruction"
+                        className="block text-sm font-medium mb-2"
+                      >
+                        Transformation Instructions (optional)
+                      </label>
+                      <textarea
+                        id="seed-instruction"
+                        value={seedInstruction}
+                        onChange={(e) => setSeedInstruction(e.target.value)}
+                        placeholder="Provide any specific instructions for how to transform your data... For example: 'Only include messages from the core-ml channel' or 'Skip any messages without links'"
+                        className="w-full h-24 px-3 py-2 border rounded-lg resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        disabled={isCreating || isUploading || isPreviewingTransform}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -586,30 +800,75 @@ export default function CreateWorkflowPage() {
               </div>
             )}
 
+            {/* Preview Transform Progress (shown during preview generation) */}
+            {(isPreviewingTransform || previewStream.events.length > 0) && !showTransformConfirmation && (
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h3 className="font-medium mb-3">Generating Transform Preview</h3>
+                <TransformerProgress
+                  events={previewStream.events}
+                  isRunning={previewStream.isRunning}
+                  error={previewStream.error}
+                />
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-4">
               <button
                 onClick={handleReset}
-                disabled={isCreating || isSeeding || isSeedingFromFiles}
+                disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform || isConfirmingTransform}
                 className="flex-1 py-3 px-4 border rounded-lg font-medium hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Start Over
               </button>
               <button
                 onClick={handleCreate}
-                disabled={isCreating || isSeeding || isSeedingFromFiles || (validation !== null && !validation.isValid)}
+                disabled={
+                  isCreating ||
+                  isSeeding ||
+                  isSeedingFromFiles ||
+                  isPreviewingTransform ||
+                  isConfirmingTransform ||
+                  (validation !== null && !validation.isValid) ||
+                  (seedSource === 'files' && !uploadId && selectedFiles.length === 0)
+                }
                 className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isSeedingFromFiles
+                {isUploading
+                  ? 'Uploading Files...'
+                  : isPreviewingTransform
+                  ? 'Generating Preview...'
+                  : isSeedingFromFiles
                   ? 'Importing Data...'
                   : isSeeding
                   ? 'Seeding Data...'
                   : isCreating
                   ? 'Creating Workflow...'
+                  : seedSource === 'files' && !uploadId && selectedFiles.length === 0
+                  ? 'Upload Files First'
                   : 'Create Workflow'}
               </button>
             </div>
           </div>
+        )}
+
+        {/* Transform Confirmation Modal */}
+        {transformPreview && (
+          <TransformConfirmationModal
+            isOpen={showTransformConfirmation}
+            onClose={handleCloseConfirmation}
+            onConfirm={handleConfirmTransform}
+            onRegenerate={handleRegenerateTransform}
+            scriptContent={transformScript}
+            preview={transformPreview}
+            instruction={transformInstruction}
+            onInstructionChange={setTransformInstruction}
+            isRegenerating={previewStream.isRunning}
+            isConfirming={confirmStream.isRunning}
+            regenerateEvents={previewStream.events}
+            confirmEvents={confirmStream.events}
+            error={previewStream.error || confirmStream.error}
+          />
         )}
       </div>
     </main>

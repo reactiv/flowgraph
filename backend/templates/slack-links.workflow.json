@@ -1,0 +1,1084 @@
+{
+  "workflowId": "slack_links_knowledge_base_v1",
+  "name": "Slack Links Knowledge Base",
+  "description": "A knowledge graph for tracking shared links, messages, threads, authors, and channels from Slack workspace exports",
+  "nodeTypes": [
+    {
+      "type": "Message",
+      "displayName": "Message",
+      "titleField": "text_preview",
+      "subtitleField": "timestamp",
+      "fields": [
+        {
+          "key": "text_preview",
+          "label": "Text Preview",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "full_text",
+          "label": "Full Text",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "timestamp",
+          "label": "Timestamp",
+          "kind": "datetime",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "slack_ts",
+          "label": "Slack Timestamp",
+          "kind": "string",
+          "required": true,
+          "unique": true,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "channel_id",
+          "label": "Channel ID",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "user_id",
+          "label": "User ID",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "thread_ts",
+          "label": "Thread Timestamp",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "is_thread_parent",
+          "label": "Is Thread Parent",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": "false"
+        },
+        {
+          "key": "reply_count",
+          "label": "Reply Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "has_links",
+          "label": "Has Links",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": "false"
+        },
+        {
+          "key": "reaction_count",
+          "label": "Reaction Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "active",
+            "archived",
+            "deleted"
+          ],
+          "default": "active"
+        }
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "active",
+        "values": [
+          "active",
+          "archived",
+          "deleted"
+        ],
+        "transitions": [
+          {
+            "from": "active",
+            "to": "archived"
+          },
+          {
+            "from": "active",
+            "to": "deleted"
+          },
+          {
+            "from": "archived",
+            "to": "active"
+          }
+        ]
+      },
+      "ui": {
+        "defaultViews": [
+          "list",
+          "detail",
+          "timeline"
+        ],
+        "primarySections": [
+          "summary",
+          "relationships",
+          "links"
+        ],
+        "listColumns": [
+          "text_preview",
+          "timestamp",
+          "has_links"
+        ],
+        "quickActions": [
+          "view_thread",
+          "view_channel"
+        ]
+      }
+    },
+    {
+      "type": "Thread",
+      "displayName": "Thread",
+      "titleField": "thread_preview",
+      "subtitleField": "started_at",
+      "fields": [
+        {
+          "key": "thread_preview",
+          "label": "Thread Preview",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "thread_ts",
+          "label": "Thread Timestamp",
+          "kind": "string",
+          "required": true,
+          "unique": true,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "channel_id",
+          "label": "Channel ID",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "started_at",
+          "label": "Started At",
+          "kind": "datetime",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "reply_count",
+          "label": "Reply Count",
+          "kind": "number",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "participant_count",
+          "label": "Participant Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "has_links",
+          "label": "Has Links",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": "false"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "active",
+            "archived"
+          ],
+          "default": "active"
+        }
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "active",
+        "values": [
+          "active",
+          "archived"
+        ],
+        "transitions": [
+          {
+            "from": "active",
+            "to": "archived"
+          },
+          {
+            "from": "archived",
+            "to": "active"
+          }
+        ]
+      },
+      "ui": {
+        "defaultViews": [
+          "list",
+          "detail",
+          "graph"
+        ],
+        "primarySections": [
+          "summary",
+          "messages",
+          "participants"
+        ],
+        "listColumns": [
+          "thread_preview",
+          "reply_count",
+          "started_at"
+        ],
+        "quickActions": [
+          "view_messages"
+        ]
+      }
+    },
+    {
+      "type": "Author",
+      "displayName": "Author",
+      "titleField": "display_name",
+      "subtitleField": "user_id",
+      "fields": [
+        {
+          "key": "user_id",
+          "label": "User ID",
+          "kind": "string",
+          "required": true,
+          "unique": true,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "display_name",
+          "label": "Display Name",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "real_name",
+          "label": "Real Name",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "is_bot",
+          "label": "Is Bot",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": "false"
+        },
+        {
+          "key": "timezone",
+          "label": "Timezone",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "avatar_url",
+          "label": "Avatar URL",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "message_count",
+          "label": "Message Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "links_shared_count",
+          "label": "Links Shared Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "active",
+            "inactive",
+            "deleted"
+          ],
+          "default": "active"
+        }
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "active",
+        "values": [
+          "active",
+          "inactive",
+          "deleted"
+        ],
+        "transitions": [
+          {
+            "from": "active",
+            "to": "inactive"
+          },
+          {
+            "from": "active",
+            "to": "deleted"
+          },
+          {
+            "from": "inactive",
+            "to": "active"
+          }
+        ]
+      },
+      "ui": {
+        "defaultViews": [
+          "list",
+          "detail",
+          "graph"
+        ],
+        "primarySections": [
+          "summary",
+          "messages",
+          "links"
+        ],
+        "listColumns": [
+          "display_name",
+          "message_count",
+          "links_shared_count"
+        ],
+        "quickActions": [
+          "view_messages",
+          "view_links"
+        ]
+      }
+    },
+    {
+      "type": "Link",
+      "displayName": "Link",
+      "titleField": "title",
+      "subtitleField": "url",
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "kind": "string",
+          "required": true,
+          "unique": true,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "link_type",
+          "label": "Link Type",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "article",
+            "paper",
+            "github",
+            "twitter",
+            "youtube",
+            "documentation",
+            "other"
+          ],
+          "default": "other"
+        },
+        {
+          "key": "image_url",
+          "label": "Image URL",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "first_shared_at",
+          "label": "First Shared At",
+          "kind": "datetime",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "times_shared",
+          "label": "Times Shared",
+          "kind": "number",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": 1
+        },
+        {
+          "key": "service_name",
+          "label": "Service Name",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "active",
+            "reviewed",
+            "archived"
+          ],
+          "default": "active"
+        }
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "active",
+        "values": [
+          "active",
+          "reviewed",
+          "archived"
+        ],
+        "transitions": [
+          {
+            "from": "active",
+            "to": "reviewed"
+          },
+          {
+            "from": "active",
+            "to": "archived"
+          },
+          {
+            "from": "reviewed",
+            "to": "archived"
+          },
+          {
+            "from": "archived",
+            "to": "active"
+          }
+        ]
+      },
+      "ui": {
+        "defaultViews": [
+          "list",
+          "detail",
+          "graph"
+        ],
+        "primarySections": [
+          "summary",
+          "messages",
+          "authors"
+        ],
+        "listColumns": [
+          "title",
+          "domain",
+          "times_shared",
+          "first_shared_at"
+        ],
+        "quickActions": [
+          "open_link",
+          "view_context"
+        ]
+      }
+    },
+    {
+      "type": "Channel",
+      "displayName": "Channel",
+      "titleField": "name",
+      "subtitleField": "channel_id",
+      "fields": [
+        {
+          "key": "channel_id",
+          "label": "Channel ID",
+          "kind": "string",
+          "required": true,
+          "unique": true,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "display_name",
+          "label": "Display Name",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "topic",
+          "label": "Topic",
+          "kind": "string",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "created_at",
+          "label": "Created At",
+          "kind": "datetime",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": null
+        },
+        {
+          "key": "message_count",
+          "label": "Message Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "link_count",
+          "label": "Link Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "member_count",
+          "label": "Member Count",
+          "kind": "number",
+          "required": false,
+          "unique": false,
+          "values": null,
+          "default": 0
+        },
+        {
+          "key": "is_archived",
+          "label": "Is Archived",
+          "kind": "string",
+          "required": true,
+          "unique": false,
+          "values": null,
+          "default": "false"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "enum",
+          "required": true,
+          "unique": false,
+          "values": [
+            "active",
+            "archived"
+          ],
+          "default": "active"
+        }
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "active",
+        "values": [
+          "active",
+          "archived"
+        ],
+        "transitions": [
+          {
+            "from": "active",
+            "to": "archived"
+          },
+          {
+            "from": "archived",
+            "to": "active"
+          }
+        ]
+      },
+      "ui": {
+        "defaultViews": [
+          "list",
+          "detail",
+          "graph"
+        ],
+        "primarySections": [
+          "summary",
+          "messages",
+          "links",
+          "members"
+        ],
+        "listColumns": [
+          "name",
+          "message_count",
+          "link_count",
+          "member_count"
+        ],
+        "quickActions": [
+          "view_messages",
+          "view_links"
+        ]
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "POSTED_IN",
+      "displayName": "Posted In",
+      "from": "Message",
+      "to": "Channel",
+      "direction": "out"
+    },
+    {
+      "type": "AUTHORED_BY",
+      "displayName": "Authored By",
+      "from": "Message",
+      "to": "Author",
+      "direction": "out"
+    },
+    {
+      "type": "CONTAINS_LINK",
+      "displayName": "Contains Link",
+      "from": "Message",
+      "to": "Link",
+      "direction": "out"
+    },
+    {
+      "type": "PART_OF_THREAD",
+      "displayName": "Part of Thread",
+      "from": "Message",
+      "to": "Thread",
+      "direction": "out"
+    },
+    {
+      "type": "STARTS_THREAD",
+      "displayName": "Starts Thread",
+      "from": "Message",
+      "to": "Thread",
+      "direction": "out"
+    },
+    {
+      "type": "IN_CHANNEL",
+      "displayName": "In Channel",
+      "from": "Thread",
+      "to": "Channel",
+      "direction": "out"
+    },
+    {
+      "type": "SHARED_BY",
+      "displayName": "Shared By",
+      "from": "Link",
+      "to": "Author",
+      "direction": "out"
+    },
+    {
+      "type": "MEMBER_OF",
+      "displayName": "Member Of",
+      "from": "Author",
+      "to": "Channel",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "message-must-have-channel",
+      "when": {
+        "nodeType": "Message",
+        "transitionTo": "active"
+      },
+      "requireEdges": [
+        {
+          "edgeType": "POSTED_IN",
+          "minCount": 1
+        }
+      ],
+      "message": "A message must be posted in a channel"
+    },
+    {
+      "id": "message-must-have-author",
+      "when": {
+        "nodeType": "Message",
+        "transitionTo": "active"
+      },
+      "requireEdges": [
+        {
+          "edgeType": "AUTHORED_BY",
+          "minCount": 1
+        }
+      ],
+      "message": "A message must have an author"
+    },
+    {
+      "id": "thread-reply-must-belong-to-thread",
+      "when": {
+        "nodeType": "Message",
+        "transitionTo": "active"
+      },
+      "requireEdges": [
+        {
+          "edgeType": "PART_OF_THREAD",
+          "minCount": 0
+        }
+      ],
+      "message": "Thread replies must be linked to their parent thread"
+    }
+  ],
+  "viewTemplates": [
+    {
+      "id": "view-1768833244681-0",
+      "name": "Links by Type",
+      "description": "Kanban board organizing all shared links by their content type for easy browsing and categorization",
+      "icon": null,
+      "rootType": "Link",
+      "edges": [],
+      "levels": {
+        "Link": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "link_type",
+            "columnOrder": [
+              "paper",
+              "github",
+              "documentation",
+              "article",
+              "youtube",
+              "twitter",
+              "other"
+            ],
+            "columnColors": {
+              "paper": "#8b5cf6",
+              "github": "#1f2937",
+              "documentation": "#3b82f6",
+              "article": "#22c55e",
+              "youtube": "#ef4444",
+              "twitter": "#0ea5e9",
+              "other": "#64748b"
+            },
+            "allowDrag": true,
+            "allowedTransitions": null,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "domain",
+              "statusField": null,
+              "bodyFields": [
+                "description",
+                "times_shared"
+              ],
+              "showInlineChildren": false,
+              "statusColors": null
+            },
+            "showCounts": true,
+            "showEmptyColumns": true
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    },
+    {
+      "id": "view-1768833244681-1",
+      "name": "Link Review Pipeline",
+      "description": "Track link review status to identify which resources have been reviewed and which need attention",
+      "icon": null,
+      "rootType": "Link",
+      "edges": [],
+      "levels": {
+        "Link": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": [
+              "active",
+              "reviewed",
+              "archived"
+            ],
+            "columnColors": {
+              "active": "#3b82f6",
+              "reviewed": "#22c55e",
+              "archived": "#475569"
+            },
+            "allowDrag": true,
+            "allowedTransitions": null,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "domain",
+              "statusField": null,
+              "bodyFields": [
+                "link_type",
+                "times_shared"
+              ],
+              "showInlineChildren": false,
+              "statusColors": null
+            },
+            "showCounts": true,
+            "showEmptyColumns": true
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    },
+    {
+      "id": "view-1768833244681-2",
+      "name": "Message Timeline",
+      "description": "Chronological view of all messages to track knowledge sharing activity over time",
+      "icon": null,
+      "rootType": "Message",
+      "edges": [],
+      "levels": {
+        "Message": {
+          "style": "timeline",
+          "styleConfig": {
+            "dateField": "timestamp",
+            "granularity": "week",
+            "groupByField": null,
+            "showConnectors": true,
+            "cardTemplate": {
+              "titleField": "text_preview",
+              "subtitleField": "channel_id",
+              "statusField": null,
+              "bodyFields": [
+                "has_links",
+                "reply_count"
+              ],
+              "showInlineChildren": false,
+              "statusColors": null
+            }
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    },
+    {
+      "id": "view-1768833244681-3",
+      "name": "All Links Database",
+      "description": "Comprehensive table of all shared links with sorting and filtering for research and discovery",
+      "icon": null,
+      "rootType": "Link",
+      "edges": [],
+      "levels": {
+        "Link": {
+          "style": "table",
+          "styleConfig": {
+            "columns": [
+              "title",
+              "domain",
+              "link_type",
+              "times_shared",
+              "first_shared_at",
+              "status"
+            ],
+            "sortable": true,
+            "selectable": false,
+            "statusColors": {
+              "active": "#3b82f6",
+              "reviewed": "#22c55e",
+              "archived": "#475569"
+            }
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    },
+    {
+      "id": "view-1768833244681-4",
+      "name": "Top Contributors",
+      "description": "Author directory showing who shares the most valuable links across channels",
+      "icon": null,
+      "rootType": "Author",
+      "edges": [],
+      "levels": {
+        "Author": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "grid",
+            "columns": 4,
+            "cardTemplate": {
+              "titleField": "display_name",
+              "subtitleField": "real_name",
+              "statusField": null,
+              "bodyFields": [
+                "links_shared_count",
+                "message_count",
+                "is_bot"
+              ],
+              "showInlineChildren": false,
+              "statusColors": null
+            }
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    },
+    {
+      "id": "view-1768833244681-5",
+      "name": "Channel Overview",
+      "description": "Overview of all working group channels with activity metrics",
+      "icon": null,
+      "rootType": "Channel",
+      "edges": [],
+      "levels": {
+        "Channel": {
+          "style": "table",
+          "styleConfig": {
+            "columns": [
+              "name",
+              "purpose",
+              "message_count",
+              "link_count",
+              "member_count",
+              "status"
+            ],
+            "sortable": true,
+            "selectable": false,
+            "statusColors": {
+              "active": "#22c55e",
+              "archived": "#475569"
+            }
+          },
+          "inlineChildren": [],
+          "expandedByDefault": false,
+          "actions": []
+        }
+      },
+      "filters": []
+    }
+  ]
+}
