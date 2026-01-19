@@ -18,6 +18,7 @@ from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    HookMatcher,
     ResultMessage,
     TextBlock,
     ToolResultBlock,
@@ -231,16 +232,6 @@ class DataTransformer:
         if config.mode == "code":
             allowed_tools.append("mcp__transformer-tools__run_transformer")
 
-        # Configure the agent
-        options = ClaudeAgentOptions(
-            system_prompt=system_prompt,
-            cwd=str(work_dir),
-            max_turns=config.max_iterations,
-            allowed_tools=allowed_tools,
-            permission_mode="acceptEdits",
-            mcp_servers={"transformer-tools": mcp_server},
-        )
-
         debug: dict[str, Any] = {
             "iterations": 0,
             "tool_calls": [],
@@ -249,7 +240,62 @@ class DataTransformer:
         }
 
         validation_result = None
-        iteration = 0
+        tool_call_count = 0
+
+        # Hook to emit events before tool execution
+        async def pre_tool_hook(input_data: dict, tool_use_id: str, context: Any) -> dict:
+            nonlocal tool_call_count
+            tool_call_count += 1
+            tool_name = input_data.get("tool_name", "unknown")
+            tool_input = input_data.get("tool_input", {})
+
+            emit("tool_call", {"tool": tool_name, "input": tool_input})
+            debug["tool_calls"].append({
+                "call_number": tool_call_count,
+                "tool": tool_name,
+                "input": tool_input,
+            })
+            return {}  # Allow tool to proceed
+
+        # Hook to emit events after tool execution
+        async def post_tool_hook(input_data: dict, tool_use_id: str, context: Any) -> dict:
+            nonlocal validation_result
+            tool_name = input_data.get("tool_name", "unknown")
+            tool_result = input_data.get("tool_result", "")
+
+            result_str = str(tool_result)[:500]
+            emit("tool_result", {"tool": tool_name, "result": result_str})
+
+            # Check for validation results
+            if "validate_artifact" in tool_name and '"valid"' in result_str:
+                try:
+                    validation_result = json.loads(str(tool_result))
+                    emit("validation", {
+                        "valid": validation_result.get("valid", False),
+                        "item_count": validation_result.get("item_count", 0),
+                        "errors": validation_result.get("errors", []),
+                    })
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            return {}
+
+        # Build hooks for event emission
+        hooks = {
+            "PreToolUse": [HookMatcher(matcher="*", hooks=[pre_tool_hook])],
+            "PostToolUse": [HookMatcher(matcher="*", hooks=[post_tool_hook])],
+        }
+
+        # Configure the agent with hooks
+        options = ClaudeAgentOptions(
+            system_prompt=system_prompt,
+            cwd=str(work_dir),
+            max_turns=config.max_iterations,
+            allowed_tools=allowed_tools,
+            permission_mode="acceptEdits",
+            mcp_servers={"transformer-tools": mcp_server},
+            hooks=hooks,
+        )
 
         emit("iteration_start", {"iteration": 1, "max": config.max_iterations})
 
@@ -262,44 +308,11 @@ class DataTransformer:
                         if isinstance(block, TextBlock):
                             emit("text", {"text": block.text})
                         elif isinstance(block, ToolUseBlock):
-                            iteration += 1
-                            debug["iterations"] = iteration
-                            tool_name = block.name
-                            tool_input = block.input
-
-                            emit("tool_call", {"tool": tool_name, "input": tool_input})
-                            debug["tool_calls"].append({
-                                "iteration": iteration,
-                                "tool": tool_name,
-                                "input": tool_input,
-                            })
+                            # Tool call info is handled by PreToolUse hook
+                            debug["iterations"] = tool_call_count
                         elif isinstance(block, ToolResultBlock):
-                            # Tool result from SDK's internal execution
-                            content = block.content if hasattr(block, "content") else ""
-
-                            # Check if this is a validation result
-                            content_str = str(content)
-                            if '"valid"' in content_str:
-                                try:
-                                    # Extract JSON from content
-                                    if isinstance(content, list) and content:
-                                        first = content[0]
-                                        if isinstance(first, dict):
-                                            text = first.get("text", "")
-                                        else:
-                                            text = str(first)
-                                    else:
-                                        text = content_str
-                                    validation_result = json.loads(text)
-                                    emit("validation", {
-                                        "valid": validation_result.get("valid", False),
-                                        "item_count": validation_result.get("item_count", 0),
-                                        "errors": validation_result.get("errors", []),
-                                    })
-                                except (json.JSONDecodeError, TypeError):
-                                    pass
-
-                            emit("tool_result", {"tool": "unknown", "result": content_str[:500]})
+                            # Tool result info is handled by PostToolUse hook
+                            pass
 
                 elif isinstance(message, ResultMessage):
                     # Agent completed
@@ -351,7 +364,7 @@ class DataTransformer:
         emit("complete", {
             "item_count": item_count,
             "artifact_path": str(output_path),
-            "iterations": iteration,
+            "iterations": tool_call_count,
         })
 
         return TransformRun(
