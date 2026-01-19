@@ -169,21 +169,28 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
             colorize(tool, Colors.BOLD))
         out(colorize("└" + "─" * 60, Colors.YELLOW))
 
-        # Format input nicely
-        if tool == "write_file":
-            # Truncate content for display
+        # Format input nicely based on SDK tool names
+        if tool == "Write":
             file_path = tool_input.get("file_path", "")
             content = tool_input.get("content", "")
             preview = content[:200] + "..." if len(content) > 200 else content
             out(colorize(f"  → file: {file_path}", Colors.DIM))
             out(colorize(f"  → content: {preview!r}", Colors.DIM))
-        elif tool == "read_file":
+        elif tool == "Read":
             out(colorize(f"  → {tool_input.get('file_path', '')}", Colors.DIM))
-        elif tool == "list_files":
-            out(colorize(f"  → {tool_input.get('directory', './inputs')}", Colors.DIM))
-        elif tool == "validate_artifact":
+        elif tool == "Glob":
+            out(colorize(f"  → {tool_input.get('pattern', '*')}", Colors.DIM))
+        elif tool == "Grep":
+            pattern = tool_input.get("pattern", "")
+            path = tool_input.get("path", ".")
+            out(colorize(f"  → {pattern} in {path}", Colors.DIM))
+        elif tool == "Bash":
+            command = tool_input.get("command", "")
+            preview = command[:100] + "..." if len(command) > 100 else command
+            out(colorize(f"  → {preview}", Colors.DIM))
+        elif "validate_artifact" in tool:
             out(colorize(f"  → {tool_input.get('file_path', '')}", Colors.DIM))
-        elif tool == "run_transformer":
+        elif "run_transformer" in tool:
             script = tool_input.get("script_path", "./transform.py")
             out(colorize(f"  → {script}", Colors.DIM))
         else:
@@ -191,29 +198,24 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
 
     elif event_type == "tool_result":
         tool = data.get("tool", "unknown")
-        result = data.get("result", {})
+        result = data.get("result", "")
 
-        if tool == "list_files" and result.get("success"):
-            files = result.get("files", [])
-            out(colorize(f"  ← Found {len(files)} files", Colors.GREEN))
-        elif tool == "read_file" and result.get("success"):
-            lines = result.get("line_count", 0)
-            out(colorize(f"  ← Read {lines} lines", Colors.GREEN))
-        elif tool == "write_file" and result.get("success"):
-            bytes_written = result.get("bytes_written", 0)
-            out(colorize(f"  ← Wrote {bytes_written} bytes", Colors.GREEN))
-        elif tool == "run_transformer":
-            if result.get("success"):
-                out(colorize("  ← Script executed successfully", Colors.GREEN))
-            else:
-                error = result.get("error") or result.get("stderr", "")[:100]
-                out(colorize(f"  ← Script failed: {error}", Colors.RED))
-        elif tool == "validate_artifact":
+        # For SDK tools, result is typically a string summary
+        result_str = str(result)[:200]
+
+        if "validate_artifact" in tool:
             # Validation result is handled by the validation event
             pass
-        elif not result.get("success", True):
-            error = result.get("error", "Unknown error")
-            out(colorize(f"  ← Error: {error}", Colors.RED))
+        elif "run_transformer" in tool:
+            if "success" in result_str and "true" in result_str.lower():
+                out(colorize("  ← Script executed successfully", Colors.GREEN))
+            elif "error" in result_str.lower() or "false" in result_str.lower():
+                out(colorize(f"  ← Script result: {result_str}", Colors.RED))
+            else:
+                out(colorize(f"  ← {result_str}", Colors.DIM))
+        elif result_str:
+            # Show truncated result for other tools
+            out(colorize(f"  ← {result_str}", Colors.DIM))
 
     elif event_type == "validation":
         valid = data.get("valid", False)
