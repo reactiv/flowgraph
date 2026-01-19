@@ -42,7 +42,7 @@ T = TypeVar("T", bound=BaseModel)
 EventCallback = Callable[[str, dict[str, Any]], None]
 
 
-SYSTEM_PROMPT = """You are an expert data transformer.
+DIRECT_MODE_PROMPT = """You are an expert data transformer.
 
 Your task is to transform input files into a specific output format that matches a Pydantic schema.
 
@@ -66,6 +66,39 @@ Your task is to transform input files into a specific output format that matches
 - Fix all validation errors - the output MUST pass validation
 - For jsonl format, each line must be a complete, valid JSON object
 - Do not wrap jsonl output in an array - each line is independent
+"""
+
+CODE_MODE_PROMPT = """You are an expert data transformer.
+
+Your task is to write Python code that transforms input files into a validated output format.
+
+## Instructions
+
+1. First, explore the input files in the working directory to understand their structure
+2. Write a Python script to ./transform.py that transforms the inputs
+3. Call run_transformer to execute your script
+4. Call validate_artifact to check the output against the schema
+5. If validation fails, fix your code and repeat steps 3-4
+
+## Output Schema (Pydantic)
+
+{schema_json}
+
+## transform.py Contract
+
+Your script should:
+- Read input files from the working directory
+- Write output to {output_file}
+  - For json format: json.dump(result, f, indent=2)
+  - For jsonl format: One json.dumps(record) per line
+- Use standard library (csv, json) or simple parsing
+- Handle errors gracefully with clear error messages
+
+## Important
+
+- Always validate your output before finishing
+- Fix all validation errors - the output MUST pass validation
+- Keep code simple and readable
 """
 
 
@@ -164,13 +197,20 @@ class DataTransformer:
             if on_event:
                 on_event(event_type, data)
 
-        # Build system prompt
+        # Build system prompt based on mode
         output_file = f"./output.{config.output_format}"
         schema_json = get_schema_description(output_model)
-        system_prompt = SYSTEM_PROMPT.format(
-            output_file=output_file,
-            schema_json=schema_json,
-        )
+
+        if config.mode == "code":
+            system_prompt = CODE_MODE_PROMPT.format(
+                output_file=output_file,
+                schema_json=schema_json,
+            )
+        else:
+            system_prompt = DIRECT_MODE_PROMPT.format(
+                output_file=output_file,
+                schema_json=schema_json,
+            )
 
         # Create custom MCP tools
         mcp_server = create_transformer_tools(
@@ -179,19 +219,24 @@ class DataTransformer:
             output_format=config.output_format,
         )
 
+        # Build allowed tools list
+        allowed_tools = [
+            "Bash",
+            "Read",
+            "Write",
+            "Glob",
+            "Grep",
+            "mcp__transformer-tools__validate_artifact",
+        ]
+        if config.mode == "code":
+            allowed_tools.append("mcp__transformer-tools__run_transformer")
+
         # Configure the agent
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             cwd=str(work_dir),
             max_turns=config.max_iterations,
-            allowed_tools=[
-                "Bash",
-                "Read",
-                "Write",
-                "Glob",
-                "Grep",
-                "mcp__transformer-tools__validate_artifact",
-            ],
+            allowed_tools=allowed_tools,
             permission_mode="acceptEdits",
             mcp_servers={"transformer-tools": mcp_server},
         )
