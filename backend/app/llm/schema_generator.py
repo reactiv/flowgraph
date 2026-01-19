@@ -2,7 +2,7 @@
 
 import logging
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.llm.client import LLMClient, get_client
 from app.models.workflow import WorkflowDefinition
@@ -21,10 +21,12 @@ class SchemaGenerationOptions(BaseModel):
 class SchemaValidationResult(BaseModel):
     """Result of schema validation."""
 
-    is_valid: bool
+    is_valid: bool = Field(alias="isValid")
     errors: list[str]
     warnings: list[str]
-    fixes_applied: list[str]  # Kept for API compatibility (always empty now)
+    fixes_applied: list[str] = Field(default_factory=list, alias="fixesApplied")
+
+    model_config = {"populate_by_name": True}
 
 
 SCHEMA_GENERATION_SYSTEM = """You are a workflow schema generator.

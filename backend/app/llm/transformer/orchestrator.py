@@ -51,7 +51,7 @@ Your task is to transform input files into a specific output format that matches
 
 1. First, explore the input files in the working directory to understand their structure
 2. Transform the data according to the user's instruction
-3. Write the transformed data to {output_file}
+3. Write the transformed data DIRECTLY to {output_file} using the Write tool
    - For json format: Write a single JSON object
    - For jsonl format: Write one JSON object per line (no array wrapper)
 4. Call validate_artifact to check your output against the schema
@@ -63,6 +63,9 @@ Your task is to transform input files into a specific output format that matches
 
 ## Important
 
+- DO NOT write Python scripts or code files - write the JSON output directly
+- DO NOT create transform.py or any .py files
+- Use the Write tool to write the output JSON directly to {output_file}
 - Always validate your output before finishing
 - Fix all validation errors - the output MUST pass validation
 - For jsonl format, each line must be a complete, valid JSON object
@@ -261,22 +264,53 @@ class DataTransformer:
         async def post_tool_hook(input_data: dict, tool_use_id: str, context: Any) -> dict:
             nonlocal validation_result
             tool_name = input_data.get("tool_name", "unknown")
-            tool_result = input_data.get("tool_result", "")
+            # The correct key is tool_response (from PostToolUseHookInput)
+            raw_response = input_data.get("tool_response", "")
 
-            result_str = str(tool_result)[:500]
+            # Extract text from content block format if needed
+            # Response may be: str, list of dicts with 'type'/'text', or other
+            tool_result = ""
+            if isinstance(raw_response, str):
+                tool_result = raw_response
+            elif isinstance(raw_response, list):
+                # Extract text from content blocks: [{'type': 'text', 'text': '...'}]
+                texts = []
+                for block in raw_response:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        texts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        texts.append(block)
+                tool_result = "\n".join(texts)
+            elif isinstance(raw_response, dict):
+                # Might be a single content block
+                if raw_response.get("type") == "text":
+                    tool_result = raw_response.get("text", "")
+                else:
+                    tool_result = json.dumps(raw_response)
+
+            result_str = str(tool_result)[:500] if tool_result else "(no result)"
             emit("tool_result", {"tool": tool_name, "result": result_str})
 
             # Check for validation results
-            if "validate_artifact" in tool_name and '"valid"' in result_str:
+            if "validate_artifact" in tool_name:
                 try:
-                    validation_result = json.loads(str(tool_result))
-                    emit("validation", {
-                        "valid": validation_result.get("valid", False),
-                        "item_count": validation_result.get("item_count", 0),
-                        "errors": validation_result.get("errors", []),
-                    })
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                    # Try to parse as JSON
+                    if isinstance(tool_result, str):
+                        parsed = json.loads(tool_result)
+                    elif isinstance(tool_result, dict):
+                        parsed = tool_result
+                    else:
+                        parsed = json.loads(str(tool_result))
+
+                    if "valid" in parsed:
+                        validation_result = parsed
+                        emit("validation", {
+                            "valid": validation_result.get("valid", False),
+                            "item_count": validation_result.get("item_count", 0),
+                            "errors": validation_result.get("errors", []),
+                        })
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Failed to parse validation result: {e}")
 
             return {}
 
@@ -345,11 +379,19 @@ class DataTransformer:
         items: list[T] | None = None
         item_count = validation_result.get("item_count", 0)
 
+        logger.debug(f"Parsing output: item_count={item_count}, path={output_path}, exists={output_path.exists()}")
+
         if item_count <= 100 and output_path.exists():
             try:
                 items = self._parse_output(output_path, output_model, config.output_format)
+                logger.info(f"Parsed {len(items) if items else 0} items")
             except Exception as e:
-                logger.warning(f"Failed to parse output items: {e}")
+                logger.error(f"Failed to parse output items: {e}", exc_info=True)
+                # Re-raise so the caller knows parsing failed
+                raise ValueError(f"Output validation passed but parsing failed: {e}") from e
+        elif not output_path.exists():
+            logger.error(f"Output file does not exist: {output_path}")
+            raise ValueError(f"Output file not found at {output_path}")
 
         manifest = TransformManifest(
             artifact_path=str(output_path),
@@ -361,7 +403,7 @@ class DataTransformer:
             run_id=run_id,
         )
 
-        emit("complete", {
+        emit("transform_complete", {
             "item_count": item_count,
             "artifact_path": str(output_path),
             "iterations": tool_call_count,
