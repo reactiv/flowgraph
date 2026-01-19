@@ -61,6 +61,7 @@ interface PreviewTransformResult {
   event: string;
   script_content?: string;
   instruction?: string;
+  seed_data_json?: string;  // Cached output to skip re-execution on confirm
   preview?: {
     node_count: number;
     edge_count: number;
@@ -136,6 +137,7 @@ export default function CreateWorkflowPage() {
   const [transformScript, setTransformScript] = useState('');
   const [transformPreview, setTransformPreview] = useState<TransformPreview | null>(null);
   const [transformInstruction, setTransformInstruction] = useState('');
+  const [transformSeedDataJson, setTransformSeedDataJson] = useState<string | null>(null);  // Cached output
   const [pendingWorkflowId, setPendingWorkflowId] = useState<string | null>(null);
 
   // Seeding with progress (synthetic data)
@@ -270,6 +272,7 @@ export default function CreateWorkflowPage() {
           setTransformScript(result.script_content);
           setTransformPreview(result.preview);
           setTransformInstruction(result.instruction || '');
+          setTransformSeedDataJson(result.seed_data_json || null);  // Cache for confirm
           setShowTransformConfirmation(true);
           setIsCreating(false);
         } else {
@@ -298,6 +301,7 @@ export default function CreateWorkflowPage() {
           body: JSON.stringify({
             upload_id: uploadId,
             script_content: transformScript,
+            seed_data_json: transformSeedDataJson,  // Use cached output to skip re-execution
           }),
         }
       );
@@ -330,6 +334,7 @@ export default function CreateWorkflowPage() {
         setTransformScript(result.script_content);
         setTransformPreview(result.preview);
         setTransformInstruction(result.instruction || instruction);
+        setTransformSeedDataJson(result.seed_data_json || null);  // Update cache
       } else {
         throw new Error('Regeneration did not return script or preview data');
       }
@@ -359,6 +364,7 @@ export default function CreateWorkflowPage() {
     setTransformScript('');
     setTransformPreview(null);
     setTransformInstruction('');
+    setTransformSeedDataJson(null);
     setSeedInstruction('');
     setPendingWorkflowId(null);
   };

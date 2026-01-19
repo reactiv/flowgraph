@@ -105,6 +105,58 @@ Your script should:
 - Keep code simple and readable
 """
 
+FILE_TYPE_HANDLING_PROMPT = """
+Use the following tools to handle file types:
+
+### .zip file: 
+- Write python code to investigate the zip file and ensure that your
+final script operates on the zip file, which is what the user wants to transform.
+
+### .pdf file:
+Use google.genai to process pdf files:
+
+**Reading**
+```python
+from google import genai
+from google.genai import types
+import pathlib
+
+client = genai.Client()
+
+# Retrieve and encode the PDF byte
+filepath = pathlib.Path('file.pdf')
+
+prompt = "Parse this pdf file: verbatim text and short descriptions for images inline"
+response = client.models.generate_content(
+  model="gemini-3-flash-preview",
+  contents=[
+      types.Part.from_bytes(
+        data=filepath.read_bytes(),
+        mime_type='application/pdf',
+      ),
+      prompt])
+print(response.text)
+
+**Extracting structured data**
+
+Use Pydantic models to extract structured data from the pdf file.
+
+```python
+class Model(BaseModel):
+    ...
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-3-flash-preview",
+    contents=prompt,
+    config={
+        "response_mime_type": "application/json",
+        "response_json_schema": Model.model_json_schema(),
+    },
+)
+```
+"""
 
 class DataTransformer:
     """Orchestrates Claude to transform data into validated Pydantic outputs.
@@ -206,7 +258,7 @@ class DataTransformer:
         # Build system prompt based on mode
         output_file = f"./output.{config.output_format}"
         schema_json = get_schema_description(output_model)
-
+        
         if config.mode == "code":
             system_prompt = CODE_MODE_PROMPT.format(
                 output_file=output_file,
@@ -217,7 +269,7 @@ class DataTransformer:
                 output_file=output_file,
                 schema_json=schema_json,
             )
-
+        system_prompt += FILE_TYPE_HANDLING_PROMPT
         # Create custom MCP tools
         mcp_server = create_transformer_tools(
             work_dir=work_dir,

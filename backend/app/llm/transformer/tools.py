@@ -126,7 +126,7 @@ def create_transformer_tools(
                 cwd=str(validation_dir),
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=600,  # 10 minutes - transformations can be slow
             )
 
             # Copy output.json back to work_dir if it was created
@@ -141,7 +141,7 @@ def create_transformer_tools(
                 "stderr": result.stderr[-4000:] if len(result.stderr) > 4000 else result.stderr,
             }
         except subprocess.TimeoutExpired:
-            response = {"success": False, "error": "Script timed out after 60 seconds"}
+            response = {"success": False, "error": "Script timed out after 10 minutes"}
         except Exception as e:
             response = {"success": False, "error": f"Execution failed: {e}"}
         finally:

@@ -414,6 +414,9 @@ class FileSeeder:
                 "status": node.status,
             })
 
+        # Serialize seed data for caching (avoids re-running script on confirm)
+        seed_data_json = seed_data.model_dump_json()
+
         # Clean up work_dir
         try:
             shutil.rmtree(work_dir)
@@ -424,6 +427,7 @@ class FileSeeder:
             "event": "complete",
             "script_content": script_content,
             "instruction": user_instruction,
+            "seed_data_json": seed_data_json,  # Cached for confirm step
             "preview": {
                 "node_count": len(seed_data.nodes),
                 "edge_count": len(seed_data.edges),
@@ -437,18 +441,19 @@ class FileSeeder:
         definition: WorkflowDefinition,
         upload_id: str,
         script_content: str,
+        seed_data_json: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """Re-execute the provided transform script and insert data.
+        """Confirm and insert seed data from a previous preview.
 
-        Takes a script previously generated via preview_transform, re-executes
-        it against the same input files, validates the output, and inserts
-        the data into the database.
+        If seed_data_json is provided (from preview), uses it directly without
+        re-executing the script. Otherwise falls back to re-executing the script.
 
         Args:
             workflow_id: The workflow to seed.
             definition: The workflow definition schema.
             upload_id: The upload session ID containing the files.
-            script_content: The Python script to execute.
+            script_content: The Python script (for fallback if no cached data).
+            seed_data_json: Cached seed data JSON from preview (skips re-execution).
 
         Yields:
             Events with structure: {"event": "...", ...data}
@@ -459,142 +464,164 @@ class FileSeeder:
             - complete: Seeding complete with counts
             - error: Error occurred
         """
-        # Get uploaded files
-        try:
-            files = await self.upload_store.get_files(upload_id)
-        except FileNotFoundError:
-            yield {
-                "event": "error",
-                "message": f"Upload session {upload_id} not found or expired",
-            }
-            return
+        seed_data: SeedData | None = None
 
-        if not files:
-            yield {"event": "error", "message": "No files found in upload session"}
-            return
-
-        if not script_content.strip():
-            yield {"event": "error", "message": "No script content provided"}
-            return
-
-        # Create temp work directory
-        work_dir = Path(tempfile.mkdtemp(prefix=f"confirm_{workflow_id}_"))
-
-        try:
-            yield {
-                "event": "phase",
-                "phase": "executing",
-                "message": "Re-executing transform script...",
-            }
-
-            # Copy input files to work directory
-            for file_path in files:
-                dest = work_dir / Path(file_path).name
-                shutil.copy(file_path, dest)
-
-            # Write the script
-            script_path = work_dir / "transform.py"
-            script_path.write_text(script_content)
-
-            # Execute the script
-            try:
-                result = subprocess.run(
-                    [sys.executable, str(script_path)],
-                    cwd=str(work_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-            except subprocess.TimeoutExpired:
-                yield {"event": "error", "message": "Script timed out after 60 seconds"}
-                return
-            except Exception as e:
-                yield {"event": "error", "message": f"Script execution failed: {e}"}
-                return
-
-            if result.returncode != 0:
-                error_msg = result.stderr[:2000] if result.stderr else "Unknown error"
-                yield {
-                    "event": "error",
-                    "message": f"Script failed with exit code {result.returncode}: {error_msg}",
-                }
-                return
-
+        # If we have cached seed data from preview, use it directly
+        if seed_data_json:
             yield {
                 "event": "phase",
                 "phase": "validating",
-                "message": "Validating transformation output...",
+                "message": "Using cached transformation output...",
             }
 
-            # Validate the output
-            output_path = work_dir / "output.json"
-            if not output_path.exists():
-                yield {"event": "error", "message": "Script did not produce output.json"}
-                return
-
-            validation_result = validate_artifact(
-                file_path=output_path,
-                model=SeedData,
-                format="json",
-            )
-
-            if not validation_result.valid:
-                errors = "; ".join(validation_result.errors[:5])
-                yield {"event": "error", "message": f"Validation failed: {errors}"}
-                return
-
-            # Parse the seed data
             try:
-                output_content = output_path.read_text()
-                seed_data = SeedData.model_validate(json.loads(output_content))
+                seed_data = SeedData.model_validate_json(seed_data_json)
             except Exception as e:
-                yield {"event": "error", "message": f"Failed to parse output: {e}"}
+                logger.warning(f"Failed to parse cached seed_data_json: {e}")
+                # Fall through to script execution
+
+        # Fall back to re-executing script if no cached data
+        if seed_data is None:
+            # Get uploaded files
+            try:
+                files = await self.upload_store.get_files(upload_id)
+            except FileNotFoundError:
+                yield {
+                    "event": "error",
+                    "message": f"Upload session {upload_id} not found or expired",
+                }
                 return
 
-            # Insert into database
-            yield {
-                "event": "phase",
-                "phase": "inserting",
-                "message": (
-                    f"Inserting {len(seed_data.nodes)} nodes "
-                    f"and {len(seed_data.edges)} edges..."
-                ),
-            }
+            if not files:
+                yield {"event": "error", "message": "No files found in upload session"}
+                return
 
-            # Create event queue for progress updates
-            events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            if not script_content.strip():
+                yield {"event": "error", "message": "No script content provided"}
+                return
 
-            nodes_created, edges_created = await self._insert_seed_data(
-                workflow_id,
-                seed_data,
-                lambda current, total, msg: events_queue.put_nowait({
-                    "event": "progress",
-                    "current": current,
-                    "total": total,
-                    "message": msg,
-                }),
-            )
+            # Create temp work directory
+            work_dir = Path(tempfile.mkdtemp(prefix=f"confirm_{workflow_id}_"))
 
-            # Drain progress events
-            while not events_queue.empty():
+            try:
+                yield {
+                    "event": "phase",
+                    "phase": "executing",
+                    "message": "Re-executing transform script...",
+                }
+
+                # Copy input files to work directory
+                for file_path in files:
+                    dest = work_dir / Path(file_path).name
+                    shutil.copy(file_path, dest)
+
+                # Write the script
+                script_path = work_dir / "transform.py"
+                script_path.write_text(script_content)
+
+                # Execute the script
                 try:
-                    event = events_queue.get_nowait()
-                    yield event
-                except asyncio.QueueEmpty:
-                    break
+                    result = subprocess.run(
+                        [sys.executable, str(script_path)],
+                        cwd=str(work_dir),
+                        capture_output=True,
+                        text=True,
+                        timeout=600,  # 10 minutes - transformations can be slow
+                    )
+                except subprocess.TimeoutExpired:
+                    yield {"event": "error", "message": "Script timed out after 10 minutes"}
+                    return
+                except Exception as e:
+                    yield {"event": "error", "message": f"Script execution failed: {e}"}
+                    return
 
-            yield {
-                "event": "complete",
-                "nodes_created": nodes_created,
-                "edges_created": edges_created,
-            }
+                if result.returncode != 0:
+                    error_msg = result.stderr[:2000] if result.stderr else "Unknown error"
+                    yield {
+                        "event": "error",
+                        "message": f"Script failed with exit code {result.returncode}: {error_msg}",
+                    }
+                    return
 
-        finally:
-            # Clean up work directory
+                yield {
+                    "event": "phase",
+                    "phase": "validating",
+                    "message": "Validating transformation output...",
+                }
+
+                # Validate the output
+                output_path = work_dir / "output.json"
+                if not output_path.exists():
+                    yield {"event": "error", "message": "Script did not produce output.json"}
+                    return
+
+                validation_result = validate_artifact(
+                    file_path=output_path,
+                    model=SeedData,
+                    format="json",
+                )
+
+                if not validation_result.valid:
+                    errors = "; ".join(validation_result.errors[:5])
+                    yield {"event": "error", "message": f"Validation failed: {errors}"}
+                    return
+
+                # Parse the seed data
+                try:
+                    output_content = output_path.read_text()
+                    seed_data = SeedData.model_validate(json.loads(output_content))
+                except Exception as e:
+                    yield {"event": "error", "message": f"Failed to parse output: {e}"}
+                    return
+            finally:
+                # Clean up work directory
+                try:
+                    shutil.rmtree(work_dir)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up confirm work_dir: {e}")
+
+        # At this point seed_data should be set (either from cache or script execution)
+        if seed_data is None:
+            yield {"event": "error", "message": "No seed data available"}
+            return
+
+        # Insert into database
+        yield {
+            "event": "phase",
+            "phase": "inserting",
+            "message": (
+                f"Inserting {len(seed_data.nodes)} nodes "
+                f"and {len(seed_data.edges)} edges..."
+            ),
+        }
+
+        # Create event queue for progress updates
+        events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        nodes_created, edges_created = await self._insert_seed_data(
+            workflow_id,
+            seed_data,
+            lambda current, total, msg: events_queue.put_nowait({
+                "event": "progress",
+                "current": current,
+                "total": total,
+                "message": msg,
+            }),
+        )
+
+        # Drain progress events
+        while not events_queue.empty():
             try:
-                shutil.rmtree(work_dir)
-            except Exception as e:
-                logger.warning(f"Failed to clean up confirm work_dir: {e}")
+                event = events_queue.get_nowait()
+                yield event
+            except asyncio.QueueEmpty:
+                break
+
+        yield {
+            "event": "complete",
+            "nodes_created": nodes_created,
+            "edges_created": edges_created,
+        }
 
     async def _insert_seed_data(
         self,

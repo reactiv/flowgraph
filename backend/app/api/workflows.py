@@ -97,6 +97,7 @@ class ConfirmTransformRequest(BaseModel):
 
     upload_id: str
     script_content: str
+    seed_data_json: str | None = None  # Cached output from preview - skips re-execution
 
 
 # ==================== Workflows ====================
@@ -1224,6 +1225,7 @@ async def confirm_seed_from_files(
             definition=workflow,
             upload_id=request.upload_id,
             script_content=request.script_content,
+            seed_data_json=request.seed_data_json,
         ):
             # Skip keepalive events in SSE format
             if event.get("event") == "keepalive":
