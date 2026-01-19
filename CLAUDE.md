@@ -14,6 +14,7 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 │   │   ├── models/           # Pydantic models
 │   │   ├── schema/           # WorkflowDefinition validation
 │   │   └── llm/              # LLM integration (schema + data generation)
+│   │       └── transformer/  # Agentic data transformer (Claude Agent SDK)
 │   ├── templates/            # Built-in workflow JSON templates
 │   ├── tests/                # pytest tests
 │   ├── Dockerfile
@@ -44,6 +45,7 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 - **SQLite** via `aiosqlite` - local persistence
 - **Pydantic** - data validation and models
 - **Anthropic SDK** - Claude API for schema/scenario generation
+- **Claude Agent SDK** - Agentic data transformation with tool use
 - **Google GenAI SDK** - Gemini 3.0 Flash for fast content generation
 - **uv** - Python package management
 - **pytest** / **ruff** / **ty** / **black** - testing, linting, types, formatting
@@ -101,6 +103,40 @@ Use `./scripts/dc` instead of `docker-compose` - it's a thin wrapper that handle
 |-------------|--------------|---------------|
 | Default (no CONDUCTOR_PORT) | 8000 | 3000 |
 | Worktree (CONDUCTOR_PORT set) | $CONDUCTOR_PORT | $CONDUCTOR_PORT + 1 |
+
+### Agentic Data Transformer CLI
+
+The transformer CLI uses Claude Agent SDK to transform files into validated Pydantic outputs.
+
+```bash
+# Mount custom input directory (optional)
+TRANSFORMER_INPUT=/path/to/input ./scripts/dc up -d
+
+# Direct mode - agent writes output directly (small outputs, < ~100 records)
+./scripts/dc exec -T backend uv run python -m app.llm.transformer.cli \
+    --input /app/transformer_input \
+    --instruction "Transform instruction here" \
+    --model-import "app.models.workflow:WorkflowDefinition" \
+    --format json
+
+# Code mode - agent writes Python script (large outputs)
+./scripts/dc exec -T backend uv run python -m app.llm.transformer.cli \
+    --input /app/transformer_input \
+    --instruction "Transform instruction here" \
+    --model-import "app.llm.transformer.seed_models:SeedData" \
+    --mode code \
+    --format json
+```
+
+| Option | Description |
+|--------|-------------|
+| `--input, -i` | Path to input file or directory |
+| `--instruction` | Natural language transformation instruction |
+| `--model, -m` | Inline model spec: `"name:str,age:int"` |
+| `--model-import, -M` | Import model: `"module:Class"` |
+| `--mode` | `direct` (default) or `code` |
+| `--format, -f` | `json` (single object) or `jsonl` (records) |
+| `--max-turns` | Max agent iterations (default: 80) |
 
 ## Environment Variables
 

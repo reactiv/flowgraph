@@ -9,6 +9,44 @@ from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
+# Max size for sample data to avoid MCP buffer overflow (1MB limit)
+MAX_SAMPLE_JSON_SIZE = 50_000  # 50KB is plenty for the agent to see structure
+
+
+def _truncate_sample(data: dict[str, Any], max_size: int = MAX_SAMPLE_JSON_SIZE) -> dict[str, Any]:
+    """Truncate a sample dict to fit within size limits.
+
+    For objects with large arrays (like SeedData with many nodes/edges),
+    this truncates arrays and provides counts instead.
+    """
+    # Quick check - if it's small enough, return as-is
+    try:
+        if len(json.dumps(data)) <= max_size:
+            return data
+    except (TypeError, ValueError):
+        pass
+
+    # Deep copy and truncate
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, list):
+            # Truncate arrays to first 3 items + count
+            if len(value) > 3:
+                truncated = value[:3]
+                result[key] = truncated
+                result[f"_{key}_count"] = len(value)
+                result[f"_{key}_truncated"] = True
+            else:
+                result[key] = value
+        elif isinstance(value, dict):
+            result[key] = _truncate_sample(value, max_size // 2)
+        elif isinstance(value, str) and len(value) > 500:
+            result[key] = value[:500] + "... (truncated)"
+        else:
+            result[key] = value
+
+    return result
+
 
 class ValidationResult(BaseModel):
     """Result of validating an artifact against a schema."""
@@ -68,11 +106,13 @@ def validate_json_file(
 
     try:
         model.model_validate(data)
+        # Truncate sample to avoid MCP buffer overflow on large objects
+        sample = [_truncate_sample(data)] if isinstance(data, dict) else None
         return ValidationResult(
             valid=True,
             item_count=1,
             errors=[],
-            sample=[data] if isinstance(data, dict) else None,
+            sample=sample,
         )
     except ValidationError as e:
         errors = []
@@ -141,7 +181,7 @@ def validate_jsonl_file(
                     model.model_validate(data)
                     item_count += 1
                     if len(sample) < sample_size:
-                        sample.append(data)
+                        sample.append(_truncate_sample(data))
                 except ValidationError as e:
                     for error in e.errors():
                         loc = ".".join(str(x) for x in error["loc"])
