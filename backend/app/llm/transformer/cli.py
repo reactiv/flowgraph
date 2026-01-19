@@ -57,6 +57,37 @@ def colorize(text: str, color: str) -> str:
     return f"{color}{text}{Colors.RESET}"
 
 
+def import_model(import_path: str) -> type[BaseModel]:
+    """Import a Pydantic model by module path.
+
+    Format: "module.path:ClassName"
+
+    Examples:
+        "app.models.workflow:WorkflowDefinition"
+        "app.models.node:Node"
+    """
+    if ":" not in import_path:
+        raise ValueError(
+            f"Invalid import path '{import_path}': expected 'module.path:ClassName'"
+        )
+
+    module_path, class_name = import_path.rsplit(":", 1)
+
+    try:
+        import importlib
+        module = importlib.import_module(module_path)
+        model_class = getattr(module, class_name)
+
+        if not isinstance(model_class, type) or not issubclass(model_class, BaseModel):
+            raise ValueError(f"'{class_name}' is not a Pydantic BaseModel")
+
+        return model_class
+    except ImportError as e:
+        raise ValueError(f"Failed to import module '{module_path}': {e}") from e
+    except AttributeError:
+        raise ValueError(f"Class '{class_name}' not found in module '{module_path}'")
+
+
 def parse_model_spec(spec: str) -> type[BaseModel]:
     """Parse a model specification string into a Pydantic model.
 
@@ -108,25 +139,35 @@ def parse_model_spec(spec: str) -> type[BaseModel]:
     return create_model("DynamicModel", **fields)
 
 
+def out(text: str = "") -> None:
+    """Print with immediate flush for non-TTY environments."""
+    print(text, flush=True)
+
+
 def print_event(event_type: str, data: dict[str, Any]) -> None:
     """Print an event to the console with formatting."""
     timestamp = datetime.now().strftime("%H:%M:%S")
 
     if event_type == "iteration_start":
-        print()
-        print(colorize(f"[{timestamp}] ", Colors.DIM) +
-              colorize(f"=== Iteration {data['iteration']}/{data['max']} ===", Colors.BOLD))
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"=== Iteration {data['iteration']}/{data['max']} ===", Colors.BOLD))
 
     elif event_type == "text":
         text = data.get("text", "")
-        print(colorize(f"[{timestamp}] ", Colors.DIM) +
-              colorize("Agent: ", Colors.CYAN) + text)
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("Agent: ", Colors.CYAN) + text)
 
     elif event_type == "tool_call":
         tool = data.get("tool", "unknown")
         tool_input = data.get("input", {})
-        print(colorize(f"[{timestamp}] ", Colors.DIM) +
-              colorize(f"Tool: {tool}", Colors.YELLOW))
+        # Make tool calls very prominent with a banner
+        out()
+        out(colorize("┌" + "─" * 60, Colors.YELLOW))
+        out(colorize("│ ", Colors.YELLOW) +
+            colorize("TOOL CALL: ", Colors.BOLD + Colors.YELLOW) +
+            colorize(tool, Colors.BOLD))
+        out(colorize("└" + "─" * 60, Colors.YELLOW))
 
         # Format input nicely
         if tool == "write_file":
@@ -134,19 +175,19 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
             file_path = tool_input.get("file_path", "")
             content = tool_input.get("content", "")
             preview = content[:200] + "..." if len(content) > 200 else content
-            print(colorize(f"         → file: {file_path}", Colors.DIM))
-            print(colorize(f"         → content: {preview!r}", Colors.DIM))
+            out(colorize(f"  → file: {file_path}", Colors.DIM))
+            out(colorize(f"  → content: {preview!r}", Colors.DIM))
         elif tool == "read_file":
-            print(colorize(f"         → {tool_input.get('file_path', '')}", Colors.DIM))
+            out(colorize(f"  → {tool_input.get('file_path', '')}", Colors.DIM))
         elif tool == "list_files":
-            print(colorize(f"         → {tool_input.get('directory', './inputs')}", Colors.DIM))
+            out(colorize(f"  → {tool_input.get('directory', './inputs')}", Colors.DIM))
         elif tool == "validate_artifact":
-            print(colorize(f"         → {tool_input.get('file_path', '')}", Colors.DIM))
+            out(colorize(f"  → {tool_input.get('file_path', '')}", Colors.DIM))
         elif tool == "run_transformer":
             script = tool_input.get("script_path", "./transform.py")
-            print(colorize(f"         → {script}", Colors.DIM))
+            out(colorize(f"  → {script}", Colors.DIM))
         else:
-            print(colorize(f"         → {json.dumps(tool_input)}", Colors.DIM))
+            out(colorize(f"  → {json.dumps(tool_input)}", Colors.DIM))
 
     elif event_type == "tool_result":
         tool = data.get("tool", "unknown")
@@ -154,57 +195,58 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
 
         if tool == "list_files" and result.get("success"):
             files = result.get("files", [])
-            print(colorize(f"         ← Found {len(files)} files", Colors.DIM))
+            out(colorize(f"  ← Found {len(files)} files", Colors.GREEN))
         elif tool == "read_file" and result.get("success"):
             lines = result.get("line_count", 0)
-            print(colorize(f"         ← Read {lines} lines", Colors.DIM))
+            out(colorize(f"  ← Read {lines} lines", Colors.GREEN))
         elif tool == "write_file" and result.get("success"):
             bytes_written = result.get("bytes_written", 0)
-            print(colorize(f"         ← Wrote {bytes_written} bytes", Colors.DIM))
+            out(colorize(f"  ← Wrote {bytes_written} bytes", Colors.GREEN))
         elif tool == "run_transformer":
             if result.get("success"):
-                print(colorize("         ← Script executed successfully", Colors.GREEN))
+                out(colorize("  ← Script executed successfully", Colors.GREEN))
             else:
                 error = result.get("error") or result.get("stderr", "")[:100]
-                print(colorize(f"         ← Script failed: {error}", Colors.RED))
+                out(colorize(f"  ← Script failed: {error}", Colors.RED))
         elif tool == "validate_artifact":
             # Validation result is handled by the validation event
             pass
         elif not result.get("success", True):
             error = result.get("error", "Unknown error")
-            print(colorize(f"         ← Error: {error}", Colors.RED))
+            out(colorize(f"  ← Error: {error}", Colors.RED))
 
     elif event_type == "validation":
         valid = data.get("valid", False)
         item_count = data.get("item_count", 0)
         errors = data.get("errors", [])
 
+        out()
         if valid:
-            print(colorize(f"[{timestamp}] ", Colors.DIM) +
-                  colorize(f"✓ Validation passed: {item_count} items", Colors.GREEN))
+            out(colorize(f"[{timestamp}] ", Colors.DIM) +
+                colorize(f"✓ Validation passed: {item_count} items", Colors.GREEN + Colors.BOLD))
         else:
-            print(colorize(f"[{timestamp}] ", Colors.DIM) +
-                  colorize(f"✗ Validation failed: {len(errors)} errors", Colors.RED))
+            out(colorize(f"[{timestamp}] ", Colors.DIM) +
+                colorize(f"✗ Validation failed: {len(errors)} errors", Colors.RED + Colors.BOLD))
             for error in errors[:5]:  # Show first 5 errors
-                print(colorize(f"         • {error}", Colors.RED))
+                out(colorize(f"         • {error}", Colors.RED))
             if len(errors) > 5:
-                print(colorize(f"         • ... and {len(errors) - 5} more", Colors.RED))
+                out(colorize(f"         • ... and {len(errors) - 5} more", Colors.RED))
 
     elif event_type == "complete":
         item_count = data.get("item_count", 0)
         artifact_path = data.get("artifact_path", "")
         iterations = data.get("iterations", 0)
-        print()
-        print(colorize(f"[{timestamp}] ", Colors.DIM) +
-              colorize("=== Complete ===", Colors.GREEN + Colors.BOLD))
-        print(colorize(f"         Items: {item_count}", Colors.GREEN))
-        print(colorize(f"         Output: {artifact_path}", Colors.GREEN))
-        print(colorize(f"         Iterations: {iterations}", Colors.GREEN))
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("=== Complete ===", Colors.GREEN + Colors.BOLD))
+        out(colorize(f"         Items: {item_count}", Colors.GREEN))
+        out(colorize(f"         Output: {artifact_path}", Colors.GREEN))
+        out(colorize(f"         Iterations: {iterations}", Colors.GREEN))
 
     elif event_type == "error":
         error = data.get("error", "Unknown error")
-        print(colorize(f"[{timestamp}] ", Colors.DIM) +
-              colorize(f"Error: {error}", Colors.RED))
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"Error: {error}", Colors.RED))
 
 
 async def main():
@@ -226,8 +268,13 @@ async def main():
     )
     parser.add_argument(
         "--model", "-m",
-        default="name:str,value:str",
-        help="Model specification: 'field:type,field:type,...' (default: name:str,value:str)",
+        default=None,
+        help="Model specification: 'field:type,field:type,...' (e.g., 'name:str,age:int')",
+    )
+    parser.add_argument(
+        "--model-import", "-M",
+        default=None,
+        help="Import model: 'module:Class' (e.g., 'app.models.workflow:WorkflowDefinition')",
     )
     parser.add_argument(
         "--mode",
@@ -262,14 +309,26 @@ async def main():
     # Validate input path
     input_path = Path(args.input)
     if not input_path.exists():
-        print(colorize(f"Error: Input path not found: {input_path}", Colors.RED))
+        out(colorize(f"Error: Input path not found: {input_path}", Colors.RED))
         sys.exit(1)
 
-    # Parse model spec
-    try:
-        output_model = parse_model_spec(args.model)
-    except ValueError as e:
-        print(colorize(f"Error: {e}", Colors.RED))
+    # Load output model
+    if args.model_import:
+        try:
+            output_model = import_model(args.model_import)
+            model_display = args.model_import
+        except ValueError as e:
+            out(colorize(f"Error: {e}", Colors.RED))
+            sys.exit(1)
+    elif args.model:
+        try:
+            output_model = parse_model_spec(args.model)
+            model_display = args.model
+        except ValueError as e:
+            out(colorize(f"Error: {e}", Colors.RED))
+            sys.exit(1)
+    else:
+        out(colorize("Error: Must specify either --model or --model-import", Colors.RED))
         sys.exit(1)
 
     # Create config
@@ -281,12 +340,12 @@ async def main():
     )
 
     # Print header
-    print(colorize("=== Agentic Data Transformer ===", Colors.BOLD))
-    print(colorize(f"Input: {input_path}", Colors.DIM))
-    print(colorize(f"Instruction: {args.instruction}", Colors.DIM))
-    print(colorize(f"Model: {args.model}", Colors.DIM))
-    print(colorize(f"Mode: {args.mode}, Format: {args.format}", Colors.DIM))
-    print()
+    out(colorize("=== Agentic Data Transformer ===", Colors.BOLD))
+    out(colorize(f"Input: {input_path}", Colors.DIM))
+    out(colorize(f"Instruction: {args.instruction}", Colors.DIM))
+    out(colorize(f"Model: {model_display}", Colors.DIM))
+    out(colorize(f"Mode: {args.mode}, Format: {args.format}", Colors.DIM))
+    out()
 
     # Determine input paths - convert to strings for API compatibility
     input_paths: list[str | Path] = []
@@ -308,25 +367,25 @@ async def main():
 
         # Print final summary
         if args.quiet:
-            print(colorize("=== Complete ===", Colors.GREEN + Colors.BOLD))
+            out(colorize("=== Complete ===", Colors.GREEN + Colors.BOLD))
 
-        print()
-        print(colorize("Manifest:", Colors.BOLD))
-        print(json.dumps(result.manifest.model_dump(), indent=2))
+        out()
+        out(colorize("Manifest:", Colors.BOLD))
+        out(json.dumps(result.manifest.model_dump(), indent=2))
 
         if result.items:
-            print()
-            print(colorize(f"Sample output ({len(result.items)} items):", Colors.BOLD))
+            out()
+            out(colorize(f"Sample output ({len(result.items)} items):", Colors.BOLD))
             for item in result.items[:3]:
-                print(json.dumps(item.model_dump(), indent=2))
+                out(json.dumps(item.model_dump(), indent=2))
             if len(result.items) > 3:
-                print(f"... and {len(result.items) - 3} more")
+                out(f"... and {len(result.items) - 3} more")
 
     except ValueError as e:
-        print(colorize(f"Transformation failed: {e}", Colors.RED))
+        out(colorize(f"Transformation failed: {e}", Colors.RED))
         sys.exit(1)
     except KeyboardInterrupt:
-        print(colorize("\nCancelled by user", Colors.YELLOW))
+        out(colorize("\nCancelled by user", Colors.YELLOW))
         sys.exit(130)
 
 
