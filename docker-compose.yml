@@ -9,6 +9,7 @@ services:
       - ./backend:/app
       - ./data:/data
       - backend-venv:/app/.venv
+      - ${TRANSFORMER_INPUT:-./data/empty}:/app/transformer_input:ro
     environment:
       - DATABASE_PATH=/data/workflow.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
