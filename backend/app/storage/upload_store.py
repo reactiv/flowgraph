@@ -103,6 +103,20 @@ class UploadStore:
                 f"Allowed types: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
             )
 
+    def _validate_upload_id(self, upload_id: str) -> None:
+        """Validate that upload_id is a valid UUID to prevent path traversal.
+
+        Args:
+            upload_id: The upload session ID to validate.
+
+        Raises:
+            FileNotFoundError: If the upload_id is not a valid UUID.
+        """
+        try:
+            uuid.UUID(upload_id)
+        except ValueError:
+            raise FileNotFoundError(f"Invalid upload_id: {upload_id}")
+
     async def create_upload(self) -> str:
         """Create a new upload session.
 
@@ -152,6 +166,7 @@ class UploadStore:
             ValueError: If the file is invalid or limits are exceeded.
             FileNotFoundError: If the upload session doesn't exist.
         """
+        self._validate_upload_id(upload_id)
         upload_path = self.upload_dir / upload_id
         manifest_path = upload_path / "manifest.json"
 
@@ -223,6 +238,7 @@ class UploadStore:
         Raises:
             FileNotFoundError: If the upload session doesn't exist.
         """
+        self._validate_upload_id(upload_id)
         manifest_path = self.upload_dir / upload_id / "manifest.json"
         if not manifest_path.exists():
             raise FileNotFoundError(f"Upload session {upload_id} not found")
@@ -241,6 +257,7 @@ class UploadStore:
         Raises:
             FileNotFoundError: If the upload session doesn't exist.
         """
+        self._validate_upload_id(upload_id)
         upload_path = self.upload_dir / upload_id
         manifest_path = upload_path / "manifest.json"
 
@@ -261,6 +278,7 @@ class UploadStore:
         Args:
             upload_id: The upload session ID.
         """
+        self._validate_upload_id(upload_id)
         upload_path = self.upload_dir / upload_id
 
         if upload_path.exists():

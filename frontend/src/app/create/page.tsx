@@ -343,10 +343,20 @@ export default function CreateWorkflowPage() {
     }
   };
 
-  // Handle closing confirmation modal
-  const handleCloseConfirmation = () => {
+  // Handle closing confirmation modal (delete the pending workflow)
+  const handleCloseConfirmation = async () => {
     setShowTransformConfirmation(false);
-    // Note: workflow is already created but empty, user can still access it
+
+    // Delete the pending workflow since user cancelled
+    if (pendingWorkflowId) {
+      try {
+        await api.deleteWorkflow(pendingWorkflowId);
+      } catch (err) {
+        // Log but don't show error to user - they cancelled, the workflow cleanup is best-effort
+        console.warn('Failed to delete cancelled workflow:', err);
+      }
+      setPendingWorkflowId(null);
+    }
   };
 
   // Reset to start over

@@ -38,8 +38,6 @@ interface UseFileUploadReturn {
   uploadId: string | null;
 }
 
-let fileIdCounter = 0;
-
 /**
  * Hook for managing file selection and upload.
  *
@@ -78,7 +76,7 @@ export function useFileUpload(): UseFileUploadReturn {
   const addFiles = useCallback((files: File[]) => {
     const newSelectedFiles = files.map((file) => ({
       file,
-      id: `file-${++fileIdCounter}`,
+      id: crypto.randomUUID(),
     }));
     setSelectedFiles((prev) => [...prev, ...newSelectedFiles]);
     setError(null);

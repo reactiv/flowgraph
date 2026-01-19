@@ -152,9 +152,13 @@ export function useTransformerStream<T>(): UseTransformerStreamReturn<T> {
         setResult(null);
 
         // Connect directly to backend to avoid Next.js proxy buffering SSE
-        const frontendPort = parseInt(window.location.port || '3000', 10);
-        const backendPort = frontendPort === 3000 ? 8000 : frontendPort - 1;
-        const backendUrl = `http://${window.location.hostname}:${backendPort}`;
+        // Use NEXT_PUBLIC_BACKEND_URL if set, otherwise calculate from frontend port
+        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        if (!backendUrl) {
+          const frontendPort = parseInt(window.location.port || '3000', 10);
+          const backendPort = frontendPort === 3000 ? 8000 : frontendPort - 1;
+          backendUrl = `http://${window.location.hostname}:${backendPort}`;
+        }
 
         // If URL starts with /, prepend backend URL
         const fullUrl = url.startsWith('/') ? `${backendUrl}${url}` : url;
