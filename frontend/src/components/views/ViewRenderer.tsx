@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import type { Node } from '@/types/workflow';
+import { RuleViolationToast } from '@/components/node-detail/RuleViolationToast';
+import type { Node, RuleViolation } from '@/types/workflow';
 import type {
   ViewTemplate,
   KanbanConfig,
@@ -71,10 +73,31 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
       queryClient.invalidateQueries({ queryKey: ['view', workflowId, viewTemplate.id] });
       queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
     },
+    onError: (error: Error & { isRuleViolation?: boolean; violations?: RuleViolation[] }) => {
+      if (error.isRuleViolation && error.violations) {
+        // Show rich toast for rule violations
+        toast.custom(
+          (toastId) => (
+            <RuleViolationToast
+              violations={error.violations!}
+              onDismiss={() => toast.dismiss(toastId)}
+            />
+          ),
+          { duration: 15000 }
+        );
+      } else {
+        // Show simple error toast for other errors
+        toast.error(error.message || 'Failed to update status');
+      }
+    },
   });
 
   const handleNodeDrop = async (nodeId: string, newStatus: string) => {
-    await updateNodeMutation.mutateAsync({ nodeId, status: newStatus });
+    try {
+      await updateNodeMutation.mutateAsync({ nodeId, status: newStatus });
+    } catch {
+      // Error is handled by onError callback
+    }
   };
 
   // Render content area - handles loading/error states while keeping FilterBar mounted

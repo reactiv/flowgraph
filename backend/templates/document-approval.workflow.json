@@ -1,0 +1,224 @@
+{
+  "workflowId": "document_approval_v1",
+  "name": "Document Approval Workflow",
+  "description": "Demonstrates compliance-as-code with rules enforcing approval requirements. Documents must be reviewed before approval requests, and approved before publication.",
+  "tags": ["Compliance", "Approval", "Demo"],
+  "nodeTypes": [
+    {
+      "type": "Document",
+      "displayName": "Document",
+      "titleField": "title",
+      "subtitleField": "document_id",
+      "fields": [
+        {"key": "document_id", "label": "Document ID", "kind": "string", "required": true, "unique": true},
+        {"key": "title", "label": "Title", "kind": "string", "required": true},
+        {"key": "content", "label": "Content", "kind": "string"},
+        {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
+        {"key": "document_type", "label": "Type", "kind": "enum", "values": ["Policy", "Procedure", "Standard", "Guideline", "Form"]},
+        {"key": "department", "label": "Department", "kind": "enum", "values": ["HR", "Finance", "Operations", "IT", "Legal"]},
+        {"key": "version", "label": "Version", "kind": "string", "default": "1.0"},
+        {"key": "tags", "label": "Tags", "kind": "tag[]"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Draft",
+        "values": ["Draft", "In Review", "Pending Approval", "Approved", "Published", "Archived"],
+        "transitions": [
+          {"from": "Draft", "to": "In Review"},
+          {"from": "In Review", "to": "Pending Approval"},
+          {"from": "In Review", "to": "Draft"},
+          {"from": "Pending Approval", "to": "Approved"},
+          {"from": "Pending Approval", "to": "In Review"},
+          {"from": "Approved", "to": "Published"},
+          {"from": "Published", "to": "Archived"},
+          {"from": "Archived", "to": "Draft"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["board", "list", "detail"],
+        "primarySections": ["summary", "relationships", "events"],
+        "listColumns": ["document_id", "title", "author", "document_type", "department"],
+        "quickActions": ["Submit for Review", "Request Approval"]
+      }
+    },
+    {
+      "type": "Review",
+      "displayName": "Review",
+      "titleField": "summary",
+      "subtitleField": "review_id",
+      "fields": [
+        {"key": "review_id", "label": "Review ID", "kind": "string", "required": true, "unique": true},
+        {"key": "summary", "label": "Summary", "kind": "string", "required": true},
+        {"key": "reviewer", "label": "Reviewer", "kind": "person", "required": true},
+        {"key": "review_date", "label": "Review Date", "kind": "datetime"},
+        {"key": "comments", "label": "Comments", "kind": "string"},
+        {"key": "recommendation", "label": "Recommendation", "kind": "enum", "values": ["Approve", "Request Changes", "Reject"]}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Pending",
+        "values": ["Pending", "In Progress", "Complete"],
+        "transitions": [
+          {"from": "Pending", "to": "In Progress"},
+          {"from": "In Progress", "to": "Complete"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["review_id", "reviewer", "recommendation", "review_date"],
+        "quickActions": ["Complete Review"]
+      }
+    },
+    {
+      "type": "Approval",
+      "displayName": "Approval",
+      "titleField": "decision",
+      "subtitleField": "approval_id",
+      "fields": [
+        {"key": "approval_id", "label": "Approval ID", "kind": "string", "required": true, "unique": true},
+        {"key": "approver", "label": "Approver", "kind": "person", "required": true},
+        {"key": "approval_date", "label": "Approval Date", "kind": "datetime"},
+        {"key": "decision", "label": "Decision", "kind": "enum", "required": true, "values": ["Approved", "Rejected", "Deferred"]},
+        {"key": "comments", "label": "Comments", "kind": "string"}
+      ],
+      "states": {
+        "enabled": true,
+        "initial": "Pending",
+        "values": ["Pending", "Complete"],
+        "transitions": [
+          {"from": "Pending", "to": "Complete"}
+        ]
+      },
+      "ui": {
+        "defaultViews": ["list", "detail"],
+        "primarySections": ["summary", "relationships"],
+        "listColumns": ["approval_id", "approver", "decision", "approval_date"],
+        "quickActions": ["Record Decision"]
+      }
+    }
+  ],
+  "edgeTypes": [
+    {
+      "type": "HAS_REVIEW",
+      "displayName": "has review",
+      "from": "Document",
+      "to": "Review",
+      "direction": "out"
+    },
+    {
+      "type": "HAS_APPROVAL",
+      "displayName": "has approval",
+      "from": "Document",
+      "to": "Approval",
+      "direction": "out"
+    }
+  ],
+  "rules": [
+    {
+      "id": "doc_requires_review_before_approval",
+      "when": {
+        "nodeType": "Document",
+        "transitionTo": "Pending Approval"
+      },
+      "requireEdges": [
+        {"edgeType": "HAS_REVIEW", "minCount": 1}
+      ],
+      "message": "A Document must have at least 1 Review before it can move to Pending Approval."
+    },
+    {
+      "id": "doc_requires_approval_before_publish",
+      "when": {
+        "nodeType": "Document",
+        "transitionTo": "Published"
+      },
+      "requireEdges": [
+        {"edgeType": "HAS_APPROVAL", "minCount": 1}
+      ],
+      "message": "A Document requires at least 1 Approval before it can be Published."
+    }
+  ],
+  "viewTemplates": [
+    {
+      "id": "doc-board",
+      "name": "Document Board",
+      "description": "Kanban view of documents by status",
+      "icon": "layout-grid",
+      "rootType": "Document",
+      "edges": [],
+      "levels": {
+        "Document": {
+          "style": "kanban",
+          "styleConfig": {
+            "groupByField": "status",
+            "columnOrder": ["Draft", "In Review", "Pending Approval", "Approved", "Published", "Archived"],
+            "columnColors": {
+              "Draft": "#64748b",
+              "In Review": "#3b82f6",
+              "Pending Approval": "#eab308",
+              "Approved": "#22c55e",
+              "Published": "#059669",
+              "Archived": "#475569"
+            },
+            "allowDrag": true,
+            "showCounts": true,
+            "cardTemplate": {
+              "titleField": "title",
+              "subtitleField": "document_id",
+              "statusField": "status",
+              "bodyFields": ["author", "document_type"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "doc-table",
+      "name": "Document List",
+      "description": "Table view of all documents",
+      "icon": "list",
+      "rootType": "Document",
+      "edges": [],
+      "levels": {
+        "Document": {
+          "style": "table",
+          "styleConfig": {
+            "columns": ["document_id", "title", "author", "document_type", "department", "status", "created_date"],
+            "sortable": true,
+            "statusColors": {
+              "Draft": "#64748b",
+              "In Review": "#3b82f6",
+              "Pending Approval": "#eab308",
+              "Approved": "#22c55e",
+              "Published": "#059669",
+              "Archived": "#475569"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "review-list",
+      "name": "Reviews",
+      "description": "List of all reviews",
+      "icon": "clipboard-check",
+      "rootType": "Review",
+      "edges": [],
+      "levels": {
+        "Review": {
+          "style": "table",
+          "styleConfig": {
+            "columns": ["review_id", "summary", "reviewer", "recommendation", "status", "review_date"],
+            "sortable": true,
+            "statusColors": {
+              "Pending": "#64748b",
+              "In Progress": "#3b82f6",
+              "Complete": "#22c55e"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

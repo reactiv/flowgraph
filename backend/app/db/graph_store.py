@@ -19,6 +19,7 @@ from app.models import (
     WorkflowDefinition,
 )
 from app.models.workflow import (
+    Rule,
     ViewFilterParams,
     ViewTemplate,
     ViewTemplateCreate,
@@ -862,6 +863,102 @@ class GraphStore:
         if workflow is None:
             return []
         return workflow.view_templates
+
+    # ==================== Rules ====================
+
+    async def add_rule(self, workflow_id: str, rule: Rule) -> Rule | None:
+        """Add a rule to a workflow definition."""
+        db = await get_db()
+
+        # Get current workflow definition
+        cursor = await db.execute(
+            "SELECT definition_json, version FROM workflow_definitions WHERE id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+
+        definition_dict = json.loads(row["definition_json"])
+        current_version = row["version"]
+
+        # Add to rules list
+        if "rules" not in definition_dict:
+            definition_dict["rules"] = []
+
+        # Check for duplicate rule ID
+        existing_ids = {r.get("id") for r in definition_dict["rules"]}
+        if rule.id in existing_ids:
+            # Generate unique ID if collision
+            rule = Rule(
+                id=f"{rule.id}_{_generate_id()[:6]}",
+                when=rule.when,
+                require_edges=rule.require_edges,
+                message=rule.message,
+            )
+
+        definition_dict["rules"].append(rule.model_dump(by_alias=True))
+
+        # Update definition_json and increment version
+        now = _now()
+        await db.execute(
+            """
+            UPDATE workflow_definitions
+            SET definition_json = ?, version = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(definition_dict), current_version + 1, now, workflow_id),
+        )
+        await db.commit()
+
+        return rule
+
+    async def delete_rule(self, workflow_id: str, rule_id: str) -> bool:
+        """Delete a rule from a workflow definition."""
+        db = await get_db()
+
+        # Get current workflow definition
+        cursor = await db.execute(
+            "SELECT definition_json, version FROM workflow_definitions WHERE id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return False
+
+        definition_dict = json.loads(row["definition_json"])
+        current_version = row["version"]
+
+        # Find and remove the rule
+        rules = definition_dict.get("rules", [])
+        original_count = len(rules)
+        rules = [r for r in rules if r.get("id") != rule_id]
+
+        if len(rules) == original_count:
+            return False  # Rule not found
+
+        definition_dict["rules"] = rules
+
+        # Update definition_json and increment version
+        now = _now()
+        await db.execute(
+            """
+            UPDATE workflow_definitions
+            SET definition_json = ?, version = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(definition_dict), current_version + 1, now, workflow_id),
+        )
+        await db.commit()
+
+        return True
+
+    async def list_rules(self, workflow_id: str) -> list[Rule]:
+        """List all rules for a workflow."""
+        workflow = await self.get_workflow(workflow_id)
+        if workflow is None:
+            return []
+        return workflow.rules
 
     # ==================== Events ====================
 

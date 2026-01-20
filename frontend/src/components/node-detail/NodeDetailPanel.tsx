@@ -3,16 +3,19 @@
 import { useEffect, useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { WorkflowDefinition, NodeType, NodeCreate, EdgeCreate } from '@/types/workflow';
+import { RuleViolationToast } from './RuleViolationToast';
+import type { WorkflowDefinition, NodeType, NodeCreate, EdgeCreate, RuleViolation } from '@/types/workflow';
 import type { SuggestionDirection } from '@/types/suggestion';
 import { NodeDetailHeader } from './NodeDetailHeader';
 import { SummaryTab } from './tabs/SummaryTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
 import { RelationshipsTab } from './tabs/RelationshipsTab';
+import { RulesTab } from './tabs/RulesTab';
 
-type TabId = 'summary' | 'properties' | 'relationships';
+type TabId = 'summary' | 'properties' | 'relationships' | 'rules';
 
 interface NodeDetailPanelProps {
   workflowId: string;
@@ -73,6 +76,28 @@ export function NodeDetailPanel({
       queryClient.invalidateQueries({ queryKey: ['node', workflowId, nodeId] });
       queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
     },
+    onError: (error: Error & { isRuleViolation?: boolean; violations?: RuleViolation[] }) => {
+      if (error.isRuleViolation && error.violations) {
+        // Show rich toast for rule violations
+        toast.custom(
+          (toastId) => (
+            <RuleViolationToast
+              violations={error.violations!}
+              onAddEdge={() => {
+                // Switch to relationships tab to add missing edges
+                setActiveTab('relationships');
+                toast.dismiss(toastId);
+              }}
+              onDismiss={() => toast.dismiss(toastId)}
+            />
+          ),
+          { duration: 15000 }
+        );
+      } else {
+        // Show simple error toast for other errors
+        toast.error(error.message || 'Failed to update node');
+      }
+    },
   });
 
   // Get node type definition
@@ -125,10 +150,16 @@ export function NodeDetailPanel({
 
   if (!nodeId) return null;
 
+  // Build tabs - include Rules tab only if there are rules for this node type
+  const hasApplicableRules = node
+    ? workflowDefinition.rules.some((r) => r.when.nodeType === node.type)
+    : false;
+
   const tabs: { id: TabId; label: string }[] = [
     { id: 'summary', label: 'Summary' },
     { id: 'properties', label: 'Properties' },
     { id: 'relationships', label: 'Relationships' },
+    ...(hasApplicableRules ? [{ id: 'rules' as TabId, label: 'Rules' }] : []),
   ];
 
   return (
@@ -223,6 +254,13 @@ export function NodeDetailPanel({
                   isLoading={neighborsLoading}
                   onNodeClick={handleRelatedNodeClick}
                   onSuggestAccept={handleSuggestAccept}
+                />
+              )}
+              {activeTab === 'rules' && (
+                <RulesTab
+                  node={node}
+                  rules={workflowDefinition.rules}
+                  neighbors={neighbors}
                 />
               )}
             </div>
