@@ -9,13 +9,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 from pydantic import BaseModel
 
-from app.llm.transformer.validator import validate_artifact as _validate_artifact
+from app.llm.transformer.validator import (
+    CustomValidationError,
+    validate_artifact_with_custom,
+)
 
 
 def create_transformer_tools(
@@ -23,6 +27,7 @@ def create_transformer_tools(
     output_model: type[BaseModel],
     output_format: str = "jsonl",
     input_paths: list[str] | None = None,
+    custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
 ):
     """Create custom MCP tools for the transformer.
 
@@ -31,6 +36,7 @@ def create_transformer_tools(
         output_model: Pydantic model for validation.
         output_format: Output format ('json' or 'jsonl').
         input_paths: Original input file paths for validation.
+        custom_validator: Optional custom validator for domain-specific validation.
 
     Returns:
         SDK MCP server with custom tools.
@@ -59,16 +65,18 @@ def create_transformer_tools(
                 "content": [{"type": "text", "text": error_json}]
             }
 
-        result = _validate_artifact(
+        result = validate_artifact_with_custom(
             file_path=resolved_path,
             model=output_model,
             format=output_format,
+            custom_validator=custom_validator,
         )
 
         response = {
             "valid": result.valid,
             "item_count": result.item_count,
             "errors": result.errors,
+            "custom_errors": [e.model_dump() for e in result.custom_errors],
             "sample": result.sample,
         }
 
