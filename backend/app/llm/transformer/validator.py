@@ -2,12 +2,33 @@
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class CustomValidationError(BaseModel):
+    """A custom validation error from domain-specific validation.
+
+    Used for semantic validation beyond Pydantic schema validation,
+    e.g., checking that node_type exists in WorkflowDefinition.
+    """
+
+    path: str
+    """Path to the invalid data, e.g., "nodes[3].node_type"."""
+
+    message: str
+    """Human-readable error message."""
+
+    code: str
+    """Error code for programmatic handling, e.g., "invalid_node_type"."""
+
+    context: dict[str, Any] | None = None
+    """Additional context about the error."""
 
 # Max size for sample data to avoid MCP buffer overflow (1MB limit)
 MAX_SAMPLE_JSON_SIZE = 50_000  # 50KB is plenty for the agent to see structure
@@ -59,6 +80,9 @@ class ValidationResult(BaseModel):
 
     errors: list[str]
     """List of validation errors (with line numbers for JSONL)."""
+
+    custom_errors: list[CustomValidationError] = []
+    """Custom validation errors from domain-specific validation."""
 
     sample: list[dict[str, Any]] | None = None
     """Sample of successfully parsed items (first few)."""
@@ -234,6 +258,60 @@ def validate_artifact(
             item_count=0,
             errors=[f"Unknown format: {format}. Expected 'json' or 'jsonl'."],
         )
+
+
+def validate_artifact_with_custom(
+    file_path: str | Path,
+    model: type[BaseModel],
+    format: str = "jsonl",
+    max_errors: int = 10,
+    custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
+) -> ValidationResult:
+    """Validate an artifact file against a Pydantic model with optional custom validation.
+
+    Runs Pydantic schema validation first. If that passes and a custom_validator
+    is provided, runs custom validation on the parsed data.
+
+    Args:
+        file_path: Path to the artifact file.
+        model: Pydantic model to validate against.
+        format: File format ('json' or 'jsonl').
+        max_errors: Maximum number of errors to collect (for JSONL).
+        custom_validator: Optional function to perform domain-specific validation.
+            Takes parsed data and returns a list of CustomValidationError.
+
+    Returns:
+        ValidationResult with validation status and any errors.
+    """
+    # First run Pydantic validation
+    result = validate_artifact(file_path, model, format=format, max_errors=max_errors)
+
+    # If Pydantic validation failed or no custom validator, return as-is
+    if not result.valid or custom_validator is None:
+        return result
+
+    # Run custom validation
+    file_path = Path(file_path)
+    try:
+        content = file_path.read_text()
+        data = json.loads(content)
+        validated_obj = model.model_validate(data)
+        custom_errors = custom_validator(validated_obj)
+
+        if custom_errors:
+            return ValidationResult(
+                valid=False,
+                item_count=result.item_count,
+                errors=result.errors,
+                custom_errors=custom_errors,
+                sample=result.sample,
+            )
+
+        return result
+
+    except Exception as e:
+        logger.warning(f"Custom validation failed with exception: {e}")
+        return result
 
 
 def get_schema_description(model: type[BaseModel]) -> str:
