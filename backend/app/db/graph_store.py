@@ -606,6 +606,8 @@ class GraphStore:
         result["levels"][template.root_type] = {
             "nodes": [node.model_dump() for node in root_nodes],
             "edges": [],
+            "count": len(root_nodes),
+            "parent_map": {},  # Root nodes have no parents
         }
 
         # Track visited node IDs to avoid cycles
@@ -617,6 +619,7 @@ class GraphStore:
         for edge_config in template.edges:
             level_nodes: list[dict[str, Any]] = []
             level_edges: list[dict[str, Any]] = []
+            level_parent_map: dict[str, str] = {}  # child_id -> parent_id
 
             for node in current_level_nodes:
                 # Determine which direction to traverse
@@ -645,6 +648,8 @@ class GraphStore:
                         if neighbor_node["id"] not in visited_node_ids:
                             visited_node_ids.add(neighbor_node["id"])
                             level_nodes.append(neighbor_node)
+                            # Track parent relationship (the node we traversed from)
+                            level_parent_map[neighbor_node["id"]] = node.id
                         level_edges.append(edge)
 
             # Store this level's nodes and edges
@@ -652,10 +657,14 @@ class GraphStore:
                 result["levels"][edge_config.target_type] = {
                     "nodes": [],
                     "edges": [],
+                    "count": 0,
+                    "parent_map": {},
                 }
 
             result["levels"][edge_config.target_type]["nodes"].extend(level_nodes)
             result["levels"][edge_config.target_type]["edges"].extend(level_edges)
+            result["levels"][edge_config.target_type]["count"] += len(level_nodes)
+            result["levels"][edge_config.target_type]["parent_map"].update(level_parent_map)
 
             # Update current level for next traversal (if needed for deeper traversals)
             current_level_nodes = [

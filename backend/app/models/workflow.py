@@ -150,6 +150,15 @@ class ViewStyle(str, Enum):
     TIMELINE = "timeline"
     TABLE = "table"
     GANTT = "gantt"
+    RECORD = "record"
+
+
+class RecordSelectorStyle(str, Enum):
+    """How to display the root node selector in Record view."""
+
+    LIST = "list"
+    CARDS = "cards"
+    DROPDOWN = "dropdown"
 
 
 class CardTemplate(BaseModel):
@@ -246,6 +255,35 @@ class GanttConfig(BaseModel):
     allow_drag: bool = PydanticField(default=True, alias="allowDrag")
     allow_resize: bool = PydanticField(default=True, alias="allowResize")
     card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
+
+    model_config = {"populate_by_name": True}
+
+
+class RecordSectionConfig(BaseModel):
+    """Configuration for a section in Record view."""
+
+    target_type: str = PydanticField(alias="targetType")
+    title: str | None = None  # Override display name
+    description: str | None = None
+    collapsed_by_default: bool = PydanticField(default=False, alias="collapsedByDefault")
+    max_items: int | None = PydanticField(default=None, alias="maxItems")
+    empty_message: str | None = PydanticField(default=None, alias="emptyMessage")
+    display_nested: bool = PydanticField(default=False, alias="displayNested")
+    allow_create: bool = PydanticField(default=True, alias="allowCreate")
+
+    model_config = {"populate_by_name": True}
+
+
+class RecordConfig(BaseModel):
+    """Configuration for Record-style view (hierarchical detail with sections)."""
+
+    selector_style: RecordSelectorStyle = PydanticField(
+        default=RecordSelectorStyle.LIST, alias="selectorStyle"
+    )
+    show_properties: bool = PydanticField(default=True, alias="showProperties")
+    properties_title: str = PydanticField(default="Properties", alias="propertiesTitle")
+    property_fields: list[str] | None = PydanticField(default=None, alias="propertyFields")
+    sections: list[RecordSectionConfig] = []
 
     model_config = {"populate_by_name": True}
 
@@ -405,7 +443,13 @@ class LevelConfig(BaseModel):
 
     style: ViewStyle
     style_config: (
-        KanbanConfig | CardsConfig | TreeConfig | TimelineConfig | TableConfig | GanttConfig
+        KanbanConfig
+        | CardsConfig
+        | TreeConfig
+        | TimelineConfig
+        | TableConfig
+        | GanttConfig
+        | RecordConfig
     ) = PydanticField(alias="styleConfig")
     inline_children: list[str] = PydanticField(default=[], alias="inlineChildren")
     expanded_by_default: bool = PydanticField(default=False, alias="expandedByDefault")

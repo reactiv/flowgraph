@@ -189,6 +189,7 @@ export default function WorkflowPage() {
           <ViewRenderer
             workflowId={workflowId}
             viewTemplate={selectedViewTemplate}
+            workflowDefinition={workflow}
             onNodeClick={handleNodeClick}
           />
         </div>

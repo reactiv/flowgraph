@@ -9,9 +9,11 @@ from app.models import WorkflowDefinition
 from app.models.workflow import (
     CardsConfig,
     CardTemplate,
+    EdgeTraversal,
     GanttConfig,
     KanbanConfig,
     LevelConfig,
+    RecordConfig,
     TableConfig,
     TimelineConfig,
     TreeConfig,
@@ -62,6 +64,15 @@ Given a workflow description and schema, generate a diverse set of useful views 
 - columns: Number of columns for grid layout
 - cardTemplate: How to display each card
 
+**record**: Hierarchical detail view (best for master-detail, deep exploration)
+- selectorStyle: "list" | "cards" | "dropdown" (how to display root node selector)
+- showProperties: true/false (show property section)
+- propertiesTitle: Title for properties section
+- propertyFields: Array of field keys to show (null = all fields)
+- sections: Array of related node sections to display
+  - Each section needs: targetType, title (optional), collapsedByDefault (optional)
+  - Sections display related nodes in their own configured view style
+
 ## Response Format
 
 Return a JSON array of view templates:
@@ -99,6 +110,9 @@ Cards:
 Tree:
 {"expandable": true, "showDepthLines": true, "cardTemplate": {"titleField": "name", "statusField": "status"}}
 
+Record (requires edges config):
+{"selectorStyle": "list", "showProperties": true, "propertiesTitle": "Details", "sections": [{"targetType": "Task", "title": "Tasks", "collapsedByDefault": false}]}
+
 ## Color Guidelines
 - Pending/Draft/New/Proposed: grey (#64748b)
 - In Progress/Active/Running: blue (#3b82f6)
@@ -123,21 +137,41 @@ Create declarative view configurations that define how to display workflow data.
 
 ## View Styles
 
-**kanban**: Group items in columns by a field value
-- groupByField: The field key to group by (e.g., "status")
+**kanban**: Group items in columns by a field value (requires status/enum field)
+- groupByField: The field key to group by (e.g., "status") - MUST exist in schema
 - columnOrder: Array of values in display order
 - columnColors: Map of value to hex color (semantic colors preferred)
 - cardTemplate.bodyFields: Array of field keys to show in card body
 
-**gantt**: Show items as duration bars on a timeline
-- startDateField: The field key containing the start date (must be datetime type)
-- endDateField: The field key containing the end date (must be datetime type)
-- progressField: Optional field with percentage (0-100) for progress indicator
-- labelField: Optional field to display on the bar (defaults to title)
-- groupByField: Optional field to group rows (e.g., by assignee or priority)
-- timeScale: "day" | "week" | "month" (default: "week")
-- statusColors: Map of status value to hex color for bar coloring
-- dependencyEdgeTypes: Array of edge types that represent task dependencies (optional)
+**table**: Sortable data grid (best for data-heavy views, reporting)
+- columns: Array of field keys to display as columns
+- sortable: true/false
+
+**cards**: Card grid or list (best for browsing, galleries)
+- layout: "grid" | "list" | "single"
+- columns: Number of columns for grid layout
+- cardTemplate: How to display each card
+
+**timeline**: Date-grouped entries (best for chronological views)
+- dateField: Field containing the date to group by (must be datetime type)
+- granularity: "day" | "week" | "month"
+- showConnectors: true/false
+
+**tree**: Hierarchical view (best for parent-child relationships)
+- expandable: true/false
+- showDepthLines: true/false
+
+**gantt**: Timeline with duration bars (best for project planning)
+- startDateField: Field with start date (must be datetime type)
+- endDateField: Field with end date (must be datetime type)
+- timeScale: "day" | "week" | "month"
+
+**record**: Hierarchical detail view (best for master-detail exploration)
+- selectorStyle: "list" | "cards" | "dropdown"
+- showProperties: true/false
+- propertiesTitle: Title for properties section
+- propertyFields: Array of field keys to show (null = all)
+- sections: Array of {targetType, title, collapsedByDefault} for related nodes
 
 ## Response Format
 
@@ -183,8 +217,14 @@ Return ONLY valid JSON:
 ## Rules
 - rootType MUST exactly match a node type name from the schema
 - All field keys MUST exactly match keys from the schema (they are quoted in the schema)
-- Include columnColors for all values in columnOrder
-- Include relevant fields in bodyFields (e.g., author, date, type fields)
+- CRITICAL: For titleField, use the ACTUAL field key (usually "name"), NOT "title"
+- Choose a style that fits the node type's fields:
+  - Use "kanban" ONLY if the node type has a "status" field or enum field to group by
+  - Use "table" for data-heavy node types or when there's no status field
+  - Use "record" when the user asks for hierarchical/detail views
+  - Use "timeline" when the node type has datetime fields
+  - Use "gantt" when there are start/end date fields
+- For kanban: Include columnColors for all values in columnOrder
 - Only output valid JSON, no markdown or explanations
 """
 
@@ -253,6 +293,32 @@ class ViewGenerator:
 
     def __init__(self, llm_client: LLMClient | None = None):
         self._llm_client = llm_client or get_client()
+
+    def _find_edge_for_types(
+        self, definition: WorkflowDefinition, from_type: str, to_type: str
+    ) -> EdgeTraversal | None:
+        """Find an edge type that connects from_type to to_type.
+
+        Checks both directions:
+        - from_type -> to_type (outgoing)
+        - to_type -> from_type (incoming from to_type's perspective)
+        """
+        for edge_type in definition.edge_types:
+            # Check outgoing: from_type -> to_type
+            if edge_type.from_type == from_type and edge_type.to_type == to_type:
+                return EdgeTraversal(
+                    edgeType=edge_type.type,
+                    direction="outgoing",
+                    targetType=to_type,
+                )
+            # Check incoming: to_type -> from_type (we're at from_type, edge comes in)
+            if edge_type.from_type == to_type and edge_type.to_type == from_type:
+                return EdgeTraversal(
+                    edgeType=edge_type.type,
+                    direction="incoming",
+                    targetType=to_type,
+                )
+        return None
 
     async def generate_view(
         self, description: str, workflow_definition: WorkflowDefinition
@@ -391,6 +457,50 @@ Based on the workflow description and schema, generate 3-6 diverse views that wo
         elif style == "cards":
             config = CardsConfig.model_validate(style_config)
             level_config = LevelConfig(style=ViewStyle.CARDS, styleConfig=config)
+        elif style == "record":
+            config = RecordConfig.model_validate(style_config)
+            level_config = LevelConfig(style=ViewStyle.RECORD, styleConfig=config)
+
+            # For record views, we need to create edges and level configs for sections
+            edges: list[EdgeTraversal] = []
+            levels: dict[str, LevelConfig] = {root_type: level_config}
+
+            for section in config.sections:
+                target_type = section.target_type
+                if target_type not in valid_types:
+                    logger.warning(
+                        f"Skipping section with invalid target type: {target_type}"
+                    )
+                    continue
+
+                # Find an edge type that connects root_type to target_type
+                edge_traversal = self._find_edge_for_types(
+                    definition, root_type, target_type
+                )
+                if edge_traversal:
+                    edges.append(edge_traversal)
+
+                    # Create a default table config for the target type
+                    target_node_type = next(
+                        nt for nt in definition.node_types if nt.type == target_type
+                    )
+                    target_fields = [f.key for f in target_node_type.fields[:5]]
+                    target_config = TableConfig(columns=target_fields, sortable=True)
+                    levels[target_type] = LevelConfig(
+                        style=ViewStyle.TABLE, styleConfig=target_config
+                    )
+                else:
+                    logger.warning(
+                        f"No edge found connecting {root_type} to {target_type}"
+                    )
+
+            return ViewTemplateCreate(
+                name=view_data.get("name", f"{root_type} View"),
+                description=view_data.get("description"),
+                rootType=root_type,
+                edges=edges,
+                levels=levels,
+            )
         else:
             raise ValueError(f"Unknown style '{style}'")
 
@@ -421,6 +531,9 @@ Based on the workflow description and schema, generate 3-6 diverse views that wo
         # Build set of valid field keys (status is now a regular field)
         valid_fields = {f.key for f in node_type_def.fields}
 
+        # Track edges for record views
+        edges: list[EdgeTraversal] = []
+
         # Process and validate levels
         levels = result.get("levels", {})
         if not levels:
@@ -445,15 +558,22 @@ Based on the workflow description and schema, generate 3-6 diverse views that wo
                         f"Valid fields: {valid_fields}"
                     )
 
-                # Validate cardTemplate fields if present
+                # Validate and fix cardTemplate fields if present
                 card_tpl = style_config.get("cardTemplate", {})
                 for field_key in ["titleField", "subtitleField", "statusField"]:
                     field_val = card_tpl.get(field_key)
                     if field_val and field_val not in valid_fields:
-                        raise ValueError(
-                            f"Invalid {field_key} '{field_val}'. "
-                            f"Valid fields: {valid_fields}"
-                        )
+                        # Try common auto-fixes
+                        if field_val == "title" and "name" in valid_fields:
+                            card_tpl[field_key] = "name"
+                            logger.info(f"Auto-fixed {field_key}: 'title' -> 'name'")
+                        else:
+                            # Remove invalid field rather than failing
+                            logger.warning(
+                                f"Removing invalid {field_key} '{field_val}' "
+                                f"(valid: {valid_fields})"
+                            )
+                            del card_tpl[field_key]
 
                 config = KanbanConfig.model_validate(style_config)
                 processed_levels[node_type_name] = LevelConfig(
@@ -491,8 +611,76 @@ Based on the workflow description and schema, generate 3-6 diverse views that wo
                 processed_levels[node_type_name] = LevelConfig(
                     style=ViewStyle.GANTT, styleConfig=config
                 )
+            elif style_str == "record":
+                config = RecordConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.RECORD, styleConfig=config
+                )
+
+                # For record views, create edges and level configs for sections
+                for section in config.sections:
+                    target_type = section.target_type
+                    if target_type not in valid_types:
+                        logger.warning(
+                            f"Skipping section with invalid target type: {target_type}"
+                        )
+                        continue
+
+                    # Find an edge connecting root_type to target_type
+                    edge_traversal = self._find_edge_for_types(
+                        definition, root_type, target_type
+                    )
+                    if edge_traversal:
+                        edges.append(edge_traversal)
+
+                        # Create a default table config for the target type if not defined
+                        if target_type not in processed_levels:
+                            target_node_type = next(
+                                nt
+                                for nt in definition.node_types
+                                if nt.type == target_type
+                            )
+                            target_fields = [f.key for f in target_node_type.fields[:5]]
+                            target_config = TableConfig(
+                                columns=target_fields, sortable=True
+                            )
+                            processed_levels[target_type] = LevelConfig(
+                                style=ViewStyle.TABLE, styleConfig=target_config
+                            )
+                    else:
+                        logger.warning(
+                            f"No edge found connecting {root_type} to {target_type}"
+                        )
+            elif style_str == "table":
+                config = TableConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.TABLE, styleConfig=config
+                )
+            elif style_str == "cards":
+                config = CardsConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.CARDS, styleConfig=config
+                )
+            elif style_str == "timeline":
+                # Validate dateField exists
+                date_field = style_config.get("dateField")
+                if date_field and date_field not in valid_fields:
+                    raise ValueError(
+                        f"Invalid dateField '{date_field}'. "
+                        f"Valid fields: {valid_fields}"
+                    )
+                config = TimelineConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.TIMELINE, styleConfig=config
+                )
+            elif style_str == "tree":
+                config = TreeConfig.model_validate(style_config)
+                processed_levels[node_type_name] = LevelConfig(
+                    style=ViewStyle.TREE, styleConfig=config
+                )
             else:
-                # Default to kanban for unimplemented styles
+                # Unknown style - try to create a sensible default
+                # First, try kanban if there's a status field
                 status_field = next(
                     (f for f in node_type_def.fields if f.key == "status"), None
                 )
@@ -504,22 +692,28 @@ Based on the workflow description and schema, generate 3-6 diverse views that wo
                         showCounts=True,
                         showEmptyColumns=True,
                     )
-                else:
-                    config = KanbanConfig(
-                        groupByField="status",
-                        allowDrag=True,
-                        showCounts=True,
-                        showEmptyColumns=True,
+                    processed_levels[node_type_name] = LevelConfig(
+                        style=ViewStyle.KANBAN, styleConfig=config
                     )
-                processed_levels[node_type_name] = LevelConfig(
-                    style=ViewStyle.KANBAN, styleConfig=config
-                )
+                else:
+                    # Fall back to table view if no status field
+                    table_columns = [node_type_def.title_field]
+                    for field in node_type_def.fields:
+                        if len(table_columns) >= 5:
+                            break
+                        if field.key != node_type_def.title_field:
+                            table_columns.append(field.key)
+                    config = TableConfig(columns=table_columns, sortable=True)
+                    processed_levels[node_type_name] = LevelConfig(
+                        style=ViewStyle.TABLE, styleConfig=config
+                    )
 
         return ViewTemplateCreate(
             name=result.get("name", f"{root_type} View"),
             description=result.get("description"),
             icon=result.get("icon"),
             rootType=root_type,
+            edges=edges,
             levels=processed_levels,
         )
 
