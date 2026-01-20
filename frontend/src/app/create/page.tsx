@@ -663,6 +663,7 @@ export default function CreateWorkflowPage() {
                       timeline: '\uD83D\uDCC5',
                       table: '\uD83D\uDCCB',
                       gantt: '\uD83D\uDCC8',
+                      record: '\uD83D\uDCC4',
                     }[style] || '\uD83D\uDCCA';
 
                     return (
@@ -845,7 +846,7 @@ export default function CreateWorkflowPage() {
                   isSeedingFromFiles ||
                   isPreviewingTransform ||
                   isConfirmingTransform ||
-                  (validation !== null && !validation.isValid) ||
+                  (validation?.errors && validation.errors.length > 0) ||
                   (seedSource === 'files' && !uploadId && selectedFiles.length === 0)
                 }
                 className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

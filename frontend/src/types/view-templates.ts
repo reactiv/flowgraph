@@ -7,7 +7,9 @@ import type { Node, Edge } from './workflow';
 
 // ==================== Style Configuration Types ====================
 
-export type ViewStyle = 'kanban' | 'cards' | 'tree' | 'timeline' | 'table' | 'gantt';
+export type ViewStyle = 'kanban' | 'cards' | 'tree' | 'timeline' | 'table' | 'gantt' | 'record';
+
+export type RecordSelectorStyle = 'list' | 'cards' | 'dropdown';
 
 export interface CardTemplate {
   titleField?: string;
@@ -73,13 +75,33 @@ export interface GanttConfig {
   cardTemplate?: CardTemplate;
 }
 
+export interface RecordSectionConfig {
+  targetType: string;
+  title?: string;
+  description?: string;
+  collapsedByDefault?: boolean;
+  maxItems?: number;
+  emptyMessage?: string;
+  displayNested?: boolean;
+  allowCreate?: boolean;
+}
+
+export interface RecordConfig {
+  selectorStyle: RecordSelectorStyle;
+  showProperties?: boolean;
+  propertiesTitle?: string;
+  propertyFields?: string[];
+  sections: RecordSectionConfig[];
+}
+
 export type StyleConfig =
   | KanbanConfig
   | CardsConfig
   | TreeConfig
   | TimelineConfig
   | TableConfig
-  | GanttConfig;
+  | GanttConfig
+  | RecordConfig;
 
 // ==================== Action and Filter Types ====================
 
@@ -230,6 +252,8 @@ export interface ViewTemplateUpdate {
 export interface LevelData {
   nodes: Node[];
   edges: Edge[];
+  count: number;
+  parent_map: Record<string, string>; // child_id -> parent_id
 }
 
 export interface ViewSubgraphResponse {
@@ -284,4 +308,12 @@ export interface GanttViewProps {
     updates: { start?: string; end?: string }
   ) => Promise<void>;
   onStatusChange?: (nodeId: string, newStatus: string) => Promise<void>;
+}
+
+export interface RecordViewProps {
+  workflowId: string;
+  viewTemplate: ViewTemplate;
+  levelData: Record<string, LevelData>;
+  onNodeClick?: (node: Node) => void;
+  onNodeCreate?: (nodeType: string, parentNodeId?: string) => void;
 }

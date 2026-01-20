@@ -15,21 +15,24 @@ import type {
   FilterGroup,
   ViewFilterParams,
 } from '@/types/view-templates';
+import type { WorkflowDefinition } from '@/types/workflow';
 import { KanbanView } from './styles/KanbanView';
 import { CardsView } from './styles/CardsView';
 import { TimelineView } from './styles/TimelineView';
 import { TreeView } from './styles/TreeView';
 import { TableView } from './styles/TableView';
 import { GanttView } from './styles/GanttView';
+import { RecordView } from './styles/RecordView';
 import { FilterBar } from './FilterBar';
 
 interface ViewRendererProps {
   workflowId: string;
   viewTemplate: ViewTemplate;
+  workflowDefinition?: WorkflowDefinition;
   onNodeClick?: (node: Node) => void;
 }
 
-export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRendererProps) {
+export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onNodeClick }: ViewRendererProps) {
   const queryClient = useQueryClient();
 
   // Filter state
@@ -193,6 +196,24 @@ export function ViewRenderer({ workflowId, viewTemplate, onNodeClick }: ViewRend
               queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
             }}
             onStatusChange={handleNodeDrop}
+          />
+        );
+      }
+
+      case 'record': {
+        if (!workflowDefinition) {
+          return (
+            <div className="flex h-64 items-center justify-center">
+              <div className="text-red-500">Record view requires workflow definition</div>
+            </div>
+          );
+        }
+        return (
+          <RecordView
+            workflowId={workflowId}
+            viewTemplate={viewTemplate}
+            workflowDefinition={workflowDefinition}
+            onNodeClick={onNodeClick}
           />
         );
       }
