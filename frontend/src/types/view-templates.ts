@@ -209,6 +209,7 @@ export interface EdgeTraversal {
   edgeType: string;
   direction: 'outgoing' | 'incoming';
   targetType: string;
+  sourceType?: string;
   required?: boolean;
 }
 
@@ -245,6 +246,9 @@ export interface ViewTemplateUpdate {
   name?: string;
   description?: string;
   icon?: string;
+  edges?: EdgeTraversal[];
+  levels?: Record<string, LevelConfig>;
+  filters?: FilterConfig[];
 }
 
 // ==================== API Response Types ====================

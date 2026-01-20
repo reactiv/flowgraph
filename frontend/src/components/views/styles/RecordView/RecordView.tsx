@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Node, WorkflowDefinition } from '@/types/workflow';
+import type { Node, WorkflowDefinition, NodeCreate, EdgeCreate } from '@/types/workflow';
 import type { ViewTemplate, RecordConfig } from '@/types/view-templates';
 import { RecordSelector } from './RecordSelector';
 import { RecordDetail } from './RecordDetail';
@@ -21,6 +21,7 @@ export function RecordView({
   workflowDefinition,
   onNodeClick,
 }: RecordViewProps) {
+  const queryClient = useQueryClient();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Get the root level config (should be RecordConfig)
@@ -66,6 +67,55 @@ export function RecordView({
     [onNodeClick]
   );
 
+  // Handle creating a new node in a section
+  const handleCreateNode = useCallback(
+    async (targetType: string, parentNodeId: string) => {
+      // Find the edge config for this target type
+      const edgeConfig = viewTemplate.edges.find((e) => e.targetType === targetType);
+      if (!edgeConfig) {
+        console.error(`No edge config found for target type: ${targetType}`);
+        return;
+      }
+
+      // Get target node type definition for default status
+      const targetNodeType = workflowDefinition.nodeTypes.find((nt) => nt.type === targetType);
+      const defaultStatus = targetNodeType?.states?.enabled
+        ? targetNodeType.states.values[0]
+        : undefined;
+
+      // Create the node
+      const nodeCreate: NodeCreate = {
+        type: targetType,
+        title: `New ${targetNodeType?.displayName || targetType}`,
+        status: defaultStatus,
+        properties: {},
+      };
+
+      try {
+        const createdNode = await api.createNode(workflowId, nodeCreate);
+
+        // Create the edge linking to parent
+        // Direction is from the parent's perspective, so we need to flip for edge creation
+        const edgeCreate: EdgeCreate =
+          edgeConfig.direction === 'outgoing'
+            ? { type: edgeConfig.edgeType, from_node_id: parentNodeId, to_node_id: createdNode.id }
+            : { type: edgeConfig.edgeType, from_node_id: createdNode.id, to_node_id: parentNodeId };
+
+        await api.createEdge(workflowId, edgeCreate);
+
+        // Invalidate queries to refresh the UI
+        queryClient.invalidateQueries({ queryKey: ['view', workflowId, viewTemplate.id] });
+        queryClient.invalidateQueries({ queryKey: ['nodes', workflowId] });
+
+        // Open the new node in the detail panel
+        onNodeClick?.(createdNode);
+      } catch (error) {
+        console.error('Failed to create node:', error);
+      }
+    },
+    [workflowId, viewTemplate, workflowDefinition.nodeTypes, queryClient, onNodeClick]
+  );
+
   // Get node type definition for the selected node
   const selectedNodeType = useMemo(() => {
     if (!selectedNode) return null;
@@ -108,6 +158,7 @@ export function RecordView({
             recordConfig={recordConfig}
             isLoading={isLoadingScoped}
             onNodeClick={handleSectionNodeClick}
+            onCreateNode={handleCreateNode}
           />
         ) : (
           <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-gray-200">

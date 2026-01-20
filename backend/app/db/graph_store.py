@@ -613,15 +613,20 @@ class GraphStore:
         # Track visited node IDs to avoid cycles
         visited_node_ids: set[str] = {n.id for n in root_nodes}
 
-        # Traverse each edge configuration
-        current_level_nodes = root_nodes
+        # Keep track of nodes by type for edge traversal
+        nodes_by_type: dict[str, list[Node]] = {template.root_type: root_nodes}
 
+        # Traverse each edge configuration
         for edge_config in template.edges:
+            # Determine source type: use explicit sourceType or default to root type
+            source_type = edge_config.source_type or template.root_type
+            source_nodes = nodes_by_type.get(source_type, [])
+
             level_nodes: list[dict[str, Any]] = []
             level_edges: list[dict[str, Any]] = []
             level_parent_map: dict[str, str] = {}  # child_id -> parent_id
 
-            for node in current_level_nodes:
+            for node in source_nodes:
                 # Determine which direction to traverse
                 if edge_config.direction == "outgoing":
                     neighbors = await self.get_neighbors(
@@ -666,20 +671,26 @@ class GraphStore:
             result["levels"][edge_config.target_type]["count"] += len(level_nodes)
             result["levels"][edge_config.target_type]["parent_map"].update(level_parent_map)
 
-            # Update current level for next traversal (if needed for deeper traversals)
-            current_level_nodes = [
-                Node(
-                    id=n["id"],
-                    workflow_id=n["workflow_id"],
-                    type=n["type"],
-                    title=n["title"],
-                    status=n.get("status"),
-                    properties=n.get("properties", {}),
-                    created_at=n["created_at"],
-                    updated_at=n["updated_at"],
+            # Store discovered nodes by type for potential use in subsequent edge traversals
+            if level_nodes:
+                target_type = edge_config.target_type
+                if target_type not in nodes_by_type:
+                    nodes_by_type[target_type] = []
+                nodes_by_type[target_type].extend(
+                    [
+                        Node(
+                            id=n["id"],
+                            workflow_id=n["workflow_id"],
+                            type=n["type"],
+                            title=n["title"],
+                            status=n.get("status"),
+                            properties=n.get("properties", {}),
+                            created_at=n["created_at"],
+                            updated_at=n["updated_at"],
+                        )
+                        for n in level_nodes
+                    ]
                 )
-                for n in level_nodes
-            ]
 
         return result
 
@@ -761,13 +772,27 @@ class GraphStore:
 
         for i, view in enumerate(view_templates):
             if view.get("id") == view_id:
-                # Apply partial updates
+                # Apply partial updates - basic fields
                 if update.name is not None:
                     view["name"] = update.name
                 if update.description is not None:
                     view["description"] = update.description
                 if update.icon is not None:
                     view["icon"] = update.icon
+                # Apply partial updates - structural fields
+                if update.edges is not None:
+                    view["edges"] = [
+                        e.model_dump(by_alias=True) for e in update.edges
+                    ]
+                if update.levels is not None:
+                    view["levels"] = {
+                        k: v.model_dump(by_alias=True)
+                        for k, v in update.levels.items()
+                    }
+                if update.filters is not None:
+                    view["filters"] = [
+                        f.model_dump(by_alias=True) for f in update.filters
+                    ]
                 view_templates[i] = view
                 updated_view = ViewTemplate.model_validate(view)
                 break

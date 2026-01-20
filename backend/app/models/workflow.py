@@ -433,6 +433,7 @@ class EdgeTraversal(BaseModel):
     edge_type: str = PydanticField(alias="edgeType")
     direction: Literal["outgoing", "incoming"]
     target_type: str = PydanticField(alias="targetType")
+    source_type: str | None = PydanticField(default=None, alias="sourceType")
     required: bool = False
 
     model_config = {"populate_by_name": True}
@@ -488,11 +489,18 @@ class ViewTemplateCreate(BaseModel):
 
 
 class ViewTemplateUpdate(BaseModel):
-    """Request model for updating an existing view template (partial updates)."""
+    """Request model for updating an existing view template (partial updates).
+
+    Note: rootType is intentionally not updatable as changing it would
+    invalidate the entire view structure.
+    """
 
     name: str | None = None
     description: str | None = None
     icon: str | None = None
+    edges: list[EdgeTraversal] | None = None
+    levels: dict[str, LevelConfig] | None = None
+    filters: list[FilterConfig] | None = None
 
     model_config = {"populate_by_name": True}
 
