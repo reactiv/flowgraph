@@ -33,7 +33,11 @@ from app.llm.transformer.models import (
     compute_schema_hash,
 )
 from app.llm.transformer.tools import create_transformer_tools
-from app.llm.transformer.validator import get_schema_description, validate_artifact
+from app.llm.transformer.validator import (
+    CustomValidationError,
+    get_schema_description,
+    validate_artifact_with_custom,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +112,7 @@ Your script should:
 FILE_TYPE_HANDLING_PROMPT = """
 Use the following tools to handle file types:
 
-### .zip file: 
+### .zip file:
 - Write python code to investigate the zip file and ensure that your
 final script operates on the zip file, which is what the user wants to transform.
 
@@ -176,6 +180,7 @@ class DataTransformer:
         output_model: type[T],
         config: TransformConfig | None = None,
         on_event: EventCallback | None = None,
+        custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
     ) -> TransformRun[T]:
         """Transform input files into validated Pydantic objects.
 
@@ -185,6 +190,8 @@ class DataTransformer:
             output_model: Pydantic model class that each output item should match.
             config: Optional configuration for the transformation.
             on_event: Optional callback for streaming events.
+            custom_validator: Optional function for domain-specific validation.
+                Takes parsed data and returns a list of CustomValidationError.
 
         Returns:
             TransformRun with the manifest, parsed items, and debug info.
@@ -225,6 +232,7 @@ class DataTransformer:
                 run_id=run_id,
                 input_paths=[str(p) for p in input_paths],
                 on_event=on_event,
+                custom_validator=custom_validator,
             )
 
             elapsed = time.time() - start_time
@@ -248,6 +256,7 @@ class DataTransformer:
         run_id: str,
         input_paths: list[str],
         on_event: EventCallback | None = None,
+        custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
     ) -> TransformRun[T]:
         """Run the Claude Agent SDK to transform data."""
 
@@ -258,7 +267,7 @@ class DataTransformer:
         # Build system prompt based on mode
         output_file = f"./output.{config.output_format}"
         schema_json = get_schema_description(output_model)
-        
+
         if config.mode == "code":
             system_prompt = CODE_MODE_PROMPT.format(
                 output_file=output_file,
@@ -276,6 +285,7 @@ class DataTransformer:
             output_model=output_model,
             output_format=config.output_format,
             input_paths=input_paths,
+            custom_validator=custom_validator,
         )
 
         # Build allowed tools list
@@ -410,15 +420,17 @@ class DataTransformer:
         # Final validation check
         output_path = work_dir / output_file.lstrip("./")
         if output_path.exists() and validation_result is None:
-            final_result = validate_artifact(
+            final_result = validate_artifact_with_custom(
                 file_path=output_path,
                 model=output_model,
                 format=config.output_format,
+                custom_validator=custom_validator,
             )
             validation_result = {
                 "valid": final_result.valid,
                 "item_count": final_result.item_count,
                 "errors": final_result.errors,
+                "custom_errors": [e.model_dump() for e in final_result.custom_errors],
                 "sample": final_result.sample,
             }
 
@@ -426,15 +438,24 @@ class DataTransformer:
             raise ValueError(f"Transformation failed: no output produced at {output_file}")
 
         if not validation_result.get("valid", False):
-            raise ValueError(
-                f"Transformation failed. Validation errors: {validation_result.get('errors', [])}"
-            )
+            all_errors = validation_result.get("errors", [])
+            custom_errors = validation_result.get("custom_errors", [])
+            if custom_errors:
+                custom_msgs = [
+                    f"{e.get('path', '')}: {e.get('message', '')}"
+                    for e in custom_errors[:5]
+                ]
+                all_errors = all_errors + custom_msgs
+            raise ValueError(f"Transformation failed. Validation errors: {all_errors}")
 
         # Parse items for small outputs
         items: list[T] | None = None
         item_count = validation_result.get("item_count", 0)
 
-        logger.debug(f"Parsing output: item_count={item_count}, path={output_path}, exists={output_path.exists()}")
+        logger.debug(
+            f"Parsing output: item_count={item_count}, path={output_path}, "
+            f"exists={output_path.exists()}"
+        )
 
         if item_count <= 100 and output_path.exists():
             try:

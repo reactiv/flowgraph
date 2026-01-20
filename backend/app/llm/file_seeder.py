@@ -14,7 +14,8 @@ from typing import Any
 from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
 from app.llm.transformer.seed_models import SeedData
-from app.llm.transformer.validator import validate_artifact
+from app.llm.transformer.seed_validators import create_seed_data_validator
+from app.llm.transformer.validator import validate_artifact_with_custom
 from app.models import EdgeCreate, NodeCreate, WorkflowDefinition
 from app.storage.upload_store import UploadStore, get_upload_store
 
@@ -183,6 +184,9 @@ class FileSeeder:
             work_dir=str(work_dir),
         )
 
+        # Create custom validator from workflow definition
+        seed_validator = create_seed_data_validator(definition)
+
         # Create event queue for streaming
         events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         transform_result = None
@@ -202,6 +206,7 @@ class FileSeeder:
                     output_model=SeedData,
                     config=config,
                     on_event=on_event,
+                    custom_validator=seed_validator,
                 )
             except Exception as e:
                 transform_error = e
@@ -335,6 +340,9 @@ class FileSeeder:
             work_dir=str(work_dir),
         )
 
+        # Create custom validator from workflow definition
+        seed_validator = create_seed_data_validator(definition)
+
         # Create event queue for streaming
         events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         transform_result = None
@@ -354,6 +362,7 @@ class FileSeeder:
                     output_model=SeedData,
                     config=config,
                     on_event=on_event,
+                    custom_validator=seed_validator,
                 )
             except Exception as e:
                 transform_error = e
@@ -555,15 +564,26 @@ class FileSeeder:
                     yield {"event": "error", "message": "Script did not produce output.json"}
                     return
 
-                validation_result = validate_artifact(
+                # Create custom validator from workflow definition
+                seed_validator = create_seed_data_validator(definition)
+
+                validation_result = validate_artifact_with_custom(
                     file_path=output_path,
                     model=SeedData,
                     format="json",
+                    custom_validator=seed_validator,
                 )
 
                 if not validation_result.valid:
-                    errors = "; ".join(validation_result.errors[:5])
-                    yield {"event": "error", "message": f"Validation failed: {errors}"}
+                    errors = validation_result.errors[:5]
+                    custom_msgs = [
+                        f"{e.path}: {e.message}" for e in validation_result.custom_errors[:5]
+                    ]
+                    all_errors = errors + custom_msgs
+                    yield {
+                        "event": "error",
+                        "message": f"Validation failed: {'; '.join(all_errors)}",
+                    }
                     return
 
                 # Parse the seed data
@@ -583,6 +603,18 @@ class FileSeeder:
         # At this point seed_data should be set (either from cache or script execution)
         if seed_data is None:
             yield {"event": "error", "message": "No seed data available"}
+            return
+
+        # Final validation gate before insertion
+        seed_validator = create_seed_data_validator(definition)
+        custom_errors = seed_validator(seed_data)
+
+        if custom_errors:
+            error_msgs = [f"{e.path}: {e.message}" for e in custom_errors[:5]]
+            yield {
+                "event": "error",
+                "message": f"Validation failed: {'; '.join(error_msgs)}",
+            }
             return
 
         # Insert into database
