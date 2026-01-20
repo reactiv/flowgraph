@@ -5,6 +5,7 @@ using Claude as an intelligent agent.
 """
 
 from app.llm.transformer.models import (
+    LearnConfig,
     LearnedAssets,
     TransformConfig,
     TransformManifest,
@@ -12,6 +13,11 @@ from app.llm.transformer.models import (
     compute_schema_hash,
 )
 from app.llm.transformer.orchestrator import DataTransformer, EventCallback
+from app.llm.transformer.skill_generator import (
+    generate_skill_markdown,
+    generate_skill_name,
+    save_learned_skill,
+)
 from app.llm.transformer.validator import (
     ValidationResult,
     get_schema_description,
@@ -29,6 +35,11 @@ __all__ = [
     "TransformManifest",
     "TransformRun",
     "LearnedAssets",
+    "LearnConfig",
+    # Skill generation
+    "generate_skill_markdown",
+    "generate_skill_name",
+    "save_learned_skill",
     # Validation
     "ValidationResult",
     "validate_artifact",

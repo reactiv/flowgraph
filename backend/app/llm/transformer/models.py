@@ -45,6 +45,31 @@ class LearnedAssets(BaseModel):
     prompt_refinements: list[str] = Field(default_factory=list)
     """Refinements to the original instruction discovered during iteration."""
 
+    skill_markdown: str | None = None
+    """Generated SKILL.md content for quick repeatability."""
+
+    skill_name: str | None = None
+    """Name of the generated skill."""
+
+    skill_description: str | None = None
+    """Description of what the skill does."""
+
+
+class LearnConfig(BaseModel):
+    """Configuration for learning a reusable skill from a transformation."""
+
+    enabled: bool = False
+    """Whether to generate a learnable skill from this transformation."""
+
+    skill_name: str | None = None
+    """Name for the generated skill (auto-generated if not provided)."""
+
+    skill_description: str | None = None
+    """Description for the skill (auto-generated from instruction if not provided)."""
+
+    output_dir: str | None = None
+    """Directory to write the skill files to (uses work_dir/.claude/skills/ if not set)."""
+
 
 class TransformRun(BaseModel, Generic[T]):  # noqa: UP046 - Pydantic generics work better with explicit Generic
     """Result of a transformation run."""
@@ -93,6 +118,9 @@ class TransformConfig(BaseModel):
 
     work_dir: str | None = None
     """Working directory for the transformation. If None, a temp dir is created."""
+
+    learn: LearnConfig | None = None
+    """Configuration for learning a reusable skill from this transformation."""
 
 
 def compute_schema_hash(model: type[BaseModel]) -> str:

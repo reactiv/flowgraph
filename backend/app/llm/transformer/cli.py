@@ -36,7 +36,7 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from app.llm.transformer import DataTransformer, TransformConfig
+from app.llm.transformer import DataTransformer, LearnConfig, TransformConfig
 
 
 # ANSI color codes
@@ -245,6 +245,20 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
         out(colorize(f"         Output: {artifact_path}", Colors.GREEN))
         out(colorize(f"         Iterations: {iterations}", Colors.GREEN))
 
+    elif event_type == "skill_learned":
+        skill_name = data.get("skill_name", "unknown")
+        skill_path = data.get("skill_path", "")
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("=== Skill Learned ===", Colors.MAGENTA + Colors.BOLD))
+        out(colorize(f"         Name: {skill_name}", Colors.MAGENTA))
+        out(colorize(f"         Path: {skill_path}", Colors.MAGENTA))
+
+    elif event_type == "skill_learn_error":
+        error = data.get("error", "Unknown error")
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"Failed to save skill: {error}", Colors.RED))
+
     elif event_type == "error":
         error = data.get("error", "Unknown error")
         out(colorize(f"[{timestamp}] ", Colors.DIM) +
@@ -305,6 +319,23 @@ async def main():
         action="store_true",
         help="Suppress streaming output, only show final result",
     )
+    parser.add_argument(
+        "--learn",
+        action="store_true",
+        help="Generate a learnable skill from this transformation",
+    )
+    parser.add_argument(
+        "--skill-name",
+        help="Name for the generated skill (requires --learn)",
+    )
+    parser.add_argument(
+        "--skill-description",
+        help="Description for the generated skill (requires --learn)",
+    )
+    parser.add_argument(
+        "--skill-output-dir",
+        help="Directory to write skill files (requires --learn, defaults to work_dir/.claude/skills/)",
+    )
 
     args = parser.parse_args()
 
@@ -333,12 +364,23 @@ async def main():
         out(colorize("Error: Must specify either --model or --model-import", Colors.RED))
         sys.exit(1)
 
+    # Create learn config if requested
+    learn_config = None
+    if args.learn:
+        learn_config = LearnConfig(
+            enabled=True,
+            skill_name=args.skill_name,
+            skill_description=args.skill_description,
+            output_dir=args.skill_output_dir,
+        )
+
     # Create config
     config = TransformConfig(
         mode=args.mode,
         output_format=args.format,
         max_iterations=args.max_turns,
         work_dir=args.work_dir,
+        learn=learn_config,
     )
 
     # Print header
@@ -382,6 +424,15 @@ async def main():
                 out(json.dumps(item.model_dump(), indent=2))
             if len(result.items) > 3:
                 out(f"... and {len(result.items) - 3} more")
+
+        if result.learned:
+            out()
+            out(colorize("Learned Skill:", Colors.BOLD + Colors.MAGENTA))
+            out(colorize(f"  Name: {result.learned.skill_name}", Colors.MAGENTA))
+            if result.learned.transformer_code:
+                out(colorize(f"  Transformer code: included", Colors.MAGENTA))
+            if result.learned.skill_markdown:
+                out(colorize(f"  Skill markdown: generated", Colors.MAGENTA))
 
     except ValueError as e:
         out(colorize(f"Transformation failed: {e}", Colors.RED))

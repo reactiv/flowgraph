@@ -27,10 +27,17 @@ from claude_agent_sdk import (
 from pydantic import BaseModel
 
 from app.llm.transformer.models import (
+    LearnConfig,
+    LearnedAssets,
     TransformConfig,
     TransformManifest,
     TransformRun,
     compute_schema_hash,
+)
+from app.llm.transformer.skill_generator import (
+    generate_skill_markdown,
+    generate_skill_name,
+    save_learned_skill,
 )
 from app.llm.transformer.tools import create_transformer_tools
 from app.llm.transformer.validator import (
@@ -570,6 +577,37 @@ class DataTransformer:
             run_id=run_id,
         )
 
+        # Generate learned assets if learning is enabled
+        learned_assets: LearnedAssets | None = None
+        if config.learn and config.learn.enabled:
+            learned_assets = self._generate_learned_assets(
+                work_dir=work_dir,
+                instruction=instruction,
+                output_model=output_model,
+                config=config,
+                input_paths=input_paths,
+            )
+            if learned_assets:
+                # Save the skill to disk
+                try:
+                    skill_path = save_learned_skill(
+                        learned_assets=learned_assets,
+                        learn_config=config.learn,
+                        work_dir=work_dir,
+                    )
+                    emit("skill_learned", {
+                        "skill_name": learned_assets.skill_name,
+                        "skill_path": str(skill_path),
+                        "message": f"Learned skill saved to {skill_path}",
+                    })
+                    logger.info(f"Saved learned skill to {skill_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save learned skill: {e}")
+                    emit("skill_learn_error", {
+                        "error": str(e),
+                        "message": f"Failed to save learned skill: {e}",
+                    })
+
         emit("transform_complete", {
             "item_count": item_count,
             "artifact_path": str(output_path),
@@ -579,8 +617,63 @@ class DataTransformer:
         return TransformRun(
             manifest=manifest,
             items=items,
-            learned=None,
+            learned=learned_assets,
             debug=debug,
+        )
+
+    def _generate_learned_assets(
+        self,
+        work_dir: Path,
+        instruction: str,
+        output_model: type[T],
+        config: TransformConfig,
+        input_paths: list[str],
+    ) -> LearnedAssets | None:
+        """Generate learned assets from a successful transformation.
+
+        Args:
+            work_dir: Working directory containing transform artifacts.
+            instruction: Original transformation instruction.
+            output_model: Pydantic output model class.
+            config: Transformation configuration.
+            input_paths: List of input file paths.
+
+        Returns:
+            LearnedAssets with skill markdown and optionally transformer code.
+        """
+        if not config.learn:
+            return None
+
+        # Read transformer code if in code mode
+        transformer_code: str | None = None
+        transform_path = work_dir / "transform.py"
+        if config.mode == "code" and transform_path.exists():
+            transformer_code = transform_path.read_text()
+
+        # Generate skill markdown
+        skill_markdown = generate_skill_markdown(
+            instruction=instruction,
+            output_model=output_model,
+            transformer_code=transformer_code,
+            config={
+                "mode": config.mode,
+                "output_format": config.output_format,
+            },
+            learn_config=config.learn,
+            input_files=input_paths,
+        )
+
+        skill_name = (
+            config.learn.skill_name
+            if config.learn.skill_name
+            else generate_skill_name(instruction)
+        )
+
+        return LearnedAssets(
+            transformer_code=transformer_code,
+            skill_markdown=skill_markdown,
+            skill_name=skill_name,
+            skill_description=config.learn.skill_description,
         )
 
     def _parse_output(
