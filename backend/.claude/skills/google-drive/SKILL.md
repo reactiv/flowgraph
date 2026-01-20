@@ -9,66 +9,21 @@ This skill enables listing and downloading files from Google Drive using the `go
 
 ## Authentication
 
-Google Drive supports two authentication methods. Check which credentials are available:
-
-### Option 1: OAuth2 User Tokens (Recommended)
-
-If `GOOGLE_DRIVE_TOKENS` environment variable is set, use OAuth2:
+Google Drive uses OAuth2 tokens for authentication. The `GOOGLE_DRIVE_TOKENS` environment variable must point to a JSON file containing the OAuth2 credentials.
 
 ```python
 import os
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-# Load OAuth2 tokens
-tokens_path = os.environ.get("GOOGLE_DRIVE_TOKENS")
-if tokens_path:
-    creds = Credentials.from_authorized_user_file(tokens_path)
-    drive = build("drive", "v3", credentials=creds)
-```
-
-### Option 2: Service Account
-
-If `GOOGLE_APPLICATION_CREDENTIALS` is set, use service account:
-
-```python
-import os
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-
-creds = service_account.Credentials.from_service_account_file(
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
-    scopes=["https://www.googleapis.com/auth/drive.readonly"]
-)
-drive = build("drive", "v3", credentials=creds)
-```
-
-### Combined Authentication Helper
-
-```python
-import os
-from googleapiclient.discovery import build
-
 def get_drive_client():
     """Get authenticated Google Drive client."""
-    # Try OAuth2 tokens first
     tokens_path = os.environ.get("GOOGLE_DRIVE_TOKENS")
-    if tokens_path and os.path.exists(tokens_path):
-        from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_file(tokens_path)
-        return build("drive", "v3", credentials=creds)
+    if not tokens_path or not os.path.exists(tokens_path):
+        raise ValueError("GOOGLE_DRIVE_TOKENS not set or file not found")
 
-    # Fall back to service account
-    sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if sa_path and os.path.exists(sa_path):
-        from google.oauth2 import service_account
-        creds = service_account.Credentials.from_service_account_file(
-            sa_path,
-            scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        )
-        return build("drive", "v3", credentials=creds)
-
-    raise ValueError("No Google Drive credentials found")
+    creds = Credentials.from_authorized_user_file(tokens_path)
+    return build("drive", "v3", credentials=creds)
 
 drive = get_drive_client()
 ```
@@ -264,7 +219,6 @@ except HttpError as e:
 ## Important Notes
 
 - OAuth2 tokens authenticate as the user who authorized the app
-- Service accounts need files explicitly shared with them
 - Folder IDs can be extracted from Google Drive URLs
 - Google Docs/Sheets/Slides must be exported - they can't be downloaded directly
 - Large files may require chunked downloads

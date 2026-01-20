@@ -275,8 +275,18 @@ class DataTransformer:
                         })
                 except Exception as e:
                     logger.error(f"Failed to copy skills: {e}")
+                    if on_event:
+                        on_event("skills_warning", {
+                            "message": f"Failed to load skills: {e}",
+                            "error": str(e),
+                        })
             else:
                 logger.warning(f"Skills directory not found at {skills_src}")
+                if on_event:
+                    on_event("skills_warning", {
+                        "message": "Skills directory not found - external data sources unavailable",
+                        "path": str(skills_src),
+                    })
 
             # Run the agent
             result = await self._run_agent(

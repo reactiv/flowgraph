@@ -21,16 +21,24 @@ from pathlib import Path
 EXCEL_ERRORS = ["#VALUE!", "#DIV/0!", "#REF!", "#NAME?", "#NULL!", "#NUM!", "#N/A"]
 
 
+LIBRARY_NAME = "TransformerRecalc"
+
+
 def get_libreoffice_macro_dir():
-    """Get the LibreOffice macro directory based on platform."""
+    """Get the LibreOffice macro directory for our custom library."""
     if platform.system() == "Darwin":
-        return Path.home() / "Library/Application Support/LibreOffice/4/user/basic/Standard"
+        base = Path.home() / "Library/Application Support/LibreOffice/4/user/basic"
     else:
-        return Path.home() / ".config/libreoffice/4/user/basic/Standard"
+        base = Path.home() / ".config/libreoffice/4/user/basic"
+    return base / LIBRARY_NAME
 
 
 def create_recalc_macro(macro_dir: Path):
-    """Create a LibreOffice Basic macro for recalculation."""
+    """Create a LibreOffice Basic macro for recalculation.
+
+    Uses a dedicated library (TransformerRecalc) to avoid overwriting
+    user's existing macros in the Standard library.
+    """
     macro_dir.mkdir(parents=True, exist_ok=True)
 
     macro_code = '''Sub RecalcAndSave
@@ -44,10 +52,10 @@ End Sub
 
     (macro_dir / "RecalcMacro.xba").write_text(macro_code)
 
-    # Update script.xlb to include our macro
-    script_xlb = '''<?xml version="1.0" encoding="UTF-8"?>
+    # Create script.xlb for our custom library
+    script_xlb = f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE library:library PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "library.dtd">
-<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard" library:readonly="false" library:passwordprotected="false">
+<library:library xmlns:library="http://openoffice.org/2000/library" library:name="{LIBRARY_NAME}" library:readonly="false" library:passwordprotected="false">
  <library:element library:name="RecalcMacro"/>
 </library:library>
 '''
@@ -59,7 +67,12 @@ def run_libreoffice_recalc(file_path: Path, timeout: int = 60):
     # Find LibreOffice executable
     if platform.system() == "Darwin":
         soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-        timeout_cmd = "gtimeout"
+        # On macOS, gtimeout requires coreutils (brew install coreutils)
+        # Fall back to running without timeout if not available
+        if shutil.which("gtimeout"):
+            timeout_cmd = "gtimeout"
+        else:
+            timeout_cmd = None  # Will use Python's subprocess timeout instead
     else:
         soffice = "soffice"
         timeout_cmd = "timeout"
@@ -73,15 +86,26 @@ def run_libreoffice_recalc(file_path: Path, timeout: int = 60):
 
     # Run LibreOffice in headless mode with macro
     abs_path = file_path.resolve()
-    cmd = [
-        timeout_cmd,
-        str(timeout),
-        soffice,
-        "--headless",
-        "--invisible",
-        f"macro:///Standard.RecalcMacro.RecalcAndSave",
-        str(abs_path),
-    ]
+
+    # Build command with or without timeout wrapper
+    if timeout_cmd:
+        cmd = [
+            timeout_cmd,
+            str(timeout),
+            soffice,
+            "--headless",
+            "--invisible",
+            f"macro:///{LIBRARY_NAME}.RecalcMacro.RecalcAndSave",
+            str(abs_path),
+        ]
+    else:
+        cmd = [
+            soffice,
+            "--headless",
+            "--invisible",
+            f"macro:///{LIBRARY_NAME}.RecalcMacro.RecalcAndSave",
+            str(abs_path),
+        ]
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, timeout=timeout + 10)

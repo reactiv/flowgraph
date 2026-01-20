@@ -160,7 +160,7 @@ LOG_LEVEL=info                    # Logging verbosity
 NOTION_TOKEN=secret_...         # Notion integration token (from notion.so/my-integrations)
 
 # Google Drive integration (for transformer skills)
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # Service account credentials
+GOOGLE_DRIVE_TOKENS=/path/to/gdrive_tokens.json  # OAuth2 tokens (run backend/scripts/gdrive_auth.py)
 ```
 
 ## API Conventions
