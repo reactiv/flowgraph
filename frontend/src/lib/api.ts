@@ -17,6 +17,9 @@ import type {
   NeighborsResponse,
   SchemaGenerationOptions,
   CreateFromLanguageResponse,
+  Rule,
+  RuleViolation,
+  ValidateTransitionResponse,
 } from '@/types/workflow';
 import type {
   FilterSchema,
@@ -36,6 +39,21 @@ import type {
 
 const API_BASE = '/api/v1';
 
+/**
+ * Custom error class for rule violations.
+ * Thrown when a status transition is blocked by workflow rules.
+ */
+export class RuleViolationApiError extends Error {
+  public readonly isRuleViolation = true;
+  public readonly violations: RuleViolation[];
+
+  constructor(message: string, violations: RuleViolation[]) {
+    super(message);
+    this.name = 'RuleViolationApiError';
+    this.violations = violations;
+  }
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
@@ -47,7 +65,20 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+
+    // Check for rule violation (422 with violations array)
+    if (response.status === 422 && error.detail?.violations) {
+      throw new RuleViolationApiError(
+        error.detail.message || 'Status transition blocked by rules',
+        error.detail.violations
+      );
+    }
+
+    throw new Error(
+      typeof error.detail === 'string'
+        ? error.detail
+        : error.detail?.message || `HTTP ${response.status}`
+    );
   }
 
   return response.json();
@@ -278,5 +309,34 @@ export const api = {
   resetWorkflow: (workflowId: string) =>
     fetchJson<{ reset: boolean }>(`/workflows/${workflowId}/reset`, {
       method: 'POST',
+    }),
+
+  // Rules
+  validateTransition: (workflowId: string, nodeId: string, targetStatus: string) =>
+    fetchJson<ValidateTransitionResponse>(
+      `/workflows/${workflowId}/nodes/${nodeId}/validate-transition`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ target_status: targetStatus }),
+      }
+    ),
+
+  listRules: (workflowId: string) => fetchJson<Rule[]>(`/workflows/${workflowId}/rules`),
+
+  generateRule: (workflowId: string, description: string) =>
+    fetchJson<Rule>(`/workflows/${workflowId}/rules/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    }),
+
+  addRule: (workflowId: string, rule: Rule) =>
+    fetchJson<Rule>(`/workflows/${workflowId}/rules`, {
+      method: 'POST',
+      body: JSON.stringify({ rule }),
+    }),
+
+  deleteRule: (workflowId: string, ruleId: string) =>
+    fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/rules/${ruleId}`, {
+      method: 'DELETE',
     }),
 };
