@@ -10,10 +10,13 @@ services:
       - ./data:/data
       - backend-venv:/app/.venv
       - ${TRANSFORMER_INPUT:-./data/empty}:/app/transformer_input:ro
+      - ${GOOGLE_CREDS_PATH:-./data/google-creds}:/app/secrets/google-creds:ro
     environment:
       - DATABASE_PATH=/data/workflow.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_DRIVE_TOKENS=/app/secrets/google-creds/${GOOGLE_DRIVE_TOKENS_FILE:-gdrive_tokens.json}
+      - NOTION_TOKEN=${NOTION_TOKEN}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     command: >
       sh -c "uv venv /app/.venv 2>/dev/null || true &&
