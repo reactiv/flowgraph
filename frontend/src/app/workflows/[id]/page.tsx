@@ -280,9 +280,10 @@ export default function WorkflowPage() {
         isCreating={createViewMutation.isPending}
       />
 
-      {editingView && (
+      {editingView && workflow && (
         <EditViewModal
           view={editingView}
+          workflowDefinition={workflow}
           isOpen={true}
           onClose={() => setEditingView(null)}
           onSave={(update) =>

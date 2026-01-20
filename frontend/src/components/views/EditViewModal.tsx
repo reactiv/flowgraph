@@ -1,33 +1,81 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { ViewTemplate, ViewTemplateUpdate } from '@/types/view-templates';
+import { useState, useEffect, useMemo } from 'react';
+import type { WorkflowDefinition } from '@/types/workflow';
+import type { ViewTemplate, ViewTemplateCreate, ViewTemplateUpdate } from '@/types/view-templates';
+import { ViewEditor } from './editor/ViewEditor';
 
 interface EditViewModalProps {
   view: ViewTemplate;
+  workflowDefinition: WorkflowDefinition;
   isOpen: boolean;
   onClose: () => void;
   onSave: (update: ViewTemplateUpdate) => void;
   isSaving: boolean;
 }
 
-export function EditViewModal({ view, isOpen, onClose, onSave, isSaving }: EditViewModalProps) {
-  const [name, setName] = useState(view.name);
-  const [description, setDescription] = useState(view.description || '');
+/** Convert a ViewTemplate to ViewTemplateCreate for editing */
+function viewToEditable(view: ViewTemplate): ViewTemplateCreate {
+  return {
+    name: view.name,
+    description: view.description,
+    icon: view.icon,
+    rootType: view.rootType,
+    edges: view.edges,
+    levels: view.levels,
+    filters: view.filters,
+  };
+}
+
+/** Compute the update payload by comparing original and edited views */
+function computeUpdate(original: ViewTemplate, edited: ViewTemplateCreate): ViewTemplateUpdate {
+  const update: ViewTemplateUpdate = {};
+
+  // Basic fields
+  if (edited.name !== original.name) {
+    update.name = edited.name;
+  }
+  if (edited.description !== original.description) {
+    update.description = edited.description;
+  }
+  if (edited.icon !== original.icon) {
+    update.icon = edited.icon;
+  }
+
+  // Structural fields - compare by JSON serialization for simplicity
+  if (JSON.stringify(edited.edges) !== JSON.stringify(original.edges)) {
+    update.edges = edited.edges;
+  }
+  if (JSON.stringify(edited.levels) !== JSON.stringify(original.levels)) {
+    update.levels = edited.levels;
+  }
+  if (JSON.stringify(edited.filters) !== JSON.stringify(original.filters)) {
+    update.filters = edited.filters;
+  }
+
+  return update;
+}
+
+export function EditViewModal({
+  view,
+  workflowDefinition,
+  isOpen,
+  onClose,
+  onSave,
+  isSaving,
+}: EditViewModalProps) {
+  const [editedView, setEditedView] = useState<ViewTemplateCreate>(() => viewToEditable(view));
 
   // Reset form when view changes
   useEffect(() => {
-    setName(view.name);
-    setDescription(view.description || '');
+    setEditedView(viewToEditable(view));
   }, [view]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!editedView.name.trim()) return;
 
-    const update: ViewTemplateUpdate = {};
-    if (name !== view.name) update.name = name;
-    if (description !== (view.description || '')) update.description = description;
+    const update = computeUpdate(view, editedView);
 
     if (Object.keys(update).length > 0) {
       onSave(update);
@@ -35,6 +83,12 @@ export function EditViewModal({ view, isOpen, onClose, onSave, isSaving }: EditV
       onClose();
     }
   };
+
+  // Check if there are any changes
+  const hasChanges = useMemo(() => {
+    const update = computeUpdate(view, editedView);
+    return Object.keys(update).length > 0;
+  }, [view, editedView]);
 
   if (!isOpen) return null;
 
@@ -44,66 +98,55 @@ export function EditViewModal({ view, isOpen, onClose, onSave, isSaving }: EditV
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-xl font-semibold text-gray-900">Edit View</h2>
+      <div className="relative z-10 w-full max-w-2xl max-h-[90vh] rounded-lg bg-white shadow-xl flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-gray-900">Edit View</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Modify the view configuration below.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
-            <label htmlFor="edit-view-name" className="block text-sm font-medium text-gray-700">
-              Name
-            </label>
-            <input
-              id="edit-view-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        {/* Content */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 overflow-y-auto flex-1">
+            <ViewEditor
+              view={editedView}
+              workflowDefinition={workflowDefinition}
+              onChange={setEditedView}
+              mode="edit"
               disabled={isSaving}
             />
           </div>
 
-          <div>
-            <label htmlFor="edit-view-description" className="block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <input
-              id="edit-view-description"
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              disabled={isSaving}
-            />
-          </div>
-
-          {/* Read-only info */}
-          <div className="rounded-md bg-gray-50 p-3">
-            <p className="text-sm text-gray-600">
-              <span className="font-medium">Root Type:</span> {view.rootType}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              <span className="font-medium">Style:</span>{' '}
-              {Object.values(view.levels)[0]?.style || 'unknown'}
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-              disabled={isSaving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving || !name.trim()}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
+          {/* Footer */}
+          <div className="p-6 border-t border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                {hasChanges ? (
+                  <span className="text-amber-600">Unsaved changes</span>
+                ) : (
+                  <span>No changes</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving || !editedView.name.trim() || !hasChanges}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
           </div>
         </form>
       </div>

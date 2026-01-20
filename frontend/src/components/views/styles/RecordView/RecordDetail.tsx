@@ -18,6 +18,7 @@ interface RecordDetailProps {
   recordConfig: RecordConfig;
   isLoading: boolean;
   onNodeClick?: (node: Node) => void;
+  onCreateNode?: (nodeType: string, parentNodeId: string) => void;
 }
 
 export function RecordDetail({
@@ -29,6 +30,7 @@ export function RecordDetail({
   recordConfig,
   isLoading,
   onNodeClick,
+  onCreateNode,
 }: RecordDetailProps) {
   // Determine which property fields to show
   const propertyFields = recordConfig?.propertyFields || nodeType.fields.map((f) => f.key);
@@ -92,6 +94,7 @@ export function RecordDetail({
               emptyMessage={sectionConfig.emptyMessage}
               allowCreate={sectionConfig.allowCreate}
               onNodeClick={onNodeClick}
+              onCreateNode={onCreateNode}
             />
           );
         })
