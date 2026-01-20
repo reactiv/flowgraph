@@ -82,6 +82,30 @@ export interface Rule {
   message: string;
 }
 
+// ==================== Rule Violation ====================
+
+export interface MissingEdge {
+  edgeType: string;
+  required: number;
+  actual: number;
+}
+
+export interface RuleViolation {
+  ruleId: string;
+  message: string;
+  missingEdges: MissingEdge[];
+}
+
+export interface RuleViolationError {
+  message: string;
+  violations: RuleViolation[];
+}
+
+export interface ValidateTransitionResponse {
+  allowed: boolean;
+  violations: RuleViolation[];
+}
+
 export interface WorkflowDefinition {
   workflowId: string;
   name: string;

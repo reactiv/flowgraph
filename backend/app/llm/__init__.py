@@ -13,6 +13,7 @@ from app.llm.schema_generator import (
     SchemaGenerator,
     SchemaValidationResult,
 )
+from app.llm.rule_generator import RuleGenerator
 from app.llm.view_generator import ViewGenerator
 
 __all__ = [
@@ -42,6 +43,8 @@ __all__ = [
     "FileSeeder",
     # View generation
     "ViewGenerator",
+    # Rule generation
+    "RuleGenerator",
     # Node suggestion
     "NodeSuggestionGenerator",
     # Field value suggestion

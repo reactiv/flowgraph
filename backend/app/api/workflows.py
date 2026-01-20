@@ -41,11 +41,13 @@ from app.models import (
 )
 from app.models.workflow import (
     FieldKind,
+    Rule,
     ViewTemplate,
     ViewTemplateCreate,
     ViewTemplateUpdate,
     WorkflowSummary,
 )
+from app.rules import RuleEngine, RuleViolation
 from app.storage.upload_store import get_upload_store
 
 router = APIRouter()
@@ -302,11 +304,82 @@ async def get_node(workflow_id: str, node_id: str) -> Node:
 
 @router.patch("/workflows/{workflow_id}/nodes/{node_id}")
 async def update_node(workflow_id: str, node_id: str, update: NodeUpdate) -> Node:
-    """Update a node."""
-    node = await graph_store.update_node(workflow_id, node_id, update)
+    """Update a node.
+
+    If the update includes a status change, validates that the transition
+    is allowed by all applicable workflow rules before applying the update.
+    """
+    # Get current node to check for status change
+    node = await graph_store.get_node(workflow_id, node_id)
     if node is None:
         raise HTTPException(status_code=404, detail="Node not found")
-    return node
+
+    # If status is changing, validate against rules
+    if update.status is not None and update.status != node.status:
+        workflow = await graph_store.get_workflow(workflow_id)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        rule_engine = RuleEngine(graph_store, workflow_id)
+        result = await rule_engine.validate_transition(node, update.status, workflow)
+
+        if not result.allowed:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Status transition blocked by rules",
+                    "violations": [
+                        v.model_dump(by_alias=True) for v in result.violations
+                    ],
+                },
+            )
+
+    # Proceed with update
+    updated_node = await graph_store.update_node(workflow_id, node_id, update)
+    if updated_node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return updated_node
+
+
+class ValidateTransitionRequest(BaseModel):
+    """Request to validate a status transition."""
+
+    target_status: str
+
+
+class ValidateTransitionResponse(BaseModel):
+    """Response for transition validation."""
+
+    allowed: bool
+    violations: list[RuleViolation] = []
+
+
+@router.post("/workflows/{workflow_id}/nodes/{node_id}/validate-transition")
+async def validate_transition(
+    workflow_id: str,
+    node_id: str,
+    request: ValidateTransitionRequest,
+) -> ValidateTransitionResponse:
+    """Check if a status transition would be allowed.
+
+    This is a dry-run validation that checks workflow rules without
+    modifying the node. Useful for pre-validating transitions in the UI.
+    """
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    node = await graph_store.get_node(workflow_id, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    rule_engine = RuleEngine(graph_store, workflow_id)
+    result = await rule_engine.validate_transition(node, request.target_status, workflow)
+
+    return ValidateTransitionResponse(
+        allowed=result.allowed,
+        violations=result.violations,
+    )
 
 
 @router.delete("/workflows/{workflow_id}/nodes/{node_id}")
@@ -1242,3 +1315,72 @@ async def confirm_seed_from_files(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ==================== Rules ====================
+
+
+class GenerateRuleRequest(BaseModel):
+    """Request to generate a rule from natural language."""
+
+    description: str
+
+
+class AddRuleRequest(BaseModel):
+    """Request to add a rule to the workflow."""
+
+    rule: Rule
+
+
+@router.get("/workflows/{workflow_id}/rules")
+async def list_rules(workflow_id: str) -> list[Rule]:
+    """List all rules for a workflow."""
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return workflow.rules
+
+
+@router.post("/workflows/{workflow_id}/rules/generate")
+async def generate_rule(
+    workflow_id: str,
+    request: GenerateRuleRequest,
+) -> Rule:
+    """Generate a rule from natural language description.
+
+    The rule is returned but NOT added to the workflow.
+    Call POST /rules to add the rule.
+    """
+    from app.llm.rule_generator import RuleGenerator
+
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    try:
+        generator = RuleGenerator()
+        rule = await generator.generate_rule(request.description, workflow)
+        return rule
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workflows/{workflow_id}/rules")
+async def add_rule(
+    workflow_id: str,
+    request: AddRuleRequest,
+) -> Rule:
+    """Add a rule to the workflow definition."""
+    result = await graph_store.add_rule(workflow_id, request.rule)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return result
+
+
+@router.delete("/workflows/{workflow_id}/rules/{rule_id}")
+async def delete_rule(workflow_id: str, rule_id: str) -> dict[str, bool]:
+    """Delete a rule from the workflow."""
+    deleted = await graph_store.delete_rule(workflow_id, rule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {"deleted": True}
