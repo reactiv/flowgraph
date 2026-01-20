@@ -15,6 +15,11 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 │   │   ├── schema/           # WorkflowDefinition validation
 │   │   └── llm/              # LLM integration (schema + data generation)
 │   │       └── transformer/  # Agentic data transformer (Claude Agent SDK)
+│   ├── .claude/skills/       # Agent skills for transformer
+│   │   ├── notion/           # Notion database/page reading
+│   │   ├── google-drive/     # Google Drive file access
+│   │   ├── xlsx/             # Excel spreadsheet handling
+│   │   └── docx/             # Word document handling
 │   ├── templates/            # Built-in workflow JSON templates
 │   ├── tests/                # pytest tests
 │   ├── Dockerfile
@@ -150,6 +155,12 @@ GOOGLE_API_KEY=...              # Gemini 3.0 Flash for fast content generation (
 # Optional
 DATABASE_PATH=./data/workflow.db  # SQLite database location
 LOG_LEVEL=info                    # Logging verbosity
+
+# Notion integration (for transformer skills)
+NOTION_TOKEN=secret_...         # Notion integration token (from notion.so/my-integrations)
+
+# Google Drive integration (for transformer skills)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # Service account credentials
 ```
 
 ## API Conventions

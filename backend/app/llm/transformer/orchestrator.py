@@ -108,7 +108,7 @@ Your script should:
 FILE_TYPE_HANDLING_PROMPT = """
 Use the following tools to handle file types:
 
-### .zip file: 
+### .zip file:
 - Write python code to investigate the zip file and ensure that your
 final script operates on the zip file, which is what the user wants to transform.
 
@@ -156,6 +156,34 @@ response = client.models.generate_content(
     },
 )
 ```
+
+## External Data Sources
+
+You have access to Skills for reading data from external services.
+**Always use Skills instead of WebFetch for authenticated services.**
+
+### Notion Data
+When you see Notion URLs (notion.so, notion.site) or instructions mentioning Notion:
+- **Use the `notion` skill** - invoke it with `/notion` or the Skill tool
+- WebFetch will NOT work for Notion - it requires API authentication
+- The skill can read databases, pages, and their content
+
+### Google Drive Data
+When you see Google Drive URLs (drive.google.com) or instructions mentioning Google Drive:
+- **Use the `google-drive` skill** - invoke it with `/google-drive` or the Skill tool
+- WebFetch will NOT work for Google Drive - it requires OAuth authentication
+- The skill can list folders, download files, and export Google Docs/Sheets
+
+### Excel/Spreadsheets
+For .xlsx, .xlsm, .csv, .tsv files:
+- **Use the `xlsx` skill** for reading and analyzing spreadsheet data
+
+### Word Documents
+For .docx files:
+- **Use the `docx` skill** for reading and creating Word documents
+
+**Important**: Do NOT use WebFetch or WebSearch for Notion or Google Drive URLs.
+These services require authentication that only the Skills can provide.
 """
 
 class DataTransformer:
@@ -216,6 +244,33 @@ class DataTransformer:
                 else:
                     raise ValueError(f"Input path not found: {input_path}")
 
+            # Copy skills directory so agent can discover them via setting_sources
+            skills_src = Path(__file__).parent.parent.parent.parent / ".claude" / "skills"
+            available_skills = []
+            logger.info(f"Looking for skills at: {skills_src} (exists: {skills_src.exists()})")
+            if skills_src.exists():
+                try:
+                    skills_dest = work_dir / ".claude" / "skills"
+                    # Remove existing skills dir if present (for persistent work_dirs)
+                    if skills_dest.exists():
+                        shutil.rmtree(skills_dest)
+                    skills_dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(skills_src, skills_dest)
+                    logger.info(f"Copied skills from {skills_src} to {skills_dest}")
+                    # List available skills
+                    for skill_dir in skills_dest.iterdir():
+                        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                            available_skills.append(skill_dir.name)
+                    if on_event and available_skills:
+                        on_event("skills_available", {
+                            "skills": available_skills,
+                            "message": f"Available skills: {', '.join(available_skills)}",
+                        })
+                except Exception as e:
+                    logger.error(f"Failed to copy skills: {e}")
+            else:
+                logger.warning(f"Skills directory not found at {skills_src}")
+
             # Run the agent
             result = await self._run_agent(
                 work_dir=work_dir,
@@ -258,7 +313,7 @@ class DataTransformer:
         # Build system prompt based on mode
         output_file = f"./output.{config.output_format}"
         schema_json = get_schema_description(output_model)
-        
+
         if config.mode == "code":
             system_prompt = CODE_MODE_PROMPT.format(
                 output_file=output_file,
@@ -285,6 +340,7 @@ class DataTransformer:
             "Write",
             "Glob",
             "Grep",
+            "Skill",  # Enable skill invocation for Notion, Google Drive, etc.
             "mcp__transformer-tools__validate_artifact",
         ]
         if config.mode == "code":
@@ -313,6 +369,18 @@ class DataTransformer:
                 "tool": tool_name,
                 "input": tool_input,
             })
+
+            # Emit dedicated skill event when Skill tool is invoked
+            if tool_name == "Skill":
+                skill_name = tool_input.get("skill", "unknown")
+                skill_args = tool_input.get("args", "")
+                emit("skill_invoked", {
+                    "skill": skill_name,
+                    "args": skill_args,
+                    "message": f"Using skill: {skill_name}",
+                })
+                logger.info(f"Skill invoked: {skill_name} with args: {skill_args}")
+
             return {}  # Allow tool to proceed
 
         # Hook to emit events after tool execution
@@ -346,6 +414,15 @@ class DataTransformer:
             result_str = str(tool_result)[:500] if tool_result else "(no result)"
             emit("tool_result", {"tool": tool_name, "result": result_str})
 
+            # Emit dedicated skill result event
+            if tool_name == "Skill":
+                skill_name = input_data.get("tool_input", {}).get("skill", "unknown")
+                emit("skill_result", {
+                    "skill": skill_name,
+                    "result": result_str,
+                    "message": f"Skill {skill_name} completed",
+                })
+
             # Check for validation results
             if "validate_artifact" in tool_name:
                 try:
@@ -375,6 +452,9 @@ class DataTransformer:
             "PostToolUse": [HookMatcher(matcher="*", hooks=[post_tool_hook])],
         }
 
+        logger.info(f"Allowed tools: {allowed_tools}")
+        logger.info(f"System prompt preview: {system_prompt[:200]}...")
+
         # Configure the agent with hooks
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
@@ -384,6 +464,7 @@ class DataTransformer:
             permission_mode="acceptEdits",
             mcp_servers={"transformer-tools": mcp_server},
             hooks=hooks,
+            setting_sources=["project"],  # Load skills from .claude/skills/
         )
 
         emit("iteration_start", {"iteration": 1, "max": config.max_iterations})
@@ -434,7 +515,7 @@ class DataTransformer:
         items: list[T] | None = None
         item_count = validation_result.get("item_count", 0)
 
-        logger.debug(f"Parsing output: item_count={item_count}, path={output_path}, exists={output_path.exists()}")
+        logger.debug(f"Parsing output: count={item_count}, path={output_path}")
 
         if item_count <= 100 and output_path.exists():
             try:

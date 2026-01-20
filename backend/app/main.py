@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import close_database, init_database
 from app.storage.upload_store import get_upload_store
+
+# Configure logging
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
 
 logger = logging.getLogger(__name__)
 
