@@ -117,6 +117,7 @@ export function ViewEditor({
         return (
           <KanbanEditor
             nodeType={rootNodeType}
+            workflowDefinition={workflowDefinition}
             config={rootLevelConfig.styleConfig as KanbanConfig}
             onChange={updateStyleConfig}
             disabled={disabled}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Node } from '@/types/workflow';
 import type { TableConfig } from '@/types/view-templates';
+import { getNodeFieldValue } from '@/lib/node-utils';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -17,6 +18,9 @@ interface TableViewProps {
   onNodeClick?: (node: Node) => void;
   onStatusChange?: (nodeId: string, newStatus: string) => Promise<void>;
   onSelectionChange?: (selectedIds: Set<string>) => void;
+  // URL state props
+  initialSort?: { field: string; order: 'asc' | 'desc' } | null;
+  onSortChange?: (field: string | null, order: 'asc' | 'desc') => void;
 }
 
 // Status badge color mapping
@@ -111,17 +115,8 @@ function formatCellValue(value: unknown): string {
   return String(value);
 }
 
-function getNodeValue(node: Node, column: string): unknown {
-  // Handle special columns
-  if (column === 'title') return node.title;
-  if (column === 'type') return node.type;
-  if (column === 'status') return node.status;
-  if (column === 'created_at') return node.created_at;
-  if (column === 'updated_at') return node.updated_at;
-
-  // Check properties
-  return node.properties[column];
-}
+// Use shared utility for field value extraction
+const getNodeValue = getNodeFieldValue;
 
 function compareValues(a: unknown, b: unknown, direction: SortDirection): number {
   // Handle null/undefined
@@ -180,14 +175,31 @@ export function TableView({
   config,
   onNodeClick,
   onSelectionChange,
+  initialSort,
+  onSortChange,
 }: TableViewProps) {
-  const [sortState, setSortState] = useState<SortState>({ column: null, direction: 'asc' });
+  // Initialize sort state from URL if provided
+  const [sortState, setSortState] = useState<SortState>(() => {
+    if (initialSort) {
+      return { column: initialSort.field, direction: initialSort.order };
+    }
+    return { column: null, direction: 'asc' };
+  });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const columns = config.columns.length > 0 ? config.columns : ['title', 'type', 'status'];
   const sortable = config.sortable !== false;
   const selectable = config.selectable === true;
   const configStatusColors = config.statusColors;
+
+  // Sync sort state with URL when initialSort changes
+  useEffect(() => {
+    if (initialSort) {
+      setSortState({ column: initialSort.field, direction: initialSort.order });
+    } else {
+      setSortState({ column: null, direction: 'asc' });
+    }
+  }, [initialSort]);
 
   // Sort nodes
   const sortedNodes = useMemo(() => {
@@ -207,18 +219,23 @@ export function TableView({
     if (!sortable) return;
 
     setSortState((prev) => {
+      let newState: SortState;
       if (prev.column === column) {
         // Toggle direction or clear sort
         if (prev.direction === 'asc') {
-          return { column, direction: 'desc' };
+          newState = { column, direction: 'desc' };
         } else {
-          return { column: null, direction: 'asc' };
+          newState = { column: null, direction: 'asc' };
         }
+      } else {
+        // New column, start with ascending
+        newState = { column, direction: 'asc' };
       }
-      // New column, start with ascending
-      return { column, direction: 'asc' };
+      // Notify parent of sort change
+      onSortChange?.(newState.column, newState.direction);
+      return newState;
     });
-  }, [sortable]);
+  }, [sortable, onSortChange]);
 
   // Handle row selection
   const handleRowSelect = useCallback((nodeId: string, checked: boolean) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -32,13 +32,31 @@ interface ViewRendererProps {
   viewTemplate: ViewTemplate;
   workflowDefinition?: WorkflowDefinition;
   onNodeClick?: (node: Node) => void;
+  // URL state props
+  initialFilters?: FilterGroup | null;
+  onFiltersChange?: (filters: FilterGroup | null) => void;
+  initialSort?: { field: string; order: 'asc' | 'desc' } | null;
+  onSortChange?: (field: string | null, order: 'asc' | 'desc') => void;
+  initialRecordId?: string | null;
+  onRecordSelect?: (recordId: string | null) => void;
 }
 
-export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onNodeClick }: ViewRendererProps) {
+export function ViewRenderer({
+  workflowId,
+  viewTemplate,
+  workflowDefinition,
+  onNodeClick,
+  initialFilters,
+  onFiltersChange,
+  initialSort,
+  onSortChange,
+  initialRecordId,
+  onRecordSelect,
+}: ViewRendererProps) {
   const queryClient = useQueryClient();
 
-  // Filter state
-  const [filterGroup, setFilterGroup] = useState<FilterGroup | null>(null);
+  // Filter state - initialized from URL
+  const [filterGroup, setFilterGroup] = useState<FilterGroup | null>(initialFilters ?? null);
 
   // Build filter params for API call
   const filterParams = useMemo<ViewFilterParams | undefined>(() => {
@@ -51,11 +69,16 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
   // Stable serialization for query key
   const filterKey = filterParams ? JSON.stringify(filterParams) : null;
 
-  // Handle filter changes
+  // Sync filter state with URL when view/initialFilters changes
+  useEffect(() => {
+    setFilterGroup(initialFilters ?? null);
+  }, [initialFilters]);
+
+  // Handle filter changes - update local state and notify parent
   const handleFiltersChange = useCallback((filters: FilterGroup | null) => {
-    console.log('[ViewRenderer] handleFiltersChange received:', filters);
     setFilterGroup(filters);
-  }, []);
+    onFiltersChange?.(filters);
+  }, [onFiltersChange]);
 
 
   // Fetch the subgraph data for this view
@@ -64,10 +87,22 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
     queryFn: () => api.getViewSubgraph(workflowId, viewTemplate.id, { filters: filterParams }),
   });
 
-  // Mutation for updating node status (for drag-drop in Kanban)
+  // Mutation for updating node status and/or properties (for drag-drop in Kanban)
   const updateNodeMutation = useMutation({
-    mutationFn: ({ nodeId, status }: { nodeId: string; status: string }) =>
-      api.updateNode(workflowId, nodeId, { status }),
+    mutationFn: ({
+      nodeId,
+      status,
+      properties,
+    }: {
+      nodeId: string;
+      status?: string;
+      properties?: Record<string, unknown>;
+    }) => {
+      const update: { status?: string; properties?: Record<string, unknown> } = {};
+      if (status !== undefined) update.status = status;
+      if (properties !== undefined) update.properties = properties;
+      return api.updateNode(workflowId, nodeId, update);
+    },
     onSuccess: () => {
       // Invalidate both the view query (with any filter) and the nodes query
       queryClient.invalidateQueries({ queryKey: ['view', workflowId, viewTemplate.id] });
@@ -95,6 +130,47 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
   const handleNodeDrop = async (nodeId: string, newStatus: string) => {
     try {
       await updateNodeMutation.mutateAsync({ nodeId, status: newStatus });
+    } catch {
+      // Error is handled by onError callback
+    }
+  };
+
+  // Extended drop handler for Kanban with swimlane support
+  const handleKanbanNodeDrop = async (
+    nodeId: string,
+    newColumn: string,
+    newSwimlane?: string
+  ) => {
+    try {
+      const rootLevelConfig = viewTemplate.levels[viewTemplate.rootType];
+      const kanbanConfig = rootLevelConfig?.styleConfig as KanbanConfig | undefined;
+      const groupByField = kanbanConfig?.groupByField || 'status';
+      const swimlaneField = kanbanConfig?.swimlaneField;
+
+      // Build the update payload
+      const update: {
+        nodeId: string;
+        status?: string;
+        properties?: Record<string, unknown>;
+      } = { nodeId };
+
+      // Handle column change (groupByField)
+      if (groupByField === 'status') {
+        update.status = newColumn;
+      } else {
+        update.properties = { ...update.properties, [groupByField]: newColumn };
+      }
+
+      // Handle swimlane change
+      if (newSwimlane !== undefined && swimlaneField) {
+        if (swimlaneField === 'status') {
+          update.status = newSwimlane;
+        } else {
+          update.properties = { ...update.properties, [swimlaneField]: newSwimlane };
+        }
+      }
+
+      await updateNodeMutation.mutateAsync(update);
     } catch {
       // Error is handled by onError callback
     }
@@ -139,15 +215,23 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
     // Get the nodes for the root level
     const rootNodes = data.levels[viewTemplate.rootType]?.nodes || [];
 
+    // Collect all edges from all levels (for relational views like kanban swimlanes)
+    const allEdges = Object.values(data.levels).flatMap((level) => level.edges || []);
+
+    // Collect all nodes from all levels (for relational lookups)
+    const allNodes = Object.values(data.levels).flatMap((level) => level.nodes || []);
+
     // Render based on view style
     switch (rootLevelConfig.style) {
       case 'kanban':
         return (
           <KanbanView
             nodes={rootNodes}
+            edges={allEdges}
+            allNodes={allNodes}
             config={rootLevelConfig.styleConfig as KanbanConfig}
             onNodeClick={onNodeClick}
-            onNodeDrop={handleNodeDrop}
+            onNodeDrop={handleKanbanNodeDrop}
           />
         );
 
@@ -192,6 +276,8 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
             config={rootLevelConfig.styleConfig as TableConfig}
             onNodeClick={onNodeClick}
             onStatusChange={handleNodeDrop}
+            initialSort={initialSort}
+            onSortChange={onSortChange}
           />
         );
 
@@ -237,6 +323,8 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
             viewTemplate={viewTemplate}
             workflowDefinition={workflowDefinition}
             onNodeClick={onNodeClick}
+            initialRecordId={initialRecordId}
+            onRecordSelect={onRecordSelect}
           />
         );
       }
@@ -257,6 +345,7 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
         workflowId={workflowId}
         viewId={viewTemplate.id}
         onFiltersChange={handleFiltersChange}
+        initialFilters={initialFilters}
       />
       <div className="flex-1 overflow-auto">{renderContent()}</div>
     </div>

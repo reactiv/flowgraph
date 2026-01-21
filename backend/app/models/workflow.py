@@ -174,6 +174,17 @@ class CardTemplate(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SwimlanePath(BaseModel):
+    """Path for relational swimlane grouping via edge traversal."""
+
+    edge_type: str = PydanticField(alias="edgeType")
+    direction: Literal["outgoing", "incoming"]
+    target_type: str = PydanticField(alias="targetType")
+    target_field: str = PydanticField(alias="targetField")
+
+    model_config = {"populate_by_name": True}
+
+
 class KanbanConfig(BaseModel):
     """Configuration for Kanban-style view."""
 
@@ -187,6 +198,12 @@ class KanbanConfig(BaseModel):
     card_template: CardTemplate | None = PydanticField(default=None, alias="cardTemplate")
     show_counts: bool = PydanticField(default=True, alias="showCounts")
     show_empty_columns: bool = PydanticField(default=True, alias="showEmptyColumns")
+    # Swimlane configuration (optional secondary grouping)
+    swimlane_field: str | None = PydanticField(default=None, alias="swimlaneField")
+    swimlane_path: SwimlanePath | None = PydanticField(default=None, alias="swimlanePath")
+    swimlane_order: list[str] | None = PydanticField(default=None, alias="swimlaneOrder")
+    swimlane_colors: dict[str, str] | None = PydanticField(default=None, alias="swimlaneColors")
+    show_empty_swimlanes: bool = PydanticField(default=True, alias="showEmptySwimlanes")
 
     model_config = {"populate_by_name": True}
 

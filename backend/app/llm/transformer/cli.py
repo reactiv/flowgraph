@@ -305,6 +305,11 @@ async def main():
         action="store_true",
         help="Suppress streaming output, only show final result",
     )
+    parser.add_argument(
+        "--learn",
+        action="store_true",
+        help="Generate a SKILL.md documenting how to repeat this transformation",
+    )
 
     args = parser.parse_args()
 
@@ -339,6 +344,7 @@ async def main():
         output_format=args.format,
         max_iterations=args.max_turns,
         work_dir=args.work_dir,
+        learn=args.learn,
     )
 
     # Print header
@@ -382,6 +388,12 @@ async def main():
                 out(json.dumps(item.model_dump(), indent=2))
             if len(result.items) > 3:
                 out(f"... and {len(result.items) - 3} more")
+
+        # Display generated skill if learn mode was enabled
+        if result.learned and result.learned.skill_md:
+            out()
+            out(colorize("Generated SKILL.md:", Colors.BOLD))
+            out(result.learned.skill_md)
 
     except ValueError as e:
         out(colorize(f"Transformation failed: {e}", Colors.RED))

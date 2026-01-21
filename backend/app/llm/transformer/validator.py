@@ -3,12 +3,23 @@
 import json
 import logging
 from collections.abc import Callable
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class ValidationSeverity(str, Enum):
+    """Severity level for validation errors."""
+
+    ERROR = "error"
+    """Validation error that blocks the operation."""
+
+    WARNING = "warning"
+    """Validation warning that allows the operation but flags an issue."""
 
 
 class CustomValidationError(BaseModel):
@@ -29,6 +40,9 @@ class CustomValidationError(BaseModel):
 
     context: dict[str, Any] | None = None
     """Additional context about the error."""
+
+    severity: ValidationSeverity = ValidationSeverity.ERROR
+    """Severity level of the error."""
 
 # Max size for sample data to avoid MCP buffer overflow (1MB limit)
 MAX_SAMPLE_JSON_SIZE = 50_000  # 50KB is plenty for the agent to see structure
@@ -73,7 +87,7 @@ class ValidationResult(BaseModel):
     """Result of validating an artifact against a schema."""
 
     valid: bool
-    """Whether validation passed."""
+    """Whether validation passed (no errors, warnings are allowed)."""
 
     item_count: int
     """Number of items validated."""
@@ -83,6 +97,9 @@ class ValidationResult(BaseModel):
 
     custom_errors: list[CustomValidationError] = []
     """Custom validation errors from domain-specific validation."""
+
+    warnings: list[CustomValidationError] = []
+    """Custom validation warnings (non-blocking issues)."""
 
     sample: list[dict[str, Any]] | None = None
     """Sample of successfully parsed items (first few)."""
@@ -279,6 +296,8 @@ def validate_artifact_with_custom(
         max_errors: Maximum number of errors to collect (for JSONL).
         custom_validator: Optional function to perform domain-specific validation.
             Takes parsed data and returns a list of CustomValidationError.
+            Errors with severity=ERROR block validation, severity=WARNING are collected
+            but don't block.
 
     Returns:
         ValidationResult with validation status and any errors.
@@ -296,7 +315,11 @@ def validate_artifact_with_custom(
         content = file_path.read_text()
         data = json.loads(content)
         validated_obj = model.model_validate(data)
-        custom_errors = custom_validator(validated_obj)
+        all_issues = custom_validator(validated_obj)
+
+        # Separate errors from warnings
+        custom_errors = [e for e in all_issues if e.severity == ValidationSeverity.ERROR]
+        warnings = [e for e in all_issues if e.severity == ValidationSeverity.WARNING]
 
         if custom_errors:
             return ValidationResult(
@@ -304,10 +327,19 @@ def validate_artifact_with_custom(
                 item_count=result.item_count,
                 errors=result.errors,
                 custom_errors=custom_errors,
+                warnings=warnings,
                 sample=result.sample,
             )
 
-        return result
+        # Validation passed, but may have warnings
+        return ValidationResult(
+            valid=True,
+            item_count=result.item_count,
+            errors=result.errors,
+            custom_errors=[],
+            warnings=warnings,
+            sample=result.sample,
+        )
 
     except Exception as e:
         logger.warning(f"Custom validation failed with exception: {e}")

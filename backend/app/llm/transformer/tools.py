@@ -21,6 +21,9 @@ from app.llm.transformer.validator import (
     validate_artifact_with_custom,
 )
 
+# Max response size to avoid Claude Agent SDK tool result overflow
+MAX_RESPONSE_SIZE = 30_000  # 30KB is safe margin under SDK limits
+
 
 def create_transformer_tools(
     work_dir: Path,
@@ -72,17 +75,33 @@ def create_transformer_tools(
             custom_validator=custom_validator,
         )
 
+        custom_errors = [e.model_dump() for e in result.custom_errors]
         response = {
             "valid": result.valid,
             "item_count": result.item_count,
             "errors": result.errors,
-            "custom_errors": [e.model_dump() for e in result.custom_errors],
+            "custom_errors": custom_errors,
             "sample": result.sample,
         }
 
+        # Truncate response if too large to avoid SDK overflow
+        response_json = json.dumps(response, indent=2)
+        if len(response_json) > MAX_RESPONSE_SIZE:
+            # Progressively truncate: first sample, then custom_errors
+            response["sample"] = None
+            response_json = json.dumps(response, indent=2)
+
+            if len(response_json) > MAX_RESPONSE_SIZE and custom_errors:
+                # Truncate custom_errors list and add indicator
+                while len(response_json) > MAX_RESPONSE_SIZE and len(custom_errors) > 1:
+                    custom_errors = custom_errors[:-1]
+                    response["custom_errors"] = custom_errors
+                    response["custom_errors_truncated"] = len(result.custom_errors)
+                    response_json = json.dumps(response, indent=2)
+
         return {
             "content": [
-                {"type": "text", "text": json.dumps(response, indent=2)}
+                {"type": "text", "text": response_json}
             ]
         }
 

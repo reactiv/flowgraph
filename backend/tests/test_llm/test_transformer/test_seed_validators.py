@@ -4,16 +4,29 @@ import pytest
 
 from app.llm.transformer.seed_models import SeedData, SeedEdge, SeedNode
 from app.llm.transformer.seed_validators import (
+    _find_similar_temp_id,
+    _levenshtein_distance,
     create_seed_data_validator,
+    validate_array_fields,
+    validate_datetime_fields,
     validate_edge_connectivity,
     validate_edge_types,
     validate_enum_values,
+    validate_no_duplicate_edges,
+    validate_no_self_loops,
     validate_node_types,
+    validate_number_fields,
     validate_property_keys,
     validate_required_fields,
     validate_status_values,
     validate_temp_id_references,
+    validate_unique_fields,
+    validate_unique_temp_ids,
+    warn_empty_seed_data,
+    warn_low_edge_density,
+    warn_orphan_nodes,
 )
+from app.llm.transformer.validator import ValidationSeverity
 from app.models.workflow import (
     EdgeType,
     Field,
@@ -630,3 +643,675 @@ class TestCreateSeedDataValidator:
         validator = create_seed_data_validator(sample_definition, max_errors=5)
         errors = validator(seed_data)
         assert len(errors) == 5
+
+
+# ==================== Tests for New Validators ====================
+
+
+class TestLevenshteinDistance:
+    """Tests for _levenshtein_distance helper."""
+
+    def test_identical_strings(self):
+        """Test distance is 0 for identical strings."""
+        assert _levenshtein_distance("hello", "hello") == 0
+
+    def test_single_character_difference(self):
+        """Test distance is 1 for single character difference."""
+        assert _levenshtein_distance("hello", "hallo") == 1
+        assert _levenshtein_distance("task_1", "task_2") == 1
+
+    def test_missing_underscore(self):
+        """Test distance for common typo pattern - missing underscore."""
+        assert _levenshtein_distance("task_1", "task1") == 1
+        assert _levenshtein_distance("author_1", "author1") == 1
+
+    def test_hyphen_vs_underscore(self):
+        """Test distance for hyphen vs underscore."""
+        assert _levenshtein_distance("task-1", "task_1") == 1
+
+    def test_empty_string(self):
+        """Test distance with empty string."""
+        assert _levenshtein_distance("", "hello") == 5
+        assert _levenshtein_distance("hello", "") == 5
+
+
+class TestFindSimilarTempId:
+    """Tests for _find_similar_temp_id helper."""
+
+    def test_finds_similar_with_typo(self):
+        """Test finding similar temp_id when there's a typo."""
+        valid_ids = {"task_1", "task_2", "person_1"}
+        assert _find_similar_temp_id("task1", valid_ids) == "task_1"
+        assert _find_similar_temp_id("task-1", valid_ids) == "task_1"
+
+    def test_returns_none_when_no_similar(self):
+        """Test returns None when no similar temp_id exists."""
+        valid_ids = {"task_1", "task_2"}
+        assert _find_similar_temp_id("person_99", valid_ids) is None
+
+    def test_respects_max_distance(self):
+        """Test respects max_distance parameter."""
+        valid_ids = {"task_1"}
+        # "taaask_1" has distance 2 (2 extra 'a's) from "task_1"
+        # "taaaask_1" has distance 3 (3 extra 'a's) from "task_1"
+        assert _find_similar_temp_id("taaask_1", valid_ids, max_distance=1) is None
+        assert _find_similar_temp_id("taaask_1", valid_ids, max_distance=2) == "task_1"
+        assert _find_similar_temp_id("taaaask_1", valid_ids, max_distance=2) is None
+        assert _find_similar_temp_id("taaaask_1", valid_ids, max_distance=3) == "task_1"
+
+
+class TestValidateUniqueTempIds:
+    """Tests for validate_unique_temp_ids."""
+
+    def test_unique_temp_ids(self):
+        """Test validation passes for unique temp_ids."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+            ],
+            edges=[],
+        )
+
+        errors = validate_unique_temp_ids(seed_data)
+        assert errors == []
+
+    def test_duplicate_temp_ids(self):
+        """Test validation fails for duplicate temp_ids."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_1", node_type="task", title="Task 2"),  # Duplicate
+            ],
+            edges=[],
+        )
+
+        errors = validate_unique_temp_ids(seed_data)
+        assert len(errors) == 1
+        assert errors[0].code == "duplicate_temp_id"
+        assert "task_1" in errors[0].message
+        assert errors[0].path == "nodes[1].temp_id"
+
+
+class TestValidateNoSelfLoops:
+    """Tests for validate_no_self_loops."""
+
+    def test_no_self_loops(self):
+        """Test validation passes when no self-loops exist."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+            ],
+            edges=[
+                SeedEdge(edge_type="depends_on", from_temp_id="task_1", to_temp_id="task_2"),
+            ],
+        )
+
+        errors = validate_no_self_loops(seed_data)
+        assert errors == []
+
+    def test_self_loop_detected(self):
+        """Test validation fails for self-referential edge."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+            ],
+            edges=[
+                SeedEdge(edge_type="depends_on", from_temp_id="task_1", to_temp_id="task_1"),
+            ],
+        )
+
+        errors = validate_no_self_loops(seed_data)
+        assert len(errors) == 1
+        assert errors[0].code == "self_loop_edge"
+        assert "task_1" in errors[0].message
+
+
+class TestValidateNoDuplicateEdges:
+    """Tests for validate_no_duplicate_edges."""
+
+    def test_no_duplicate_edges(self):
+        """Test validation passes when no duplicate edges exist."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+            ],
+            edges=[
+                SeedEdge(edge_type="depends_on", from_temp_id="task_1", to_temp_id="task_2"),
+            ],
+        )
+
+        errors = validate_no_duplicate_edges(seed_data)
+        assert errors == []
+
+    def test_duplicate_edge_detected(self):
+        """Test validation fails for duplicate edges."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+            ],
+            edges=[
+                SeedEdge(edge_type="depends_on", from_temp_id="task_1", to_temp_id="task_2"),
+                SeedEdge(edge_type="depends_on", from_temp_id="task_1", to_temp_id="task_2"),
+            ],
+        )
+
+        errors = validate_no_duplicate_edges(seed_data)
+        assert len(errors) == 1
+        assert errors[0].code == "duplicate_edge"
+
+    def test_different_edge_types_allowed(self):
+        """Test that same nodes can have different edge types."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="person_1", node_type="person", title="Person 1"),
+            ],
+            edges=[
+                SeedEdge(edge_type="assigned_to", from_temp_id="task_1", to_temp_id="person_1"),
+                SeedEdge(edge_type="created_by", from_temp_id="task_1", to_temp_id="person_1"),
+            ],
+        )
+
+        errors = validate_no_duplicate_edges(seed_data)
+        assert errors == []
+
+
+class TestValidateTempIdTypoDetection:
+    """Tests for temp_id typo detection in validate_temp_id_references."""
+
+    def test_suggests_correction_for_typo(self):
+        """Test error message suggests correction when typo detected."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+            ],
+            edges=[
+                SeedEdge(
+                    edge_type="depends_on",
+                    from_temp_id="task1",  # Missing underscore
+                    to_temp_id="task_1",
+                ),
+            ],
+        )
+
+        errors = validate_temp_id_references(seed_data)
+        assert len(errors) == 1
+        assert "Did you mean 'task_1'" in errors[0].message
+        assert errors[0].context.get("suggested_correction") == "task_1"
+
+    def test_no_suggestion_when_no_similar(self):
+        """Test no suggestion when there's no similar temp_id."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+            ],
+            edges=[
+                SeedEdge(
+                    edge_type="depends_on",
+                    from_temp_id="completely_different_id",
+                    to_temp_id="task_1",
+                ),
+            ],
+        )
+
+        errors = validate_temp_id_references(seed_data)
+        assert len(errors) == 1
+        assert "Did you mean" not in errors[0].message
+        assert errors[0].context.get("suggested_correction") is None
+
+
+@pytest.fixture
+def extended_definition() -> WorkflowDefinition:
+    """Create an extended workflow definition with all field types for testing."""
+    return WorkflowDefinition(
+        workflow_id="test-extended",
+        name="Extended Test Workflow",
+        description="A test workflow with all field types",
+        node_types=[
+            NodeType(
+                type="event",
+                display_name="Event",
+                title_field="name",
+                fields=[
+                    Field(key="name", label="Name", kind=FieldKind.STRING, required=True),
+                    Field(key="start_time", label="Start Time", kind=FieldKind.DATETIME),
+                    Field(key="end_time", label="End Time", kind=FieldKind.DATETIME),
+                    Field(key="attendee_count", label="Attendees", kind=FieldKind.NUMBER),
+                    Field(key="tags", label="Tags", kind=FieldKind.TAG_ARRAY),
+                    Field(key="attachments", label="Files", kind=FieldKind.FILE_ARRAY),
+                    Field(
+                        key="event_code",
+                        label="Code",
+                        kind=FieldKind.STRING,
+                        unique=True,
+                    ),
+                ],
+            ),
+        ],
+        edge_types=[],
+    )
+
+
+class TestValidateDatetimeFields:
+    """Tests for validate_datetime_fields."""
+
+    def test_valid_datetime(self, extended_definition: WorkflowDefinition):
+        """Test validation passes for valid ISO 8601 datetime."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "start_time": "2024-01-15T10:30:00Z",
+                        "end_time": "2024-01-15T18:00:00+05:00",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_datetime_fields(seed_data, extended_definition)
+        assert errors == []
+
+    def test_invalid_datetime_format(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for invalid datetime format."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "start_time": "January 15, 2024",  # Invalid format
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_datetime_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "invalid_datetime"
+        assert "start_time" in errors[0].path
+
+    def test_non_string_datetime(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for non-string datetime value."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "start_time": 1705312200,  # Unix timestamp (invalid)
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_datetime_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "invalid_datetime"
+
+
+class TestValidateNumberFields:
+    """Tests for validate_number_fields."""
+
+    def test_valid_numbers(self, extended_definition: WorkflowDefinition):
+        """Test validation passes for valid numbers."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "attendee_count": 150,
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_number_fields(seed_data, extended_definition)
+        assert errors == []
+
+    def test_float_is_valid(self, extended_definition: WorkflowDefinition):
+        """Test validation passes for float values."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "attendee_count": 150.5,
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_number_fields(seed_data, extended_definition)
+        assert errors == []
+
+    def test_string_number_is_invalid(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for string number."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "attendee_count": "150",  # String, not number
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_number_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "invalid_number"
+
+    def test_boolean_is_invalid(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for boolean value in number field."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "attendee_count": True,  # Boolean
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_number_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "invalid_number"
+
+
+class TestValidateArrayFields:
+    """Tests for validate_array_fields."""
+
+    def test_valid_arrays(self, extended_definition: WorkflowDefinition):
+        """Test validation passes for valid arrays."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "tags": ["tech", "conference", "2024"],
+                        "attachments": ["agenda.pdf", "schedule.xlsx"],
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_array_fields(seed_data, extended_definition)
+        assert errors == []
+
+    def test_string_instead_of_array(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for string instead of array."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={
+                        "name": "Conference",
+                        "tags": "tech, conference",  # String, not array
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_array_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "invalid_array"
+        assert "tag[]" in errors[0].message
+
+
+class TestValidateUniqueFields:
+    """Tests for validate_unique_fields."""
+
+    def test_unique_values(self, extended_definition: WorkflowDefinition):
+        """Test validation passes for unique values."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={"name": "Conference", "event_code": "EVT-001"},
+                ),
+                SeedNode(
+                    temp_id="event_2",
+                    node_type="event",
+                    title="Event 2",
+                    properties={"name": "Workshop", "event_code": "EVT-002"},
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_unique_fields(seed_data, extended_definition)
+        assert errors == []
+
+    def test_duplicate_unique_values(self, extended_definition: WorkflowDefinition):
+        """Test validation fails for duplicate unique field values."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="event_1",
+                    node_type="event",
+                    title="Event 1",
+                    properties={"name": "Conference", "event_code": "EVT-001"},
+                ),
+                SeedNode(
+                    temp_id="event_2",
+                    node_type="event",
+                    title="Event 2",
+                    properties={"name": "Workshop", "event_code": "EVT-001"},  # Duplicate
+                ),
+            ],
+            edges=[],
+        )
+
+        errors = validate_unique_fields(seed_data, extended_definition)
+        assert len(errors) == 1
+        assert errors[0].code == "duplicate_unique_value"
+        assert "EVT-001" in errors[0].message
+
+
+class TestWarnOrphanNodes:
+    """Tests for warn_orphan_nodes."""
+
+    def test_no_orphans(self):
+        """Test no warnings when all nodes are connected."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="person_1", node_type="person", title="Person 1"),
+            ],
+            edges=[
+                SeedEdge(edge_type="assigned_to", from_temp_id="task_1", to_temp_id="person_1"),
+            ],
+        )
+
+        warnings = warn_orphan_nodes(seed_data)
+        assert warnings == []
+
+    def test_orphan_detected(self):
+        """Test warning is generated for orphan node."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+                SeedNode(temp_id="person_1", node_type="person", title="Person 1"),
+            ],
+            edges=[
+                SeedEdge(edge_type="assigned_to", from_temp_id="task_1", to_temp_id="person_1"),
+            ],
+        )
+
+        warnings = warn_orphan_nodes(seed_data)
+        assert len(warnings) == 1
+        assert warnings[0].code == "orphan_node"
+        assert warnings[0].severity == ValidationSeverity.WARNING
+        assert "task_2" in warnings[0].message
+
+
+class TestWarnLowEdgeDensity:
+    """Tests for warn_low_edge_density."""
+
+    def test_good_density(self):
+        """Test no warning when edge density is good."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_2", node_type="task", title="Task 2"),
+                SeedNode(temp_id="person_1", node_type="person", title="Person 1"),
+            ],
+            edges=[
+                SeedEdge(edge_type="assigned_to", from_temp_id="task_1", to_temp_id="person_1"),
+                SeedEdge(edge_type="assigned_to", from_temp_id="task_2", to_temp_id="person_1"),
+            ],
+        )
+
+        warnings = warn_low_edge_density(seed_data)
+        assert warnings == []
+
+    def test_low_density_warning(self):
+        """Test warning when edge density is low."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id=f"task_{i}", node_type="task", title=f"Task {i}")
+                for i in range(10)
+            ],
+            edges=[],  # No edges
+        )
+
+        warnings = warn_low_edge_density(seed_data)
+        assert len(warnings) == 1
+        assert warnings[0].code == "low_edge_density"
+        assert warnings[0].severity == ValidationSeverity.WARNING
+
+    def test_single_node_no_warning(self):
+        """Test no warning for single node (edge density not applicable)."""
+        seed_data = SeedData(
+            nodes=[SeedNode(temp_id="task_1", node_type="task", title="Task 1")],
+            edges=[],
+        )
+
+        warnings = warn_low_edge_density(seed_data)
+        assert warnings == []
+
+
+class TestWarnEmptySeedData:
+    """Tests for warn_empty_seed_data."""
+
+    def test_non_empty_data(self):
+        """Test no warning when data is not empty."""
+        seed_data = SeedData(
+            nodes=[SeedNode(temp_id="task_1", node_type="task", title="Task 1")],
+            edges=[],
+        )
+
+        warnings = warn_empty_seed_data(seed_data)
+        assert warnings == []
+
+    def test_empty_data_warning(self):
+        """Test warning when data is empty."""
+        seed_data = SeedData(nodes=[], edges=[])
+
+        warnings = warn_empty_seed_data(seed_data)
+        assert len(warnings) == 1
+        assert warnings[0].code == "empty_seed_data"
+        assert warnings[0].severity == ValidationSeverity.WARNING
+
+
+class TestCompositeValidatorWithNewValidators:
+    """Tests for create_seed_data_validator with new validators."""
+
+    def test_includes_new_validators(self, sample_definition: WorkflowDefinition):
+        """Test composite validator includes new graph integrity validators."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(temp_id="task_1", node_type="task", title="Task 1"),
+                SeedNode(temp_id="task_1", node_type="task", title="Duplicate"),  # Duplicate
+            ],
+            edges=[],
+        )
+
+        validator = create_seed_data_validator(sample_definition)
+        errors = validator(seed_data)
+
+        error_codes = {e.code for e in errors}
+        assert "duplicate_temp_id" in error_codes
+
+    def test_warnings_included_by_default(self, sample_definition: WorkflowDefinition):
+        """Test warnings are included by default."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="task_1",
+                    node_type="task",
+                    title="Task 1",
+                    properties={"name": "Task"},
+                ),
+            ],
+            edges=[],  # Orphan
+        )
+
+        validator = create_seed_data_validator(sample_definition)
+        issues = validator(seed_data)
+
+        warning_codes = {e.code for e in issues if e.severity == ValidationSeverity.WARNING}
+        assert "orphan_node" in warning_codes
+
+    def test_warnings_can_be_disabled(self, sample_definition: WorkflowDefinition):
+        """Test warnings can be disabled."""
+        seed_data = SeedData(
+            nodes=[
+                SeedNode(
+                    temp_id="task_1",
+                    node_type="task",
+                    title="Task 1",
+                    properties={"name": "Task"},
+                ),
+            ],
+            edges=[],  # Orphan
+        )
+
+        validator = create_seed_data_validator(sample_definition, include_warnings=False)
+        issues = validator(seed_data)
+
+        # Should have no warnings
+        warnings = [e for e in issues if e.severity == ValidationSeverity.WARNING]
+        assert len(warnings) == 0

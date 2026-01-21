@@ -586,6 +586,16 @@ class FileSeeder:
                     }
                     return
 
+                # Emit warnings but don't block
+                if validation_result.warnings:
+                    warning_msgs = [
+                        f"{w.path}: {w.message}" for w in validation_result.warnings[:5]
+                    ]
+                    yield {
+                        "event": "validation_warning",
+                        "warnings": warning_msgs,
+                    }
+
                 # Parse the seed data
                 try:
                     output_content = output_path.read_text()
@@ -607,15 +617,29 @@ class FileSeeder:
 
         # Final validation gate before insertion
         seed_validator = create_seed_data_validator(definition)
-        custom_errors = seed_validator(seed_data)
+        all_issues = seed_validator(seed_data)
 
-        if custom_errors:
-            error_msgs = [f"{e.path}: {e.message}" for e in custom_errors[:5]]
+        # Separate errors from warnings - only block on errors
+        from app.llm.transformer.validator import ValidationSeverity
+
+        errors = [e for e in all_issues if e.severity == ValidationSeverity.ERROR]
+        warnings = [e for e in all_issues if e.severity == ValidationSeverity.WARNING]
+
+        if errors:
+            error_msgs = [f"{e.path}: {e.message}" for e in errors[:5]]
             yield {
                 "event": "error",
                 "message": f"Validation failed: {'; '.join(error_msgs)}",
             }
             return
+
+        # Emit warnings but don't block
+        if warnings:
+            warning_msgs = [f"{w.path}: {w.message}" for w in warnings[:5]]
+            yield {
+                "event": "validation_warning",
+                "warnings": warning_msgs,
+            }
 
         # Insert into database
         yield {

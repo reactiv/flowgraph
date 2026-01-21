@@ -784,18 +784,49 @@ async def get_view_filter_schema(
             status_code=404, detail=f"View template '{view_id}' not found"
         )
 
-    # Build filter schema from workflow definition and template
-    return _build_filter_schema(workflow, template)
+    # Build filter schema from workflow definition and root type
+    return _build_field_schema(workflow, template.root_type)
 
 
-def _build_filter_schema(
-    workflow: WorkflowDefinition,
-    template: ViewTemplate,
+@router.get("/workflows/{workflow_id}/field-schema")
+async def get_field_schema(
+    workflow_id: str,
+    root_type: str = Query(..., alias="rootType", description="The node type to get fields for"),
 ) -> FilterSchema:
-    """Build filter schema showing available fields and relationships."""
+    """Get the schema of available fields for a node type.
+
+    This endpoint is used by editors (like KanbanEditor for swimlane options)
+    that need field options without requiring an existing view.
+
+    Returns the same structure as filter-schema but takes rootType directly.
+    """
+    # Get workflow definition
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Validate that the node type exists
+    node_type_exists = any(nt.type == root_type for nt in workflow.node_types)
+    if not node_type_exists:
+        raise HTTPException(
+            status_code=404, detail=f"Node type '{root_type}' not found in workflow"
+        )
+
+    return _build_field_schema(workflow, root_type)
+
+
+def _build_field_schema(
+    workflow: WorkflowDefinition,
+    root_type: str,
+) -> FilterSchema:
+    """Build field schema showing available fields and relationships for a node type.
+
+    This is the single source of truth for field options - used by both
+    filter-schema endpoint and field-schema endpoint (for swimlanes, etc.).
+    """
     # Find the root node type definition
     root_node_type = next(
-        (nt for nt in workflow.node_types if nt.type == template.root_type),
+        (nt for nt in workflow.node_types if nt.type == root_type),
         None,
     )
 
@@ -843,7 +874,7 @@ def _build_filter_schema(
     # Add relational fields based on edge types
     for edge_type in workflow.edge_types:
         # Check outgoing edges from root type
-        if edge_type.from_type == template.root_type:
+        if edge_type.from_type == root_type:
             target_node_type = next(
                 (nt for nt in workflow.node_types if nt.type == edge_type.to_type),
                 None,
@@ -904,7 +935,7 @@ def _build_filter_schema(
                     )
 
         # Check incoming edges to root type
-        if edge_type.to_type == template.root_type:
+        if edge_type.to_type == root_type:
             source_node_type = next(
                 (nt for nt in workflow.node_types if nt.type == edge_type.from_type),
                 None,
