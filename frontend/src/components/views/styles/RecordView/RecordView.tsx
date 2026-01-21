@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { Node, WorkflowDefinition, NodeCreate, EdgeCreate } from '@/types/workflow';
@@ -13,6 +13,9 @@ interface RecordViewProps {
   viewTemplate: ViewTemplate;
   workflowDefinition: WorkflowDefinition;
   onNodeClick?: (node: Node) => void;
+  // URL state props
+  initialRecordId?: string | null;
+  onRecordSelect?: (recordId: string | null) => void;
 }
 
 export function RecordView({
@@ -20,9 +23,17 @@ export function RecordView({
   viewTemplate,
   workflowDefinition,
   onNodeClick,
+  initialRecordId,
+  onRecordSelect,
 }: RecordViewProps) {
   const queryClient = useQueryClient();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Initialize from URL if provided
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialRecordId ?? null);
+
+  // Sync with URL state when initialRecordId changes
+  useEffect(() => {
+    setSelectedNodeId(initialRecordId ?? null);
+  }, [initialRecordId]);
 
   // Get the root level config (should be RecordConfig)
   const rootLevelConfig = viewTemplate.levels[viewTemplate.rootType];
@@ -57,7 +68,8 @@ export function RecordView({
   // Handle node selection
   const handleSelectNode = useCallback((node: Node) => {
     setSelectedNodeId(node.id);
-  }, []);
+    onRecordSelect?.(node.id);
+  }, [onRecordSelect]);
 
   // Handle clicking a node within sections (navigates to detail panel)
   const handleSectionNodeClick = useCallback(
