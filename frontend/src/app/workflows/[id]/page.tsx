@@ -23,9 +23,9 @@ export default function WorkflowPage() {
   const workflowId = params.id as string;
   const queryClient = useQueryClient();
 
-  // URL state management for view, filters, sort, node, and record selection
+  // URL state management for view, filters, sort, node, record, and focal node selection
   const [urlState, urlActions] = useViewUrlState();
-  const { viewId: selectedViewId, nodeId: selectedNodeId, filters: urlFilters, sort: urlSort, recordId: urlRecordId } = urlState;
+  const { viewId: selectedViewId, nodeId: selectedNodeId, filters: urlFilters, sort: urlSort, recordId: urlRecordId, focalNodeId: urlFocalNodeId, hopCount: urlHopCount } = urlState;
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
 
@@ -102,6 +102,15 @@ export default function WorkflowPage() {
   // Record selection handler for RecordView
   const handleRecordSelect = useCallback((recordId: string | null) => {
     urlActions.setRecord(recordId);
+  }, [urlActions]);
+
+  // Focal node handlers for GraphView
+  const handleFocalNodeChange = useCallback((nodeId: string | null) => {
+    urlActions.setFocalNode(nodeId);
+  }, [urlActions]);
+
+  const handleHopCountChange = useCallback((hops: number) => {
+    urlActions.setHopCount(hops);
   }, [urlActions]);
 
   // Fetch nodes (filtered by selected type) - only when in list view (not graph or semantic views)
@@ -187,6 +196,10 @@ export default function WorkflowPage() {
             workflowId={workflowId}
             workflowDefinition={workflow}
             onNodeClick={handleNodeClick}
+            initialFocalNodeId={urlFocalNodeId}
+            initialHopCount={urlHopCount}
+            onFocalNodeChange={handleFocalNodeChange}
+            onHopCountChange={handleHopCountChange}
           />
         </div>
       ) : selectedViewTemplate ? (

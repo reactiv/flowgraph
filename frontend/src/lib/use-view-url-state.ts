@@ -11,6 +11,8 @@ const PARAM_RECORD = 'record';
 const PARAM_FILTERS = 'filters';
 const PARAM_SORT = 'sort';
 const PARAM_ORDER = 'order';
+const PARAM_FOCAL = 'focal';
+const PARAM_HOPS = 'hops';
 
 // Built-in view identifiers
 export const BUILTIN_VIEWS = ['list', 'schema', 'graph'] as const;
@@ -22,6 +24,9 @@ export interface ViewUrlState {
   recordId: string | null;
   filters: FilterGroup | null;
   sort: { field: string; order: 'asc' | 'desc' } | null;
+  // Graph view focal node state
+  focalNodeId: string | null;
+  hopCount: number;
 }
 
 export interface ViewUrlStateActions {
@@ -30,6 +35,8 @@ export interface ViewUrlStateActions {
   setRecord: (recordId: string | null) => void;
   setFilters: (filters: FilterGroup | null) => void;
   setSort: (field: string | null, order?: 'asc' | 'desc') => void;
+  setFocalNode: (nodeId: string | null) => void;
+  setHopCount: (hops: number) => void;
   updateMultiple: (updates: Partial<ViewUrlState>) => void;
   clearAll: () => void;
 }
@@ -85,6 +92,8 @@ export function useViewUrlState(): [ViewUrlState, ViewUrlStateActions] {
     const filtersParam = searchParams.get(PARAM_FILTERS);
     const sortParam = searchParams.get(PARAM_SORT);
     const orderParam = searchParams.get(PARAM_ORDER);
+    const focalParam = searchParams.get(PARAM_FOCAL);
+    const hopsParam = searchParams.get(PARAM_HOPS);
 
     // Parse view - null means list view (default)
     let viewId: string | null = null;
@@ -101,12 +110,18 @@ export function useViewUrlState(): [ViewUrlState, ViewUrlStateActions] {
     const sortOrder: 'asc' | 'desc' = orderParam === 'desc' ? 'desc' : 'asc';
     const sort = sortParam ? { field: sortParam, order: sortOrder } : null;
 
+    // Parse focal node and hop count
+    const focalNodeId = focalParam || null;
+    const hopCount = hopsParam ? parseInt(hopsParam, 10) : 2;
+
     return {
       viewId,
       nodeId: nodeParam,
       recordId: recordParam,
       filters,
       sort,
+      focalNodeId,
+      hopCount: isNaN(hopCount) ? 2 : Math.max(1, Math.min(5, hopCount)),
     };
   }, [searchParams]);
 
@@ -129,6 +144,8 @@ export function useViewUrlState(): [ViewUrlState, ViewUrlStateActions] {
           newParams.delete(PARAM_SORT);
           newParams.delete(PARAM_ORDER);
           newParams.delete(PARAM_RECORD);
+          newParams.delete(PARAM_FOCAL);
+          newParams.delete(PARAM_HOPS);
         }
       }
 
@@ -181,6 +198,28 @@ export function useViewUrlState(): [ViewUrlState, ViewUrlStateActions] {
         }
       }
 
+      // Handle focal node changes
+      if ('focalNodeId' in updates) {
+        const focalNodeId = updates.focalNodeId;
+        if (focalNodeId === null || focalNodeId === undefined) {
+          newParams.delete(PARAM_FOCAL);
+          newParams.delete(PARAM_HOPS); // Also clear hops when clearing focal
+        } else {
+          newParams.set(PARAM_FOCAL, focalNodeId);
+        }
+      }
+
+      // Handle hop count changes
+      if ('hopCount' in updates) {
+        const hopCount = updates.hopCount;
+        if (hopCount === undefined || hopCount === 2) {
+          // Don't include default value in URL
+          newParams.delete(PARAM_HOPS);
+        } else {
+          newParams.set(PARAM_HOPS, String(hopCount));
+        }
+      }
+
       const query = newParams.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
@@ -205,6 +244,12 @@ export function useViewUrlState(): [ViewUrlState, ViewUrlStateActions] {
       setSort: (field, order = 'asc') => {
         const sort = field ? { field, order } : null;
         router.push(buildUrl({ sort }), { scroll: false });
+      },
+      setFocalNode: (nodeId) => {
+        router.push(buildUrl({ focalNodeId: nodeId }), { scroll: false });
+      },
+      setHopCount: (hops) => {
+        router.push(buildUrl({ hopCount: hops }), { scroll: false });
       },
       updateMultiple: (updates) => {
         const clearViewSpecific = 'viewId' in updates;
