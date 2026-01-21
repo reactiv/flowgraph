@@ -9,12 +9,10 @@ Usage:
 """
 
 import json
-import os
 import platform
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 # Excel error values to detect

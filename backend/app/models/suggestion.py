@@ -4,23 +4,21 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.models.context_selector import ContextSelector
 from app.models.node import NodeCreate
 
 
 class SuggestionOptions(BaseModel):
     """Options for node suggestion generation."""
 
-    include_similar: bool = True
-    """Include similar nodes as examples for the LLM."""
-
     num_suggestions: int = Field(default=1, ge=1, le=5)
     """Number of alternative suggestions to generate."""
 
-    max_similar_examples: int = Field(default=3, ge=0, le=10)
-    """Maximum number of similar nodes to include as examples."""
-
     guidance: str | None = None
     """Optional user guidance to steer the suggestion."""
+
+    context_selector: ContextSelector | None = None
+    """Custom context configuration. If None, uses default context gathering."""
 
 
 class SuggestionRequest(BaseModel):
@@ -57,7 +55,7 @@ class SuggestionContext(BaseModel):
     edge_type: str
     direction: Literal["incoming", "outgoing"]
     target_node_type: str
-    similar_nodes_count: int
+    context_nodes_count: int
 
 
 class SuggestionResponse(BaseModel):
@@ -82,11 +80,8 @@ class FieldValueSuggestionOptions(BaseModel):
     num_suggestions: int = Field(default=1, ge=1, le=3)
     """Number of alternative suggestions to generate."""
 
-    include_similar: bool = True
-    """Include similar nodes' field values as examples for the LLM."""
-
-    max_similar_examples: int = Field(default=5, ge=0, le=10)
-    """Maximum number of similar nodes to include as examples."""
+    context_selector: ContextSelector | None = None
+    """Custom context configuration. If None, uses default context gathering."""
 
 
 class FieldValueSuggestionRequest(BaseModel):
@@ -117,8 +112,7 @@ class FieldValueSuggestionContext(BaseModel):
     field_kind: str
     field_label: str
     current_value: Any | None
-    similar_values_count: int
-    neighbors_count: int
+    context_nodes_count: int
 
 
 class FieldValueSuggestionResponse(BaseModel):

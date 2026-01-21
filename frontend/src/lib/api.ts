@@ -36,6 +36,7 @@ import type {
   SuggestionOptions,
   SuggestionResponse,
 } from '@/types/suggestion';
+import type { ContextPreview, ContextPreviewNode, ContextSelector } from '@/types/context-selector';
 
 const API_BASE = '/api/v1';
 
@@ -170,6 +171,90 @@ export const api = {
       `/workflows/${workflowId}/nodes/${nodeId}/neighbors${query ? `?${query}` : ''}`
     );
   },
+
+  /**
+   * Preview what context would be included for a suggestion.
+   * Useful for visualizing and iterating on context configuration.
+   */
+  previewContext: async (
+    workflowId: string,
+    nodeId: string,
+    contextSelector: ContextSelector
+  ): Promise<ContextPreview> => {
+    // API returns snake_case - define inline types for the response
+    interface ApiNode {
+      id: string;
+      type: string;
+      title: string;
+      status?: string | null;
+      properties: Record<string, unknown>;
+      path_name?: string | null;
+      traversal_depth: number;
+    }
+
+    interface ApiResponse {
+      source_node: ApiNode;
+      path_results: Record<string, ApiNode[]>;
+      total_nodes: number;
+      total_tokens_estimate?: number | null;
+    }
+
+    const response = await fetchJson<ApiResponse>(
+      `/workflows/${workflowId}/nodes/${nodeId}/context-preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ contextSelector }),
+      }
+    );
+
+    // Transform snake_case node properties to camelCase
+    const transformNode = (node: ApiNode): ContextPreviewNode => ({
+      id: node.id,
+      type: node.type,
+      title: node.title,
+      status: node.status,
+      properties: node.properties,
+      pathName: node.path_name,
+      traversalDepth: node.traversal_depth,
+    });
+
+    return {
+      sourceNode: transformNode(response.source_node),
+      pathResults: Object.fromEntries(
+        Object.entries(response.path_results || {}).map(([key, nodes]) => [
+          key,
+          nodes.map(transformNode),
+        ])
+      ),
+      totalNodes: response.total_nodes,
+      totalTokensEstimate: response.total_tokens_estimate,
+    };
+  },
+
+  /**
+   * Parse natural language description into a ContextSelector.
+   * Uses LLM to interpret the user's intent.
+   */
+  parseContextSelector: (
+    workflowId: string,
+    description: string,
+    context?: {
+      sourceType?: string;
+      edgeType?: string;
+      direction?: 'outgoing' | 'incoming';
+      targetType?: string;
+    }
+  ) =>
+    fetchJson<ContextSelector>(`/workflows/${workflowId}/parse-context-selector`, {
+      method: 'POST',
+      body: JSON.stringify({
+        description,
+        sourceType: context?.sourceType,
+        edgeType: context?.edgeType,
+        direction: context?.direction,
+        targetType: context?.targetType,
+      }),
+    }),
 
   suggestNode: (
     workflowId: string,

@@ -32,7 +32,7 @@
         ]
       },
       "ui": {
-        "defaultViews": ["list", "detail", "graph", "board"],
+        "defaultViews": ["list", "detail", "graph", "board", "tree", "timeline"],
         "primarySections": ["summary", "relationships", "files", "events"],
         "listColumns": ["sample_id", "nickname", "author", "sample_type", "date"],
         "quickActions": ["Create Analysis", "Link Hypothesis", "Add Tag"]
@@ -67,7 +67,7 @@
         ]
       },
       "ui": {
-        "defaultViews": ["list", "detail", "graph"],
+        "defaultViews": ["list", "detail", "graph", "table", "timeline"],
         "primarySections": ["summary", "parameters", "results", "relationships", "files", "events"],
         "listColumns": ["result_id", "analysis_type", "author", "date"],
         "quickActions": ["Link Hypothesis", "Add Tag", "Upload File"]
@@ -80,6 +80,7 @@
       "fields": [
         {"key": "nickname", "label": "Title", "kind": "string", "required": true},
         {"key": "author", "label": "Author", "kind": "person", "required": true},
+        {"key": "created_date", "label": "Created Date", "kind": "datetime", "required": true},
         {"key": "details", "label": "Details", "kind": "json"},
         {"key": "statements", "label": "Statements", "kind": "json"},
         {"key": "tags", "label": "Tags", "kind": "tag[]"}
@@ -97,9 +98,9 @@
         ]
       },
       "ui": {
-        "defaultViews": ["list", "detail", "graph", "board"],
+        "defaultViews": ["list", "detail", "graph", "board", "cards"],
         "primarySections": ["summary", "statements", "relationships", "events"],
-        "listColumns": ["nickname", "author"],
+        "listColumns": ["nickname", "author", "created_date"],
         "quickActions": ["Link Sample", "Link Analysis", "Add Statement"]
       }
     },
@@ -114,7 +115,7 @@
         {"key": "description", "label": "Description", "kind": "string"}
       ],
       "ui": {
-        "defaultViews": ["list", "detail"],
+        "defaultViews": ["list", "detail", "cards"],
         "primarySections": ["summary", "relationships"],
         "listColumns": ["name", "tag_type", "description"],
         "quickActions": []
@@ -144,7 +145,7 @@
         ]
       },
       "ui": {
-        "defaultViews": ["list", "detail"],
+        "defaultViews": ["list", "detail", "table"],
         "primarySections": ["summary", "parameters", "relationships"],
         "listColumns": ["name", "instrument_type", "version_id"],
         "quickActions": []
@@ -280,7 +281,14 @@
             "cardTemplate": {
               "titleField": "nickname",
               "subtitleField": "author",
-              "statusField": "status"
+              "statusField": "status",
+              "statusColors": {
+                "Proposed": "#64748b",
+                "Active": "#8b5cf6",
+                "Validated": "#22c55e",
+                "Rejected": "#ef4444",
+                "Dismissed": "#475569"
+              }
             },
             "showCounts": true,
             "showEmptyColumns": true
@@ -312,7 +320,13 @@
               "titleField": "nickname",
               "subtitleField": "sample_id",
               "statusField": "status",
-              "bodyFields": ["author", "sample_type"]
+              "bodyFields": ["author", "sample_type"],
+              "statusColors": {
+                "Draft": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Archived": "#475569"
+              }
             },
             "showCounts": true,
             "showEmptyColumns": true
@@ -345,10 +359,396 @@
               "titleField": "result_id",
               "subtitleField": "analysis_type",
               "statusField": "status",
-              "bodyFields": ["author"]
+              "bodyFields": ["author"],
+              "statusColors": {
+                "Pending": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Failed": "#ef4444",
+                "Archived": "#475569"
+              }
             },
             "showCounts": true,
             "showEmptyColumns": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sample-lineage",
+      "name": "Sample Lineage",
+      "description": "View parent-child relationships between samples as a tree",
+      "icon": "git-branch",
+      "rootType": "Sample",
+      "edges": [
+        {"edgeType": "PARENT_OF", "direction": "outgoing", "targetType": "Sample"}
+      ],
+      "levels": {
+        "Sample": {
+          "style": "tree",
+          "styleConfig": {
+            "expandable": true,
+            "showDepthLines": true,
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "sample_id",
+              "statusField": "status",
+              "bodyFields": ["author", "sample_type"],
+              "statusColors": {
+                "Draft": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Archived": "#475569"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sample-timeline",
+      "name": "Sample Timeline",
+      "description": "Timeline view of samples by creation date",
+      "icon": "clock",
+      "rootType": "Sample",
+      "edges": [],
+      "levels": {
+        "Sample": {
+          "style": "timeline",
+          "styleConfig": {
+            "dateField": "date",
+            "granularity": "day",
+            "groupByField": "sample_type",
+            "showConnectors": true,
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "sample_id",
+              "statusField": "status",
+              "bodyFields": ["author", "sample_type"],
+              "statusColors": {
+                "Draft": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Archived": "#475569"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "analysis-table",
+      "name": "Analysis Table",
+      "description": "Tabular view of all analyses with sorting and filtering",
+      "icon": "table",
+      "rootType": "Analysis",
+      "edges": [],
+      "levels": {
+        "Analysis": {
+          "style": "table",
+          "styleConfig": {
+            "columns": ["result_id", "analysis_type", "author", "date", "status"],
+            "sortable": true,
+            "selectable": true,
+            "statusColors": {
+              "Pending": "#64748b",
+              "In Progress": "#3b82f6",
+              "Complete": "#22c55e",
+              "Failed": "#ef4444",
+              "Archived": "#475569"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "hypothesis-cards",
+      "name": "Hypothesis Gallery",
+      "description": "Card grid view of all hypotheses",
+      "icon": "grid",
+      "rootType": "Hypothesis",
+      "edges": [],
+      "levels": {
+        "Hypothesis": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "grid",
+            "columns": 3,
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "author",
+              "statusField": "status",
+              "bodyFields": ["created_date"],
+              "statusColors": {
+                "Proposed": "#64748b",
+                "Active": "#8b5cf6",
+                "Validated": "#22c55e",
+                "Rejected": "#ef4444",
+                "Dismissed": "#475569"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sample-record",
+      "name": "Sample Detail View",
+      "description": "Hierarchical detail view of a sample with its analyses, hypotheses, and related items",
+      "icon": "file-text",
+      "rootType": "Sample",
+      "edges": [
+        {"edgeType": "HAS_ANALYSIS", "direction": "outgoing", "targetType": "Analysis"},
+        {"edgeType": "LINKED_TO_HYPOTHESIS", "direction": "outgoing", "targetType": "Hypothesis"},
+        {"edgeType": "TAGGED_WITH", "direction": "outgoing", "targetType": "Tag"},
+        {"edgeType": "PARENT_OF", "direction": "outgoing", "targetType": "Sample"}
+      ],
+      "levels": {
+        "Sample": {
+          "style": "record",
+          "styleConfig": {
+            "selectorStyle": "list",
+            "showProperties": true,
+            "propertiesTitle": "Sample Properties",
+            "propertyFields": ["sample_id", "nickname", "author", "date", "sample_type", "status", "summary"],
+            "sections": [
+              {
+                "targetType": "Analysis",
+                "title": "Analyses",
+                "description": "Laboratory analyses performed on this sample",
+                "collapsedByDefault": false,
+                "maxItems": 10,
+                "emptyMessage": "No analyses have been performed on this sample",
+                "allowCreate": true
+              },
+              {
+                "targetType": "Hypothesis",
+                "title": "Linked Hypotheses",
+                "description": "Scientific hypotheses related to this sample",
+                "collapsedByDefault": false,
+                "maxItems": 5,
+                "emptyMessage": "No hypotheses linked to this sample",
+                "allowCreate": true
+              },
+              {
+                "targetType": "Tag",
+                "title": "Tags",
+                "description": "Classification tags",
+                "collapsedByDefault": true,
+                "maxItems": 20,
+                "emptyMessage": "No tags applied",
+                "allowCreate": true
+              },
+              {
+                "targetType": "Sample",
+                "title": "Child Samples",
+                "description": "Samples derived from this sample",
+                "collapsedByDefault": false,
+                "maxItems": 10,
+                "emptyMessage": "No child samples",
+                "allowCreate": true
+              }
+            ]
+          }
+        },
+        "Analysis": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "list",
+            "cardTemplate": {
+              "titleField": "result_id",
+              "subtitleField": "analysis_type",
+              "statusField": "status",
+              "bodyFields": ["author", "date"],
+              "statusColors": {
+                "Pending": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Failed": "#ef4444",
+                "Archived": "#475569"
+              }
+            }
+          }
+        },
+        "Hypothesis": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "list",
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "author",
+              "statusField": "status",
+              "statusColors": {
+                "Proposed": "#64748b",
+                "Active": "#8b5cf6",
+                "Validated": "#22c55e",
+                "Rejected": "#ef4444",
+                "Dismissed": "#475569"
+              }
+            }
+          }
+        },
+        "Tag": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "inline-chips",
+            "cardTemplate": {
+              "titleField": "name"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "analysis-timeline",
+      "name": "Analysis Timeline",
+      "description": "Timeline view of analyses by date",
+      "icon": "clock",
+      "rootType": "Analysis",
+      "edges": [],
+      "levels": {
+        "Analysis": {
+          "style": "timeline",
+          "styleConfig": {
+            "dateField": "date",
+            "granularity": "day",
+            "groupByField": "analysis_type",
+            "showConnectors": true,
+            "cardTemplate": {
+              "titleField": "result_id",
+              "subtitleField": "analysis_type",
+              "statusField": "status",
+              "bodyFields": ["author"],
+              "statusColors": {
+                "Pending": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Failed": "#ef4444",
+                "Archived": "#475569"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "instrument-table",
+      "name": "Instrument Configurations",
+      "description": "Table view of all instrument configurations",
+      "icon": "settings",
+      "rootType": "InstrumentConfig",
+      "edges": [],
+      "levels": {
+        "InstrumentConfig": {
+          "style": "table",
+          "styleConfig": {
+            "columns": ["instrument_id", "name", "instrument_type", "version_id", "status"],
+            "sortable": true,
+            "selectable": true,
+            "statusColors": {
+              "Active": "#22c55e",
+              "Deprecated": "#f59e0b",
+              "Archived": "#64748b"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "tag-cards",
+      "name": "Tag Gallery",
+      "description": "Card grid view of all tags",
+      "icon": "tag",
+      "rootType": "Tag",
+      "edges": [],
+      "levels": {
+        "Tag": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "grid",
+            "columns": 4,
+            "cardTemplate": {
+              "titleField": "name",
+              "subtitleField": "tag_type",
+              "bodyFields": ["description"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "hypothesis-with-evidence",
+      "name": "Hypothesis Evidence",
+      "description": "Hypotheses with their supporting samples and analyses",
+      "icon": "lightbulb",
+      "rootType": "Hypothesis",
+      "edges": [
+        {"edgeType": "LINKED_TO_HYPOTHESIS", "direction": "incoming", "targetType": "Sample"},
+        {"edgeType": "ANALYSIS_LINKED_TO_HYPOTHESIS", "direction": "incoming", "targetType": "Analysis"}
+      ],
+      "levels": {
+        "Hypothesis": {
+          "style": "record",
+          "styleConfig": {
+            "selectorStyle": "cards",
+            "showProperties": true,
+            "propertiesTitle": "Hypothesis Details",
+            "propertyFields": ["nickname", "author", "created_date", "status"],
+            "sections": [
+              {
+                "targetType": "Sample",
+                "title": "Supporting Samples",
+                "description": "Samples that provide evidence for this hypothesis",
+                "collapsedByDefault": false,
+                "maxItems": 10,
+                "emptyMessage": "No samples linked to this hypothesis"
+              },
+              {
+                "targetType": "Analysis",
+                "title": "Supporting Analyses",
+                "description": "Analyses that provide evidence for this hypothesis",
+                "collapsedByDefault": false,
+                "maxItems": 10,
+                "emptyMessage": "No analyses linked to this hypothesis"
+              }
+            ]
+          }
+        },
+        "Sample": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "list",
+            "cardTemplate": {
+              "titleField": "nickname",
+              "subtitleField": "sample_id",
+              "statusField": "status",
+              "bodyFields": ["author", "sample_type"],
+              "statusColors": {
+                "Draft": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Archived": "#475569"
+              }
+            }
+          }
+        },
+        "Analysis": {
+          "style": "cards",
+          "styleConfig": {
+            "layout": "list",
+            "cardTemplate": {
+              "titleField": "result_id",
+              "subtitleField": "analysis_type",
+              "statusField": "status",
+              "bodyFields": ["author", "date"],
+              "statusColors": {
+                "Pending": "#64748b",
+                "In Progress": "#3b82f6",
+                "Complete": "#22c55e",
+                "Failed": "#ef4444",
+                "Archived": "#475569"
+              }
+            }
           }
         }
       }

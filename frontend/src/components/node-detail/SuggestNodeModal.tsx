@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Sparkles, Loader2, AlertCircle, ChevronLeft, Check } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Sparkles, Loader2, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { WorkflowDefinition, NodeCreate, EdgeType, Node } from '@/types/workflow';
 import type { SuggestionDirection, NodeSuggestion } from '@/types/suggestion';
+import type { ContextSelector } from '@/types/context-selector';
+import { createDefaultContextSelector } from '@/types/context-selector';
+import { ContextView } from '@/components/context-view/ContextView';
 
 interface SuggestNodeModalProps {
   workflowId: string;
@@ -27,11 +30,24 @@ export function SuggestNodeModal({
   onClose,
   onAccept,
 }: SuggestNodeModalProps) {
+  // Compute target type and default context selector based on edge configuration
+  const targetTypeName = direction === 'outgoing' ? edgeType.to : edgeType.from;
+
+  const defaultContextSelector = useMemo(
+    () => createDefaultContextSelector(edgeType.type, direction, targetTypeName),
+    [edgeType.type, direction, targetTypeName]
+  );
+
   const [suggestion, setSuggestion] = useState<NodeSuggestion | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guidance, setGuidance] = useState('');
+  const [contextSelector, setContextSelector] = useState<ContextSelector | null>(null);
+  const [isContextExpanded, setIsContextExpanded] = useState(false);
+
+  // Use default context selector if not customized
+  const effectiveContextSelector = contextSelector ?? defaultContextSelector;
 
   // Editable fields for the suggested node
   const [editedTitle, setEditedTitle] = useState('');
@@ -47,7 +63,10 @@ export function SuggestNodeModal({
         sourceNode.id,
         edgeType.type,
         direction,
-        { guidance: guidance.trim() || undefined }
+        {
+          guidance: guidance.trim() || undefined,
+          context_selector: effectiveContextSelector,
+        }
       );
 
       const firstSuggestion = response.suggestions[0];
@@ -97,6 +116,8 @@ export function SuggestNodeModal({
     setEditedStatus(undefined);
     setError(null);
     setGuidance('');
+    setContextSelector(null);
+    setIsContextExpanded(false);
     setIsGenerating(false);
     setIsAccepting(false);
     onClose();
@@ -104,8 +125,7 @@ export function SuggestNodeModal({
 
   if (!isOpen) return null;
 
-  // Get target node type info
-  const targetTypeName = direction === 'outgoing' ? edgeType.to : edgeType.from;
+  // Get target node type info (targetTypeName computed above for context selector)
   const targetNodeType = workflowDefinition.nodeTypes.find((nt) => nt.type === targetTypeName);
   const targetDisplayName = targetNodeType?.displayName || targetTypeName;
 
@@ -143,27 +163,49 @@ export function SuggestNodeModal({
           {!suggestion ? (
             // Initial state: Generate button
             <>
-              <div className="rounded-lg bg-gray-50 p-4 text-center">
-                <p className="text-sm text-gray-600 mb-4">
-                  Use AI to suggest a contextually appropriate <strong>{targetDisplayName}</strong> based on:
-                </p>
-                <ul className="text-sm text-gray-500 text-left space-y-1 mb-4">
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    Current node properties and status
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    Connected nodes for context
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    Similar {targetDisplayName} nodes as examples
-                  </li>
-                </ul>
+              <div className="space-y-4">
+                {/* Context Configuration Section */}
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsContextExpanded(!isContextExpanded)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Configure Context
+                      </span>
+                    </div>
+                    {isContextExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
+
+                  {isContextExpanded && (
+                    <div className="p-4 border-t border-gray-200">
+                      <ContextView
+                        workflowId={workflowId}
+                        workflowDefinition={workflowDefinition}
+                        sourceNodeId={sourceNode.id}
+                        contextSelector={effectiveContextSelector}
+                        onContextSelectorChange={setContextSelector}
+                        mode="compact"
+                        showGraph={false}
+                        showNaturalLanguage={true}
+                        sourceType={sourceNode.type}
+                        edgeType={edgeType.type}
+                        direction={direction}
+                        targetType={targetTypeName}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Guidance input */}
-                <div className="mb-4 text-left">
+                <div className="text-left">
                   <label htmlFor="guidance" className="block text-sm font-medium text-gray-700 mb-1">
                     Guidance (optional)
                   </label>
@@ -182,29 +224,31 @@ export function SuggestNodeModal({
                 </div>
 
                 {error && (
-                  <div className="mb-4 flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                  <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
                     <AlertCircle className="h-4 w-4" />
                     {error}
                   </div>
                 )}
 
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      Generate Suggestion
-                    </>
-                  )}
-                </button>
+                <div className="text-center">
+                  <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generate Suggestion
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </>
           ) : (
