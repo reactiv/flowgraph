@@ -11,11 +11,24 @@ These validators check semantic correctness beyond Pydantic schema validation:
 - property keys match field definitions
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import TypeVar
 
 from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.validator import CustomValidationError
 from app.models.workflow import WorkflowDefinition
+
+# Max items to include in error context arrays to avoid response overflow
+MAX_CONTEXT_ITEMS = 5
+
+T = TypeVar("T")
+
+
+def _truncate_list(items: Sequence[T], max_items: int = MAX_CONTEXT_ITEMS) -> list[T]:
+    """Truncate a list for error context, adding ellipsis indicator if truncated."""
+    if len(items) <= max_items:
+        return list(items)
+    return list(items[:max_items]) + ["..."]  # type: ignore[list-item]
 
 
 def validate_node_types(
@@ -34,6 +47,7 @@ def validate_node_types(
     errors: list[CustomValidationError] = []
     valid_types = {nt.type for nt in definition.node_types}
 
+    sorted_valid_types = sorted(valid_types)
     for i, node in enumerate(seed_data.nodes):
         if node.node_type not in valid_types:
             errors.append(
@@ -41,13 +55,13 @@ def validate_node_types(
                     path=f"nodes[{i}].node_type",
                     message=(
                         f"Invalid node_type '{node.node_type}'. "
-                        f"Valid types: {sorted(valid_types)}"
+                        f"Valid types: {_truncate_list(sorted_valid_types)}"
                     ),
                     code="invalid_node_type",
                     context={
                         "temp_id": node.temp_id,
                         "node_type": node.node_type,
-                        "valid_types": sorted(valid_types),
+                        "valid_types": _truncate_list(sorted_valid_types),
                     },
                 )
             )
@@ -70,6 +84,7 @@ def validate_edge_types(
     """
     errors: list[CustomValidationError] = []
     valid_types = {et.type for et in definition.edge_types}
+    sorted_valid_types = sorted(valid_types)
 
     for i, edge in enumerate(seed_data.edges):
         if edge.edge_type not in valid_types:
@@ -78,14 +93,14 @@ def validate_edge_types(
                     path=f"edges[{i}].edge_type",
                     message=(
                         f"Invalid edge_type '{edge.edge_type}'. "
-                        f"Valid types: {sorted(valid_types)}"
+                        f"Valid types: {_truncate_list(sorted_valid_types)}"
                     ),
                     code="invalid_edge_type",
                     context={
                         "edge_type": edge.edge_type,
                         "from_temp_id": edge.from_temp_id,
                         "to_temp_id": edge.to_temp_id,
-                        "valid_types": sorted(valid_types),
+                        "valid_types": _truncate_list(sorted_valid_types),
                     },
                 )
             )
@@ -313,7 +328,7 @@ def validate_enum_values(
                         path=f"nodes[{i}].properties.{field_key}",
                         message=(
                             f"Invalid enum value '{value}' for field '{field_key}'. "
-                            f"Valid values: {valid_values}"
+                            f"Valid values: {_truncate_list(valid_values)}"
                         ),
                         code="invalid_enum_value",
                         context={
@@ -321,7 +336,7 @@ def validate_enum_values(
                             "node_type": node.node_type,
                             "field_key": field_key,
                             "value": value,
-                            "valid_values": valid_values,
+                            "valid_values": _truncate_list(valid_values),
                         },
                     )
                 )
@@ -379,14 +394,14 @@ def validate_status_values(
                     path=f"nodes[{i}].status",
                     message=(
                         f"Invalid status '{node.status}' for node type '{node.node_type}'. "
-                        f"Valid statuses: {valid_statuses}"
+                        f"Valid statuses: {_truncate_list(valid_statuses)}"
                     ),
                     code="invalid_status",
                     context={
                         "temp_id": node.temp_id,
                         "node_type": node.node_type,
                         "status": node.status,
-                        "valid_statuses": valid_statuses,
+                        "valid_statuses": _truncate_list(valid_statuses),
                     },
                 )
             )
@@ -421,6 +436,7 @@ def validate_property_keys(
             # Invalid node type - handled by validate_node_types
             continue
 
+        sorted_valid_keys = sorted(valid_keys)
         for prop_key in node.properties:
             if prop_key not in valid_keys:
                 errors.append(
@@ -428,14 +444,14 @@ def validate_property_keys(
                         path=f"nodes[{i}].properties.{prop_key}",
                         message=(
                             f"Unknown property key '{prop_key}' for node type "
-                            f"'{node.node_type}'. Valid keys: {sorted(valid_keys)}"
+                            f"'{node.node_type}'. Valid keys: {_truncate_list(sorted_valid_keys)}"
                         ),
                         code="unknown_property_key",
                         context={
                             "temp_id": node.temp_id,
                             "node_type": node.node_type,
                             "property_key": prop_key,
-                            "valid_keys": sorted(valid_keys),
+                            "valid_keys": _truncate_list(sorted_valid_keys),
                         },
                     )
                 )
@@ -445,7 +461,7 @@ def validate_property_keys(
 
 def create_seed_data_validator(
     definition: WorkflowDefinition,
-    max_errors: int = 20,
+    max_errors: int = 10,
 ) -> Callable[[SeedData], list[CustomValidationError]]:
     """Create a composite validator for SeedData against a WorkflowDefinition.
 
