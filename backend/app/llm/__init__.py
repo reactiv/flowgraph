@@ -7,13 +7,13 @@ from app.llm.file_schema_generator import FileSchemaGenerator
 from app.llm.file_seeder import FileSeeder
 from app.llm.gemini_client import GeminiClient, gemini_available, get_gemini_client
 from app.llm.node_suggestion_generator import NodeSuggestionGenerator
+from app.llm.rule_generator import RuleGenerator
 from app.llm.scenario_generator import Scenario, ScenarioGenerator, ScenarioNode
 from app.llm.schema_generator import (
     SchemaGenerationOptions,
     SchemaGenerator,
     SchemaValidationResult,
 )
-from app.llm.rule_generator import RuleGenerator
 from app.llm.view_generator import ViewGenerator
 
 __all__ = [

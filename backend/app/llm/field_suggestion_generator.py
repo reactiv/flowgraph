@@ -7,7 +7,9 @@ from typing import Any
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
+from app.llm.context_gatherer import ContextGatherer
 from app.models import Node, WorkflowDefinition
+from app.models.context_selector import default_context_selector
 from app.models.suggestion import (
     FieldValueSuggestion,
     FieldValueSuggestionContext,
@@ -117,10 +119,14 @@ class FieldValueSuggestionGenerator:
     """Generates appropriate field values based on node and graph context."""
 
     def __init__(
-        self, llm_client: LLMClient | None = None, graph_store: GraphStore | None = None
+        self,
+        llm_client: LLMClient | None = None,
+        graph_store: GraphStore | None = None,
+        context_gatherer: ContextGatherer | None = None,
     ):
         self._llm_client = llm_client or get_client()
         self._graph_store = graph_store or GraphStore()
+        self._context_gatherer = context_gatherer or ContextGatherer(self._graph_store)
 
     async def suggest_field_value(
         self,
@@ -164,20 +170,24 @@ class FieldValueSuggestionGenerator:
         suggestions = self._parse_and_validate(result, context)
 
         field_def: Field = context["field_def"]
-        node: Node = context["node"]
+        source_node: dict[str, Any] = context["source_node"]
+
+        # Count context nodes from path results
+        context_nodes_count = sum(
+            len(nodes) for nodes in context.get("path_results", {}).values()
+        )
 
         return FieldValueSuggestionResponse(
             suggestions=suggestions,
             context=FieldValueSuggestionContext(
                 node_id=node_id,
-                node_title=node.title,
-                node_type=node.type,
+                node_title=source_node["title"],
+                node_type=source_node["type"],
                 field_key=field_key,
                 field_kind=field_def.kind.value,
                 field_label=field_def.label,
                 current_value=context.get("current_value"),
-                similar_values_count=len(context.get("similar_values", [])),
-                neighbors_count=context.get("neighbors_count", 0),
+                context_nodes_count=context_nodes_count,
             ),
         )
 
@@ -216,49 +226,30 @@ class FieldValueSuggestionGenerator:
         # Get current value if exists
         current_value = node.properties.get(field_key)
 
-        # Get neighbors for context
-        neighbors = await self._graph_store.get_neighbors(workflow_id, node_id)
-        all_neighbors = neighbors.get("outgoing", []) + neighbors.get("incoming", [])
-
-        # Get similar nodes' values for this field as examples
-        similar_values: list[Any] = []
-        if options.include_similar and options.max_similar_examples > 0:
-            similar_nodes, _ = await self._graph_store.query_nodes(
-                workflow_id,
-                node_type=node.type,
-                limit=options.max_similar_examples + 5,  # Get extra to filter
-            )
-            # Extract values for this field from similar nodes (excluding current node)
-            for similar_node in similar_nodes:
-                if similar_node.id == node_id:
-                    continue
-                val = similar_node.properties.get(field_key)
-                if val is not None and val != "" and val not in similar_values:
-                    similar_values.append(val)
-                if len(similar_values) >= options.max_similar_examples:
-                    break
+        # Use context gatherer with the provided selector or default
+        selector = options.context_selector or default_context_selector()
+        gathered = await self._context_gatherer.gather_context(
+            workflow_id, node_id, selector
+        )
 
         return {
             "definition": definition,
-            "node": node,
+            "source_node": gathered["source_node"],
+            "path_results": gathered["path_results"],
             "node_type": node_type,
             "field_def": field_def,
             "current_value": current_value,
-            "neighbors": all_neighbors,
-            "neighbors_count": len(all_neighbors),
-            "similar_values": similar_values,
         }
 
     def _build_prompt(
         self, context: dict[str, Any], options: FieldValueSuggestionOptions
     ) -> str:
         """Build the user prompt for field value suggestion generation."""
-        node: Node = context["node"]
+        source_node: dict[str, Any] = context["source_node"]
         node_type: NodeType = context["node_type"]
         field_def: Field = context["field_def"]
         definition: WorkflowDefinition = context["definition"]
-        neighbors: list = context["neighbors"]
-        similar_values: list = context.get("similar_values", [])
+        path_results: dict[str, list[dict[str, Any]]] = context.get("path_results", {})
         current_value: Any = context.get("current_value")
 
         lines = [
@@ -290,28 +281,26 @@ class FieldValueSuggestionGenerator:
 
         # Node context
         lines.append("## Node Being Updated")
-        lines.append(_format_node_for_prompt(node))
+        lines.append(_format_node_for_prompt(source_node))
         lines.append("")
 
-        # Connected nodes for context
-        if neighbors:
-            lines.append("## Connected Nodes (for context)")
-            for item in neighbors[:5]:  # Limit to 5 neighbors
-                neighbor_node = item["node"]
-                edge = item["edge"]
-                lines.append(f"\n### {neighbor_node['type']} (via {edge['type']})")
-                lines.append(_format_node_for_prompt(neighbor_node))
+        # Add context nodes from path results
+        total_context_nodes = sum(len(nodes) for nodes in path_results.values())
+        if total_context_nodes > 0:
+            lines.append("## Context")
+            lines.append(
+                "The following nodes provide context for generating an appropriate value."
+            )
             lines.append("")
 
-        # Similar values as examples
-        if similar_values:
-            lines.append(f"## Example Values from Similar {node_type.type} Nodes")
-            for i, val in enumerate(similar_values[:5], 1):
-                val_str = str(val)
-                if len(val_str) > 200:
-                    val_str = val_str[:200] + "..."
-                lines.append(f"{i}. {val_str}")
-            lines.append("")
+            for path_name, nodes in path_results.items():
+                if not nodes:
+                    continue
+                lines.append(f"### {path_name} ({len(nodes)} node(s))")
+                for node in nodes[:5]:  # Limit to 5 per path
+                    lines.append(f"\n#### {node['title']} ({node['type']})")
+                    lines.append(_format_node_for_prompt(node))
+                lines.append("")
 
         # Final instruction
         lines.append(

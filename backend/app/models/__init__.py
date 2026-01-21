@@ -1,5 +1,16 @@
 """Pydantic models for Workflow Graph Studio."""
 
+from app.models.context_selector import (
+    ContextPath,
+    ContextPreview,
+    ContextPreviewNode,
+    ContextPreviewRequest,
+    ContextSelector,
+    EdgeStep,
+    ParseContextSelectorRequest,
+    PropertySelector,
+    default_context_selector,
+)
 from app.models.edge import Edge, EdgeCreate
 from app.models.event import Event, EventCreate
 from app.models.node import Node, NodeCreate, NodeUpdate
@@ -75,4 +86,14 @@ __all__ = [
     "FieldValueSuggestion",
     "FieldValueSuggestionContext",
     "FieldValueSuggestionResponse",
+    # Context Selection
+    "ContextSelector",
+    "ContextPath",
+    "EdgeStep",
+    "PropertySelector",
+    "ContextPreview",
+    "ContextPreviewNode",
+    "ContextPreviewRequest",
+    "ParseContextSelectorRequest",
+    "default_context_selector",
 ]

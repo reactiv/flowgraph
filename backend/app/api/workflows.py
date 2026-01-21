@@ -22,7 +22,12 @@ from app.llm import (
     SeedConfig,
     ViewGenerator,
 )
+from app.llm.context_gatherer import ContextGatherer
+from app.llm.context_selector_parser import ContextSelectorParser
 from app.models import (
+    ContextPreview,
+    ContextPreviewRequest,
+    ContextSelector,
     Edge,
     EdgeCreate,
     Event,
@@ -33,6 +38,7 @@ from app.models import (
     Node,
     NodeCreate,
     NodeUpdate,
+    ParseContextSelectorRequest,
     RelationPath,
     SuggestionRequest,
     SuggestionResponse,
@@ -408,6 +414,82 @@ async def get_neighbors(
     return await graph_store.get_neighbors(
         workflow_id, node_id, depth=depth, edge_types=edge_type_list
     )
+
+
+@router.post("/workflows/{workflow_id}/nodes/{node_id}/context-preview")
+async def preview_context(
+    workflow_id: str,
+    node_id: str,
+    request: ContextPreviewRequest,
+) -> ContextPreview:
+    """Preview what context would be included for a suggestion.
+
+    Executes the context selector's traversal paths and returns the nodes
+    that would be included in the LLM context. Useful for visualizing and
+    iterating on context configuration before generating suggestions.
+
+    The response includes:
+    - source_node: The node being suggested from
+    - path_results: Nodes grouped by path name
+    - total_nodes: Total count of context nodes
+    - total_tokens_estimate: Rough estimate of token count
+    """
+    # Verify node exists
+    node = await graph_store.get_node(workflow_id, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    gatherer = ContextGatherer(graph_store=graph_store)
+
+    try:
+        return await gatherer.preview_context(
+            workflow_id=workflow_id,
+            source_node_id=node_id,
+            selector=request.context_selector,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workflows/{workflow_id}/parse-context-selector")
+async def parse_context_selector(
+    workflow_id: str,
+    request: ParseContextSelectorRequest,
+) -> ContextSelector:
+    """Parse natural language description into a ContextSelector.
+
+    Uses LLM to interpret the user's description and generate a structured
+    ContextSelector configuration with appropriate traversal paths.
+
+    Example descriptions:
+    - "Include all Issues in the same Project"
+    - "Show my documents and my siblings' documents"
+    - "Get direct neighbors only"
+    """
+    # Get workflow definition for schema context
+    workflow = await graph_store.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    try:
+        parser = ContextSelectorParser()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM client not configured: {e}. Set ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        return await parser.parse(
+            description=request.description,
+            workflow_definition=workflow,
+            source_type=request.source_type,
+            edge_type=request.edge_type,
+            direction=request.direction,
+            target_type=request.target_type,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse: {e}")
 
 
 @router.post("/workflows/{workflow_id}/nodes/{node_id}/suggest")

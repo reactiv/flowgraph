@@ -36,6 +36,7 @@ import type {
   SuggestionOptions,
   SuggestionResponse,
 } from '@/types/suggestion';
+import type { ContextPreview, ContextPreviewNode, ContextSelector } from '@/types/context-selector';
 
 const API_BASE = '/api/v1';
 
@@ -169,6 +170,145 @@ export const api = {
     return fetchJson<NeighborsResponse>(
       `/workflows/${workflowId}/nodes/${nodeId}/neighbors${query ? `?${query}` : ''}`
     );
+  },
+
+  /**
+   * Preview what context would be included for a suggestion.
+   * Useful for visualizing and iterating on context configuration.
+   */
+  previewContext: async (
+    workflowId: string,
+    nodeId: string,
+    contextSelector: ContextSelector
+  ): Promise<ContextPreview> => {
+    // API returns snake_case - define inline types for the response
+    interface ApiNode {
+      id: string;
+      type: string;
+      title: string;
+      status?: string | null;
+      properties: Record<string, unknown>;
+      path_name?: string | null;
+      traversal_depth: number;
+    }
+
+    interface ApiResponse {
+      source_node: ApiNode;
+      path_results: Record<string, ApiNode[]>;
+      total_nodes: number;
+      total_tokens_estimate?: number | null;
+    }
+
+    const response = await fetchJson<ApiResponse>(
+      `/workflows/${workflowId}/nodes/${nodeId}/context-preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ contextSelector }),
+      }
+    );
+
+    // Transform snake_case node properties to camelCase
+    const transformNode = (node: ApiNode): ContextPreviewNode => ({
+      id: node.id,
+      type: node.type,
+      title: node.title,
+      status: node.status,
+      properties: node.properties,
+      pathName: node.path_name,
+      traversalDepth: node.traversal_depth,
+    });
+
+    return {
+      sourceNode: transformNode(response.source_node),
+      pathResults: Object.fromEntries(
+        Object.entries(response.path_results || {}).map(([key, nodes]) => [
+          key,
+          nodes.map(transformNode),
+        ])
+      ),
+      totalNodes: response.total_nodes,
+      totalTokensEstimate: response.total_tokens_estimate,
+    };
+  },
+
+  /**
+   * Parse natural language description into a ContextSelector.
+   * Uses LLM to interpret the user's intent.
+   */
+  parseContextSelector: async (
+    workflowId: string,
+    description: string,
+    context?: {
+      sourceType?: string;
+      edgeType?: string;
+      direction?: 'outgoing' | 'incoming';
+      targetType?: string;
+    }
+  ): Promise<ContextSelector> => {
+    // API returns snake_case - define inline types for the response
+    interface ApiEdgeStep {
+      edge_type: string;
+      direction: 'outgoing' | 'incoming';
+    }
+
+    interface ApiContextPath {
+      name: string;
+      steps: ApiEdgeStep[];
+      target_type?: string | null;
+      max_count?: number;
+      from_path?: string | null;
+      include_intermediate?: boolean;
+      global_query?: boolean;
+    }
+
+    interface ApiPropertySelector {
+      mode: 'all' | 'include' | 'exclude';
+      fields: string[];
+    }
+
+    interface ApiContextSelector {
+      paths: ApiContextPath[];
+      source_properties: ApiPropertySelector;
+      context_properties: ApiPropertySelector;
+    }
+
+    const response = await fetchJson<ApiContextSelector>(
+      `/workflows/${workflowId}/parse-context-selector`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          description,
+          sourceType: context?.sourceType,
+          edgeType: context?.edgeType,
+          direction: context?.direction,
+          targetType: context?.targetType,
+        }),
+      }
+    );
+
+    // Transform snake_case to camelCase
+    return {
+      paths: response.paths.map((path) => ({
+        name: path.name,
+        steps: path.steps.map((step) => ({
+          edgeType: step.edge_type,
+          direction: step.direction,
+        })),
+        targetType: path.target_type,
+        maxCount: path.max_count,
+        fromPath: path.from_path,
+        includeIntermediate: path.include_intermediate,
+        globalQuery: path.global_query,
+      })),
+      sourceProperties: {
+        mode: response.source_properties.mode,
+        fields: response.source_properties.fields,
+      },
+      contextProperties: {
+        mode: response.context_properties.mode,
+        fields: response.context_properties.fields,
+      },
+    };
   },
 
   suggestNode: (

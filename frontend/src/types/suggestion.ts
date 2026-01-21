@@ -3,14 +3,14 @@
  */
 
 import type { NodeCreate } from './workflow';
+import type { ContextSelector } from './context-selector';
 
 export type SuggestionDirection = 'incoming' | 'outgoing';
 
 export interface SuggestionOptions {
-  include_similar?: boolean;
   num_suggestions?: number;
-  max_similar_examples?: number;
   guidance?: string;
+  context_selector?: ContextSelector;
 }
 
 export interface SuggestionRequest {
@@ -31,7 +31,7 @@ export interface SuggestionContext {
   edge_type: string;
   direction: SuggestionDirection;
   target_node_type: string;
-  similar_nodes_count: number;
+  context_nodes_count: number;
 }
 
 export interface SuggestionResponse {
@@ -44,8 +44,7 @@ export interface SuggestionResponse {
 export interface FieldValueSuggestionOptions {
   guidance?: string;
   num_suggestions?: number;
-  include_similar?: boolean;
-  max_similar_examples?: number;
+  context_selector?: ContextSelector;
 }
 
 export interface FieldValueSuggestionRequest {
@@ -65,8 +64,7 @@ export interface FieldValueSuggestionContext {
   field_kind: string;
   field_label: string;
   current_value: unknown | null;
-  similar_values_count: number;
-  neighbors_count: number;
+  context_nodes_count: number;
 }
 
 export interface FieldValueSuggestionResponse {

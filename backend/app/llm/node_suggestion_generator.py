@@ -7,7 +7,9 @@ from typing import Any, Literal
 
 from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
+from app.llm.context_gatherer import ContextGatherer
 from app.models import Node, NodeCreate, WorkflowDefinition
+from app.models.context_selector import default_context_selector
 from app.models.suggestion import (
     NodeSuggestion,
     SuggestionContext,
@@ -144,10 +146,14 @@ class NodeSuggestionGenerator:
     """Generates contextually appropriate nodes based on graph context."""
 
     def __init__(
-        self, llm_client: LLMClient | None = None, graph_store: GraphStore | None = None
+        self,
+        llm_client: LLMClient | None = None,
+        graph_store: GraphStore | None = None,
+        context_gatherer: ContextGatherer | None = None,
     ):
         self._llm_client = llm_client or get_client()
         self._graph_store = graph_store or GraphStore()
+        self._context_gatherer = context_gatherer or ContextGatherer(self._graph_store)
 
     async def suggest_node(
         self,
@@ -196,16 +202,21 @@ class NodeSuggestionGenerator:
         # 4. Parse and validate
         suggestions = self._parse_and_validate(result, context)
 
+        # Count context nodes from path results
+        context_nodes_count = sum(
+            len(nodes) for nodes in context.get("path_results", {}).values()
+        )
+
         return SuggestionResponse(
             suggestions=suggestions,
             context=SuggestionContext(
                 source_node_id=source_node_id,
-                source_node_title=context["source_node"].title,
-                source_node_type=context["source_node"].type,
+                source_node_title=context["source_node"]["title"],
+                source_node_type=context["source_node"]["type"],
                 edge_type=edge_type,
                 direction=direction,
                 target_node_type=context["target_type"].type,
-                similar_nodes_count=len(context.get("similar_nodes", [])),
+                context_nodes_count=context_nodes_count,
             ),
         )
 
@@ -222,11 +233,6 @@ class NodeSuggestionGenerator:
         definition = await self._graph_store.get_workflow(workflow_id)
         if definition is None:
             raise ValueError(f"Workflow {workflow_id} not found")
-
-        # Get source node
-        source_node = await self._graph_store.get_node(workflow_id, source_node_id)
-        if source_node is None:
-            raise ValueError(f"Node {source_node_id} not found")
 
         # Find edge type definition
         edge_type_def = next(
@@ -254,38 +260,29 @@ class NodeSuggestionGenerator:
                 f"Target node type {target_type_name} not found in workflow schema"
             )
 
-        # Get source node's neighbors for context
-        neighbors = await self._graph_store.get_neighbors(workflow_id, source_node_id)
-
-        # Get similar nodes as examples (if enabled)
-        similar_nodes: list[Node] = []
-        if options.include_similar and options.max_similar_examples > 0:
-            all_target_nodes, _ = await self._graph_store.query_nodes(
-                workflow_id,
-                node_type=target_type_name,
-                limit=options.max_similar_examples,
-            )
-            similar_nodes = all_target_nodes
+        # Use context gatherer with the provided selector or default
+        selector = options.context_selector or default_context_selector()
+        gathered = await self._context_gatherer.gather_context(
+            workflow_id, source_node_id, selector
+        )
 
         return {
             "definition": definition,
-            "source_node": source_node,
+            "source_node": gathered["source_node"],
+            "path_results": gathered["path_results"],
             "edge_type_def": edge_type_def,
             "target_type": target_type,
             "direction": direction,
-            "neighbors": neighbors,
-            "similar_nodes": similar_nodes,
         }
 
     def _build_prompt(self, context: dict[str, Any], options: SuggestionOptions) -> str:
         """Build the user prompt for suggestion generation."""
-        source_node: Node = context["source_node"]
+        source_node: dict[str, Any] = context["source_node"]
         edge_type_def: EdgeType = context["edge_type_def"]
         target_type: NodeType = context["target_type"]
         definition: WorkflowDefinition = context["definition"]
         direction: str = context["direction"]
-        neighbors: dict = context["neighbors"]
-        similar_nodes: list[Node] = context.get("similar_nodes", [])
+        path_results: dict[str, list[dict[str, Any]]] = context.get("path_results", {})
 
         relationship_verb = _get_relationship_verb(edge_type_def, direction)
 
@@ -293,7 +290,7 @@ class NodeSuggestionGenerator:
             f"# Generate a {target_type.type} Node",
             "",
             f"Generate a **{target_type.display_name}** node that {relationship_verb} "
-            f"the following **{source_node.type}**.",
+            f"the following **{source_node['type']}**.",
             "",
             "## Workflow Context",
             f"Workflow: {definition.name}",
@@ -307,30 +304,29 @@ class NodeSuggestionGenerator:
             "",
         ]
 
-        # Add connected nodes for context
-        all_neighbors = neighbors.get("outgoing", []) + neighbors.get("incoming", [])
-        if all_neighbors:
-            lines.append("## Connected Nodes (for context)")
-            for item in all_neighbors[:5]:  # Limit to 5 neighbors
-                node = item["node"]
-                edge = item["edge"]
-                lines.append(f"\n### {node['type']} (via {edge['type']})")
-                lines.append(_format_node_for_prompt(node))
+        # Add context nodes from path results
+        total_context_nodes = sum(len(nodes) for nodes in path_results.values())
+        if total_context_nodes > 0:
+            lines.append("## Context")
+            lines.append(
+                "The following nodes provide context for generating an appropriate suggestion."
+            )
             lines.append("")
 
-        # Add similar nodes as examples
-        if similar_nodes:
-            lines.append(f"## Examples of Existing {target_type.type} Nodes")
-            for node in similar_nodes[:3]:
-                lines.append(f"\n### {node.title}")
-                lines.append(_format_node_for_prompt(node))
-            lines.append("")
+            for path_name, nodes in path_results.items():
+                if not nodes:
+                    continue
+                lines.append(f"### {path_name} ({len(nodes)} node(s))")
+                for node in nodes[:5]:  # Limit to 5 per path
+                    lines.append(f"\n#### {node['title']} ({node['type']})")
+                    lines.append(_format_node_for_prompt(node))
+                lines.append("")
 
         # Final instruction
         lines.append(
             f"Generate {options.num_suggestions} suggestion(s) for a new "
             f"**{target_type.type}** that would be appropriate to link to "
-            f"'{source_node.title}' via the **{edge_type_def.type}** relationship."
+            f"'{source_node['title']}' via the **{edge_type_def.type}** relationship."
         )
 
         # Add user guidance if provided
