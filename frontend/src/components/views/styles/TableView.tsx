@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Node } from '@/types/workflow';
 import type { TableConfig } from '@/types/view-templates';
+import { getNodeFieldValue } from '@/lib/node-utils';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -111,17 +112,8 @@ function formatCellValue(value: unknown): string {
   return String(value);
 }
 
-function getNodeValue(node: Node, column: string): unknown {
-  // Handle special columns
-  if (column === 'title') return node.title;
-  if (column === 'type') return node.type;
-  if (column === 'status') return node.status;
-  if (column === 'created_at') return node.created_at;
-  if (column === 'updated_at') return node.updated_at;
-
-  // Check properties
-  return node.properties[column];
-}
+// Use shared utility for field value extraction
+const getNodeValue = getNodeFieldValue;
 
 function compareValues(a: unknown, b: unknown, direction: SortDirection): number {
   // Handle null/undefined
