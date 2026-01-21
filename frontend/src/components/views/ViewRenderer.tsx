@@ -87,10 +87,22 @@ export function ViewRenderer({
     queryFn: () => api.getViewSubgraph(workflowId, viewTemplate.id, { filters: filterParams }),
   });
 
-  // Mutation for updating node status (for drag-drop in Kanban)
+  // Mutation for updating node status and/or properties (for drag-drop in Kanban)
   const updateNodeMutation = useMutation({
-    mutationFn: ({ nodeId, status }: { nodeId: string; status: string }) =>
-      api.updateNode(workflowId, nodeId, { status }),
+    mutationFn: ({
+      nodeId,
+      status,
+      properties,
+    }: {
+      nodeId: string;
+      status?: string;
+      properties?: Record<string, unknown>;
+    }) => {
+      const update: { status?: string; properties?: Record<string, unknown> } = {};
+      if (status !== undefined) update.status = status;
+      if (properties !== undefined) update.properties = properties;
+      return api.updateNode(workflowId, nodeId, update);
+    },
     onSuccess: () => {
       // Invalidate both the view query (with any filter) and the nodes query
       queryClient.invalidateQueries({ queryKey: ['view', workflowId, viewTemplate.id] });
@@ -118,6 +130,47 @@ export function ViewRenderer({
   const handleNodeDrop = async (nodeId: string, newStatus: string) => {
     try {
       await updateNodeMutation.mutateAsync({ nodeId, status: newStatus });
+    } catch {
+      // Error is handled by onError callback
+    }
+  };
+
+  // Extended drop handler for Kanban with swimlane support
+  const handleKanbanNodeDrop = async (
+    nodeId: string,
+    newColumn: string,
+    newSwimlane?: string
+  ) => {
+    try {
+      const rootLevelConfig = viewTemplate.levels[viewTemplate.rootType];
+      const kanbanConfig = rootLevelConfig?.styleConfig as KanbanConfig | undefined;
+      const groupByField = kanbanConfig?.groupByField || 'status';
+      const swimlaneField = kanbanConfig?.swimlaneField;
+
+      // Build the update payload
+      const update: {
+        nodeId: string;
+        status?: string;
+        properties?: Record<string, unknown>;
+      } = { nodeId };
+
+      // Handle column change (groupByField)
+      if (groupByField === 'status') {
+        update.status = newColumn;
+      } else {
+        update.properties = { ...update.properties, [groupByField]: newColumn };
+      }
+
+      // Handle swimlane change
+      if (newSwimlane !== undefined && swimlaneField) {
+        if (swimlaneField === 'status') {
+          update.status = newSwimlane;
+        } else {
+          update.properties = { ...update.properties, [swimlaneField]: newSwimlane };
+        }
+      }
+
+      await updateNodeMutation.mutateAsync(update);
     } catch {
       // Error is handled by onError callback
     }
@@ -162,15 +215,23 @@ export function ViewRenderer({
     // Get the nodes for the root level
     const rootNodes = data.levels[viewTemplate.rootType]?.nodes || [];
 
+    // Collect all edges from all levels (for relational views like kanban swimlanes)
+    const allEdges = Object.values(data.levels).flatMap((level) => level.edges || []);
+
+    // Collect all nodes from all levels (for relational lookups)
+    const allNodes = Object.values(data.levels).flatMap((level) => level.nodes || []);
+
     // Render based on view style
     switch (rootLevelConfig.style) {
       case 'kanban':
         return (
           <KanbanView
             nodes={rootNodes}
+            edges={allEdges}
+            allNodes={allNodes}
             config={rootLevelConfig.styleConfig as KanbanConfig}
             onNodeClick={onNodeClick}
-            onNodeDrop={handleNodeDrop}
+            onNodeDrop={handleKanbanNodeDrop}
           />
         );
 

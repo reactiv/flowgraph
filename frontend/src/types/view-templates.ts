@@ -20,6 +20,13 @@ export interface CardTemplate {
   statusColors?: Record<string, string>;
 }
 
+export interface SwimlanePath {
+  edgeType: string;
+  direction: 'outgoing' | 'incoming';
+  targetType: string;
+  targetField: string;
+}
+
 export interface KanbanConfig {
   groupByField: string;
   columnOrder?: string[];
@@ -29,6 +36,12 @@ export interface KanbanConfig {
   cardTemplate?: CardTemplate;
   showCounts?: boolean;
   showEmptyColumns?: boolean;
+  // Swimlane configuration (optional secondary grouping)
+  swimlaneField?: string;
+  swimlanePath?: SwimlanePath;
+  swimlaneOrder?: string[];
+  swimlaneColors?: Record<string, string>;
+  showEmptySwimlanes?: boolean;
 }
 
 export interface CardsConfig {
@@ -276,9 +289,11 @@ export interface KanbanColumn {
 
 export interface KanbanViewProps {
   nodes: Node[];
+  edges?: Edge[];
+  allNodes?: Node[];  // All nodes from all levels (for relational swimlane lookups)
   config: KanbanConfig;
   onNodeClick?: (node: Node) => void;
-  onNodeDrop?: (nodeId: string, newStatus: string) => void;
+  onNodeDrop?: (nodeId: string, newStatus: string, newSwimlane?: string) => void;
 }
 
 export interface CardsViewProps {

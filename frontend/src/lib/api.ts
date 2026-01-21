@@ -267,6 +267,10 @@ export const api = {
   getViewFilterSchema: (workflowId: string, viewId: string) =>
     fetchJson<FilterSchema>(`/workflows/${workflowId}/views/${viewId}/filter-schema`),
 
+  // Get field schema for a node type (used by editors like KanbanEditor for swimlane options)
+  getFieldSchema: (workflowId: string, rootType: string) =>
+    fetchJson<FilterSchema>(`/workflows/${workflowId}/field-schema?rootType=${encodeURIComponent(rootType)}`),
+
   getFilterValues: (
     workflowId: string,
     viewId: string,

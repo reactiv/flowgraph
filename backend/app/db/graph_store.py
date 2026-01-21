@@ -617,8 +617,39 @@ class GraphStore:
         # Keep track of nodes by type for edge traversal
         nodes_by_type: dict[str, list[Node]] = {template.root_type: root_nodes}
 
+        # Auto-include edge traversals for Kanban swimlanePath configurations
+        # This ensures relational swimlanes work without requiring explicit edge config
+        from app.models.workflow import EdgeTraversal, KanbanConfig
+
+        edges_to_traverse = list(template.edges)  # Copy to avoid mutating original
+
+        for level_type, level_config in template.levels.items():
+            if level_config.style == "kanban" and isinstance(
+                level_config.style_config, KanbanConfig
+            ):
+                swimlane_path = level_config.style_config.swimlane_path
+
+                if swimlane_path:
+                    # Check if this edge traversal already exists
+                    already_exists = any(
+                        e.edge_type == swimlane_path.edge_type
+                        and e.direction == swimlane_path.direction
+                        and e.target_type == swimlane_path.target_type
+                        for e in edges_to_traverse
+                    )
+
+                    if not already_exists:
+                        edges_to_traverse.append(
+                            EdgeTraversal(
+                                edge_type=swimlane_path.edge_type,
+                                direction=swimlane_path.direction,
+                                target_type=swimlane_path.target_type,
+                                source_type=level_type,
+                            )
+                        )
+
         # Traverse each edge configuration
-        for edge_config in template.edges:
+        for edge_config in edges_to_traverse:
             # Determine source type: use explicit sourceType or default to root type
             source_type = edge_config.source_type or template.root_type
             source_nodes = nodes_by_type.get(source_type, [])
