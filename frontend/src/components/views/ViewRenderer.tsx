@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -32,13 +32,31 @@ interface ViewRendererProps {
   viewTemplate: ViewTemplate;
   workflowDefinition?: WorkflowDefinition;
   onNodeClick?: (node: Node) => void;
+  // URL state props
+  initialFilters?: FilterGroup | null;
+  onFiltersChange?: (filters: FilterGroup | null) => void;
+  initialSort?: { field: string; order: 'asc' | 'desc' } | null;
+  onSortChange?: (field: string | null, order: 'asc' | 'desc') => void;
+  initialRecordId?: string | null;
+  onRecordSelect?: (recordId: string | null) => void;
 }
 
-export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onNodeClick }: ViewRendererProps) {
+export function ViewRenderer({
+  workflowId,
+  viewTemplate,
+  workflowDefinition,
+  onNodeClick,
+  initialFilters,
+  onFiltersChange,
+  initialSort,
+  onSortChange,
+  initialRecordId,
+  onRecordSelect,
+}: ViewRendererProps) {
   const queryClient = useQueryClient();
 
-  // Filter state
-  const [filterGroup, setFilterGroup] = useState<FilterGroup | null>(null);
+  // Filter state - initialized from URL
+  const [filterGroup, setFilterGroup] = useState<FilterGroup | null>(initialFilters ?? null);
 
   // Build filter params for API call
   const filterParams = useMemo<ViewFilterParams | undefined>(() => {
@@ -51,11 +69,16 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
   // Stable serialization for query key
   const filterKey = filterParams ? JSON.stringify(filterParams) : null;
 
-  // Handle filter changes
+  // Sync filter state with URL when view/initialFilters changes
+  useEffect(() => {
+    setFilterGroup(initialFilters ?? null);
+  }, [initialFilters]);
+
+  // Handle filter changes - update local state and notify parent
   const handleFiltersChange = useCallback((filters: FilterGroup | null) => {
-    console.log('[ViewRenderer] handleFiltersChange received:', filters);
     setFilterGroup(filters);
-  }, []);
+    onFiltersChange?.(filters);
+  }, [onFiltersChange]);
 
 
   // Fetch the subgraph data for this view
@@ -192,6 +215,8 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
             config={rootLevelConfig.styleConfig as TableConfig}
             onNodeClick={onNodeClick}
             onStatusChange={handleNodeDrop}
+            initialSort={initialSort}
+            onSortChange={onSortChange}
           />
         );
 
@@ -237,6 +262,8 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
             viewTemplate={viewTemplate}
             workflowDefinition={workflowDefinition}
             onNodeClick={onNodeClick}
+            initialRecordId={initialRecordId}
+            onRecordSelect={onRecordSelect}
           />
         );
       }
@@ -257,6 +284,7 @@ export function ViewRenderer({ workflowId, viewTemplate, workflowDefinition, onN
         workflowId={workflowId}
         viewId={viewTemplate.id}
         onFiltersChange={handleFiltersChange}
+        initialFilters={initialFilters}
       />
       <div className="flex-1 overflow-auto">{renderContent()}</div>
     </div>

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { useViewUrlState } from '@/lib/use-view-url-state';
 import type { Node } from '@/types/workflow';
 import type { ViewTemplate, ViewTemplateCreate } from '@/types/view-templates';
 import { ViewRenderer } from '@/components/views';
@@ -21,15 +22,12 @@ export default function WorkflowPage() {
   const params = useParams();
   const workflowId = params.id as string;
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
 
-  // Get selected node from URL params
-  const selectedNodeId = searchParams.get('node');
+  // URL state management for view, filters, sort, node, and record selection
+  const [urlState, urlActions] = useViewUrlState();
+  const { viewId: selectedViewId, nodeId: selectedNodeId, filters: urlFilters, sort: urlSort, recordId: urlRecordId } = urlState;
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
 
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -52,7 +50,7 @@ export default function WorkflowPage() {
     onSuccess: (newView) => {
       queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
       setCreateModalOpen(false);
-      setSelectedViewId(newView.id);
+      urlActions.setView(newView.id);
     },
   });
 
@@ -63,7 +61,7 @@ export default function WorkflowPage() {
       queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
       setDeletingViewId(null);
       if (selectedViewId === deletingViewId) {
-        setSelectedViewId(null);
+        urlActions.setView(null);
       }
     },
   });
@@ -80,23 +78,31 @@ export default function WorkflowPage() {
 
   // Node detail panel handlers
   const handleNodeClick = useCallback((node: Node) => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set('node', node.id);
-    router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
-  }, [searchParams, router, pathname]);
+    urlActions.setNode(node.id);
+  }, [urlActions]);
 
   const handleNodeSelect = useCallback((nodeId: string) => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set('node', nodeId);
-    router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
-  }, [searchParams, router, pathname]);
+    urlActions.setNode(nodeId);
+  }, [urlActions]);
 
   const handlePanelClose = useCallback(() => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.delete('node');
-    const query = newParams.toString();
-    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname]);
+    urlActions.setNode(null);
+  }, [urlActions]);
+
+  // Filter change handler for ViewRenderer
+  const handleFiltersChange = useCallback((filters: import('@/types/view-templates').FilterGroup | null) => {
+    urlActions.setFilters(filters);
+  }, [urlActions]);
+
+  // Sort change handler for ViewRenderer
+  const handleSortChange = useCallback((field: string | null, order: 'asc' | 'desc' = 'asc') => {
+    urlActions.setSort(field, order);
+  }, [urlActions]);
+
+  // Record selection handler for RecordView
+  const handleRecordSelect = useCallback((recordId: string | null) => {
+    urlActions.setRecord(recordId);
+  }, [urlActions]);
 
   // Fetch nodes (filtered by selected type) - only when in list view (not graph or semantic views)
   const {
@@ -157,7 +163,7 @@ export default function WorkflowPage() {
         <ViewCardGrid
           viewTemplates={viewTemplates}
           selectedViewId={selectedViewId}
-          onViewSelect={setSelectedViewId}
+          onViewSelect={urlActions.setView}
           onCreateClick={() => setCreateModalOpen(true)}
           onEditView={(view) => setEditingView(view)}
           onDeleteView={(viewId) => setDeletingViewId(viewId)}
@@ -191,6 +197,12 @@ export default function WorkflowPage() {
             viewTemplate={selectedViewTemplate}
             workflowDefinition={workflow}
             onNodeClick={handleNodeClick}
+            initialFilters={urlFilters}
+            onFiltersChange={handleFiltersChange}
+            initialSort={urlSort}
+            onSortChange={handleSortChange}
+            initialRecordId={urlRecordId}
+            onRecordSelect={handleRecordSelect}
           />
         </div>
       ) : (
