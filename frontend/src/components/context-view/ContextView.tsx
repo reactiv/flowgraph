@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, Settings, MessageSquare, Loader2 } from 'lucide-react';
 import type { WorkflowDefinition } from '@/types/workflow';
 import type { ContextPreview, ContextSelector } from '@/types/context-selector';
@@ -83,10 +83,12 @@ export function ContextView({
     contextSelector,
   });
 
-  // Notify parent when preview loads
-  if (preview && onPreviewLoaded) {
-    onPreviewLoaded(preview);
-  }
+  // Notify parent when preview loads (in useEffect to avoid render-time side effects)
+  useEffect(() => {
+    if (preview && onPreviewLoaded) {
+      onPreviewLoaded(preview);
+    }
+  }, [preview, onPreviewLoaded]);
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'preview', label: 'Preview', icon: <Eye className="h-4 w-4" /> },

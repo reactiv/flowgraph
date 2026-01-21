@@ -2,6 +2,7 @@
  * React Query hook for fetching context preview.
  */
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { ContextPreview, ContextSelector } from '@/types/context-selector';
@@ -33,6 +34,12 @@ export function useContextPreview({
   contextSelector,
   enabled = true,
 }: UseContextPreviewOptions): UseContextPreviewResult {
+  // Serialize contextSelector for stable queryKey (object references change on re-render)
+  const contextSelectorKey = useMemo(
+    () => JSON.stringify(contextSelector),
+    [contextSelector]
+  );
+
   const {
     data: preview,
     isLoading,
@@ -40,7 +47,7 @@ export function useContextPreview({
     error,
     refetch,
   } = useQuery({
-    queryKey: ['context-preview', workflowId, nodeId, contextSelector],
+    queryKey: ['context-preview', workflowId, nodeId, contextSelectorKey],
     queryFn: () => api.previewContext(workflowId, nodeId, contextSelector),
     enabled: enabled && !!workflowId && !!nodeId,
     staleTime: 30000, // Consider data fresh for 30 seconds

@@ -126,7 +126,7 @@ class ContextSelectorParser:
             llm_result = LLMContextSelector.model_validate_json(response.text)
         except Exception as e:
             logger.error(f"Gemini parsing failed: {e}")
-            return ContextSelector()
+            raise ValueError(f"Failed to parse context description: {e}") from e
 
         logger.info("Gemini result:\n%s", llm_result)
         selector = self._convert_result(llm_result)

@@ -235,7 +235,7 @@ export const api = {
    * Parse natural language description into a ContextSelector.
    * Uses LLM to interpret the user's intent.
    */
-  parseContextSelector: (
+  parseContextSelector: async (
     workflowId: string,
     description: string,
     context?: {
@@ -244,17 +244,72 @@ export const api = {
       direction?: 'outgoing' | 'incoming';
       targetType?: string;
     }
-  ) =>
-    fetchJson<ContextSelector>(`/workflows/${workflowId}/parse-context-selector`, {
-      method: 'POST',
-      body: JSON.stringify({
-        description,
-        sourceType: context?.sourceType,
-        edgeType: context?.edgeType,
-        direction: context?.direction,
-        targetType: context?.targetType,
-      }),
-    }),
+  ): Promise<ContextSelector> => {
+    // API returns snake_case - define inline types for the response
+    interface ApiEdgeStep {
+      edge_type: string;
+      direction: 'outgoing' | 'incoming';
+    }
+
+    interface ApiContextPath {
+      name: string;
+      steps: ApiEdgeStep[];
+      target_type?: string | null;
+      max_count?: number;
+      from_path?: string | null;
+      include_intermediate?: boolean;
+      global_query?: boolean;
+    }
+
+    interface ApiPropertySelector {
+      mode: 'all' | 'include' | 'exclude';
+      fields: string[];
+    }
+
+    interface ApiContextSelector {
+      paths: ApiContextPath[];
+      source_properties: ApiPropertySelector;
+      context_properties: ApiPropertySelector;
+    }
+
+    const response = await fetchJson<ApiContextSelector>(
+      `/workflows/${workflowId}/parse-context-selector`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          description,
+          sourceType: context?.sourceType,
+          edgeType: context?.edgeType,
+          direction: context?.direction,
+          targetType: context?.targetType,
+        }),
+      }
+    );
+
+    // Transform snake_case to camelCase
+    return {
+      paths: response.paths.map((path) => ({
+        name: path.name,
+        steps: path.steps.map((step) => ({
+          edgeType: step.edge_type,
+          direction: step.direction,
+        })),
+        targetType: path.target_type,
+        maxCount: path.max_count,
+        fromPath: path.from_path,
+        includeIntermediate: path.include_intermediate,
+        globalQuery: path.global_query,
+      })),
+      sourceProperties: {
+        mode: response.source_properties.mode,
+        fields: response.source_properties.fields,
+      },
+      contextProperties: {
+        mode: response.context_properties.mode,
+        fields: response.context_properties.fields,
+      },
+    };
+  },
 
   suggestNode: (
     workflowId: string,
