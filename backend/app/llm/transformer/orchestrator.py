@@ -27,6 +27,7 @@ from claude_agent_sdk import (
 from pydantic import BaseModel
 
 from app.llm.transformer.models import (
+    LearnedAssets,
     TransformConfig,
     TransformManifest,
     TransformRun,
@@ -190,6 +191,45 @@ For .docx files:
 These services require authentication that only the Skills can provide.
 """
 
+LEARNING_PROMPT = """
+## Learning Mode
+
+After you successfully validate your output, you MUST generate a SKILL.md file that
+documents how to repeat this transformation.
+
+Write the skill to ./SKILL.md with this format:
+
+```yaml
+---
+name: <short-name-for-this-transformation>
+description: <when to use this skill - natural language>
+---
+```
+
+# <Title describing the transformation>
+
+## Overview
+Explain what this transformation does and when to use it.
+
+## Input Format
+Describe the expected input files and their structure.
+
+## Transformation Approach
+Explain the key steps to transform the input.
+
+## Code Example
+Provide the working code (your transform.py or key patterns).
+
+## Output Schema
+Describe the output format and key fields.
+
+## Important Notes
+- Any gotchas or edge cases discovered
+- Performance considerations
+- Required dependencies
+"""
+
+
 class DataTransformer:
     """Orchestrates Claude to transform data into validated Pydantic outputs.
 
@@ -344,6 +384,10 @@ class DataTransformer:
                 schema_json=schema_json,
             )
         system_prompt += FILE_TYPE_HANDLING_PROMPT
+
+        # Add learning prompt if learn mode is enabled
+        if config.learn:
+            system_prompt += LEARNING_PROMPT
         # Create custom MCP tools
         mcp_server = create_transformer_tools(
             work_dir=work_dir,
@@ -576,10 +620,31 @@ class DataTransformer:
             "iterations": tool_call_count,
         })
 
+        # Build learned assets if learn mode is enabled
+        learned = None
+        if config.learn:
+            learned = LearnedAssets()
+
+            # Capture transform.py in code mode
+            if config.mode == "code":
+                transform_path = work_dir / "transform.py"
+                if transform_path.exists():
+                    learned.transformer_code = transform_path.read_text()
+
+            # Capture generated SKILL.md (REQUIRED in learn mode)
+            skill_path = work_dir / "SKILL.md"
+            if skill_path.exists():
+                learned.skill_md = skill_path.read_text()
+            else:
+                raise ValueError(
+                    "Learn mode enabled but agent did not generate SKILL.md. "
+                    "The transformation succeeded but learnings are required."
+                )
+
         return TransformRun(
             manifest=manifest,
             items=items,
-            learned=None,
+            learned=learned,
             debug=debug,
         )
 

@@ -45,6 +45,9 @@ class LearnedAssets(BaseModel):
     prompt_refinements: list[str] = Field(default_factory=list)
     """Refinements to the original instruction discovered during iteration."""
 
+    skill_md: str | None = None
+    """Generated SKILL.md content documenting how to repeat this transformation."""
+
 
 class TransformRun(BaseModel, Generic[T]):  # noqa: UP046 - Pydantic generics work better with explicit Generic
     """Result of a transformation run."""
@@ -93,6 +96,9 @@ class TransformConfig(BaseModel):
 
     work_dir: str | None = None
     """Working directory for the transformation. If None, a temp dir is created."""
+
+    learn: bool = False
+    """If True, generate a SKILL.md after successful transformation."""
 
 
 def compute_schema_hash(model: type[BaseModel]) -> str:
