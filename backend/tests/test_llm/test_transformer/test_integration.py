@@ -77,6 +77,111 @@ class TestValidateArtifactTool:
         assert result.item_count == 1
 
 
+class TestRunTransformerValidation:
+    """Tests for run_transformer integrated validation."""
+
+    def test_run_transformer_fails_when_output_invalid(self, tmp_path: Path):
+        """Test that run_transformer returns success=false when output is invalid."""
+        from app.llm.transformer.tools import run_and_validate_transformer
+
+        # Create a script that produces invalid output (missing required 'age' field)
+        script = tmp_path / "transform.py"
+        script.write_text(
+            'import json\n'
+            'with open("output.json", "w") as f:\n'
+            '    json.dump({"name": "Alice"}, f)\n'  # Missing 'age'
+        )
+
+        # Run the transformer
+        response = run_and_validate_transformer(
+            script_path=script,
+            work_dir=tmp_path,
+            output_model=Person,
+            output_format="json",
+            input_paths=[],
+        )
+
+        # Should fail because output is invalid
+        assert response["success"] is False
+        assert response["exit_code"] == 0  # Script ran successfully
+        assert "validation" in response
+        assert response["validation"]["valid"] is False
+        assert len(response["validation"]["errors"]) > 0
+
+    def test_run_transformer_succeeds_when_output_valid(self, tmp_path: Path):
+        """Test that run_transformer returns success=true when output is valid."""
+        from app.llm.transformer.tools import run_and_validate_transformer
+
+        # Create a script that produces valid output
+        script = tmp_path / "transform.py"
+        script.write_text(
+            'import json\n'
+            'with open("output.json", "w") as f:\n'
+            '    json.dump({"name": "Alice", "age": 30}, f)\n'
+        )
+
+        # Run the transformer
+        response = run_and_validate_transformer(
+            script_path=script,
+            work_dir=tmp_path,
+            output_model=Person,
+            output_format="json",
+            input_paths=[],
+        )
+
+        # Should succeed because output is valid
+        assert response["success"] is True
+        assert response["exit_code"] == 0
+        assert "validation" in response
+        assert response["validation"]["valid"] is True
+        assert response["validation"]["item_count"] == 1
+
+    def test_run_transformer_fails_when_script_fails(self, tmp_path: Path):
+        """Test that run_transformer returns success=false when script exits non-zero."""
+        from app.llm.transformer.tools import run_and_validate_transformer
+
+        # Create a script that exits with error
+        script = tmp_path / "transform.py"
+        script.write_text('import sys; sys.exit(1)\n')
+
+        # Run the transformer
+        response = run_and_validate_transformer(
+            script_path=script,
+            work_dir=tmp_path,
+            output_model=Person,
+            output_format="json",
+            input_paths=[],
+        )
+
+        # Should fail because script failed
+        assert response["success"] is False
+        assert response["exit_code"] == 1
+        # No validation section since script failed
+        assert "validation" not in response
+
+    def test_run_transformer_fails_when_no_output_produced(self, tmp_path: Path):
+        """Test that run_transformer returns success=false when no output is produced."""
+        from app.llm.transformer.tools import run_and_validate_transformer
+
+        # Create a script that runs but produces no output
+        script = tmp_path / "transform.py"
+        script.write_text('print("Hello, world!")\n')
+
+        # Run the transformer
+        response = run_and_validate_transformer(
+            script_path=script,
+            work_dir=tmp_path,
+            output_model=Person,
+            output_format="json",
+            input_paths=[],
+        )
+
+        # Should fail because no output was produced
+        assert response["success"] is False
+        assert response["exit_code"] == 0  # Script ran successfully
+        assert "output.json" in response["error"]
+
+
 class TestDataTransformerSetup:
     """Tests for DataTransformer initialization."""
 
