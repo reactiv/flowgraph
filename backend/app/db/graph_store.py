@@ -1408,12 +1408,739 @@ class GraphStore:
         await db.execute("DELETE FROM events WHERE workflow_id = ?", (workflow_id,))
         # Delete edges
         await db.execute("DELETE FROM edges WHERE workflow_id = ?", (workflow_id,))
+        # Delete node-reference links
+        await db.execute(
+            "DELETE FROM node_external_refs WHERE workflow_id = ?", (workflow_id,)
+        )
         # Delete nodes
         await db.execute("DELETE FROM nodes WHERE workflow_id = ?", (workflow_id,))
 
         await db.commit()
         return True
 
+    # ==================== External References ====================
+
+    async def create_reference(
+        self, ref: "ExternalReferenceCreate"
+    ) -> "ExternalReference":
+        """Create or update an external reference (upsert by system + external_id)."""
+        from app.models.external_reference import ExternalReference
+
+        db = await get_db()
+        now = _now()
+
+        # Check if reference already exists
+        cursor = await db.execute(
+            "SELECT id FROM external_references WHERE system = ? AND external_id = ?",
+            (ref.system, ref.external_id),
+        )
+        existing = await cursor.fetchone()
+
+        if existing:
+            # Update existing reference
+            ref_id = existing["id"]
+            await db.execute(
+                """
+                UPDATE external_references
+                SET canonical_url = ?, version = ?, version_type = ?,
+                    display_name = ?, last_seen_at = ?
+                WHERE id = ?
+                """,
+                (
+                    ref.canonical_url,
+                    ref.version,
+                    ref.version_type.value if ref.version_type else "etag",
+                    ref.display_name,
+                    now,
+                    ref_id,
+                ),
+            )
+        else:
+            # Create new reference
+            ref_id = _generate_id()
+            await db.execute(
+                """
+                INSERT INTO external_references
+                (id, system, object_type, external_id, canonical_url, version, version_type,
+                 display_name, created_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ref_id,
+                    ref.system,
+                    ref.object_type,
+                    ref.external_id,
+                    ref.canonical_url,
+                    ref.version,
+                    ref.version_type.value if ref.version_type else "etag",
+                    ref.display_name,
+                    now,
+                    now,
+                ),
+            )
+
+        await db.commit()
+
+        # Fetch and return the full record
+        cursor = await db.execute(
+            "SELECT * FROM external_references WHERE id = ?", (ref_id,)
+        )
+        row = await cursor.fetchone()
+
+        return ExternalReference(
+            id=row["id"],
+            system=row["system"],
+            object_type=row["object_type"],
+            external_id=row["external_id"],
+            canonical_url=row["canonical_url"],
+            version=row["version"],
+            version_type=row["version_type"],
+            display_name=row["display_name"],
+            created_at=row["created_at"],
+            last_seen_at=row["last_seen_at"],
+        )
+
+    async def get_reference(self, reference_id: str) -> "ExternalReference | None":
+        """Get an external reference by ID."""
+        from app.models.external_reference import ExternalReference
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT * FROM external_references WHERE id = ?", (reference_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return ExternalReference(
+            id=row["id"],
+            system=row["system"],
+            object_type=row["object_type"],
+            external_id=row["external_id"],
+            canonical_url=row["canonical_url"],
+            version=row["version"],
+            version_type=row["version_type"],
+            display_name=row["display_name"],
+            created_at=row["created_at"],
+            last_seen_at=row["last_seen_at"],
+        )
+
+    async def get_reference_by_external_id(
+        self, system: str, external_id: str
+    ) -> "ExternalReference | None":
+        """Get an external reference by system and external ID."""
+        from app.models.external_reference import ExternalReference
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT * FROM external_references WHERE system = ? AND external_id = ?",
+            (system, external_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return ExternalReference(
+            id=row["id"],
+            system=row["system"],
+            object_type=row["object_type"],
+            external_id=row["external_id"],
+            canonical_url=row["canonical_url"],
+            version=row["version"],
+            version_type=row["version_type"],
+            display_name=row["display_name"],
+            created_at=row["created_at"],
+            last_seen_at=row["last_seen_at"],
+        )
+
+    async def query_references(
+        self,
+        system: str | None = None,
+        object_type: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list["ExternalReference"], int]:
+        """Query external references with filters."""
+        from app.models.external_reference import ExternalReference
+
+        db = await get_db()
+
+        where_clauses: list[str] = []
+        params: list[Any] = []
+
+        if system:
+            where_clauses.append("system = ?")
+            params.append(system)
+
+        if object_type:
+            where_clauses.append("object_type = ?")
+            params.append(object_type)
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+        # Get total count
+        cursor = await db.execute(
+            f"SELECT COUNT(*) as count FROM external_references WHERE {where_sql}",
+            params,
+        )
+        row = await cursor.fetchone()
+        total = row["count"] if row else 0
+
+        # Get references
+        cursor = await db.execute(
+            f"""
+            SELECT * FROM external_references WHERE {where_sql}
+            ORDER BY last_seen_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit, offset],
+        )
+        rows = await cursor.fetchall()
+
+        refs = [
+            ExternalReference(
+                id=row["id"],
+                system=row["system"],
+                object_type=row["object_type"],
+                external_id=row["external_id"],
+                canonical_url=row["canonical_url"],
+                version=row["version"],
+                version_type=row["version_type"],
+                display_name=row["display_name"],
+                created_at=row["created_at"],
+                last_seen_at=row["last_seen_at"],
+            )
+            for row in rows
+        ]
+
+        return refs, total
+
+    async def delete_reference(self, reference_id: str) -> bool:
+        """Delete an external reference and its associated data."""
+        db = await get_db()
+        cursor = await db.execute(
+            "DELETE FROM external_references WHERE id = ?", (reference_id,)
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    # ==================== Projections ====================
+
+    async def upsert_projection(
+        self, proj: "ProjectionCreate"
+    ) -> "Projection":
+        """Create or update a projection for an external reference."""
+        from datetime import datetime, timedelta
+
+        from app.models.external_reference import Projection
+
+        db = await get_db()
+        now = datetime.utcnow()
+        now_str = now.isoformat()
+        stale_after = (now + timedelta(seconds=proj.freshness_slo_seconds)).isoformat()
+
+        # Check if projection already exists
+        cursor = await db.execute(
+            "SELECT id FROM projections WHERE reference_id = ?",
+            (proj.reference_id,),
+        )
+        existing = await cursor.fetchone()
+
+        if existing:
+            proj_id = existing["id"]
+            await db.execute(
+                """
+                UPDATE projections
+                SET title = ?, status = ?, owner = ?, summary = ?,
+                    properties_json = ?, relationships_json = ?,
+                    fetched_at = ?, stale_after = ?,
+                    freshness_slo_seconds = ?, retrieval_mode = ?,
+                    content_hash = ?
+                WHERE id = ?
+                """,
+                (
+                    proj.title,
+                    proj.status,
+                    proj.owner,
+                    proj.summary,
+                    json.dumps(proj.properties),
+                    json.dumps(proj.relationships),
+                    now_str,
+                    stale_after,
+                    proj.freshness_slo_seconds,
+                    proj.retrieval_mode.value if proj.retrieval_mode else "cached",
+                    None,  # content_hash will be computed if needed
+                    proj_id,
+                ),
+            )
+        else:
+            proj_id = _generate_id()
+            await db.execute(
+                """
+                INSERT INTO projections
+                (id, reference_id, title, status, owner, summary,
+                 properties_json, relationships_json,
+                 fetched_at, stale_after, freshness_slo_seconds, retrieval_mode, content_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    proj_id,
+                    proj.reference_id,
+                    proj.title,
+                    proj.status,
+                    proj.owner,
+                    proj.summary,
+                    json.dumps(proj.properties),
+                    json.dumps(proj.relationships),
+                    now_str,
+                    stale_after,
+                    proj.freshness_slo_seconds,
+                    proj.retrieval_mode.value if proj.retrieval_mode else "cached",
+                    None,
+                ),
+            )
+
+        await db.commit()
+
+        return Projection(
+            id=proj_id,
+            reference_id=proj.reference_id,
+            title=proj.title,
+            status=proj.status,
+            owner=proj.owner,
+            summary=proj.summary,
+            properties=proj.properties,
+            relationships=proj.relationships,
+            fetched_at=now,
+            stale_after=datetime.fromisoformat(stale_after),
+            freshness_slo_seconds=proj.freshness_slo_seconds,
+            retrieval_mode=proj.retrieval_mode,
+            content_hash=None,
+        )
+
+    async def get_projection(self, reference_id: str) -> "Projection | None":
+        """Get the projection for an external reference."""
+        from datetime import datetime
+
+        from app.models.external_reference import Projection, RetrievalMode
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT * FROM projections WHERE reference_id = ?", (reference_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Projection(
+            id=row["id"],
+            reference_id=row["reference_id"],
+            title=row["title"],
+            status=row["status"],
+            owner=row["owner"],
+            summary=row["summary"],
+            properties=json.loads(row["properties_json"] or "{}"),
+            relationships=json.loads(row["relationships_json"] or "[]"),
+            fetched_at=datetime.fromisoformat(row["fetched_at"]),
+            stale_after=datetime.fromisoformat(row["stale_after"]),
+            freshness_slo_seconds=row["freshness_slo_seconds"],
+            retrieval_mode=RetrievalMode(row["retrieval_mode"]),
+            content_hash=row["content_hash"],
+        )
+
+    async def get_stale_projections(
+        self, limit: int = 100
+    ) -> list["Projection"]:
+        """Get projections that are past their stale_after time."""
+        from datetime import datetime
+
+        from app.models.external_reference import Projection, RetrievalMode
+
+        db = await get_db()
+        now_str = datetime.utcnow().isoformat()
+
+        cursor = await db.execute(
+            """
+            SELECT * FROM projections
+            WHERE stale_after < ?
+            ORDER BY stale_after ASC
+            LIMIT ?
+            """,
+            (now_str, limit),
+        )
+        rows = await cursor.fetchall()
+
+        return [
+            Projection(
+                id=row["id"],
+                reference_id=row["reference_id"],
+                title=row["title"],
+                status=row["status"],
+                owner=row["owner"],
+                summary=row["summary"],
+                properties=json.loads(row["properties_json"] or "{}"),
+                relationships=json.loads(row["relationships_json"] or "[]"),
+                fetched_at=datetime.fromisoformat(row["fetched_at"]),
+                stale_after=datetime.fromisoformat(row["stale_after"]),
+                freshness_slo_seconds=row["freshness_slo_seconds"],
+                retrieval_mode=RetrievalMode(row["retrieval_mode"]),
+                content_hash=row["content_hash"],
+            )
+            for row in rows
+        ]
+
+    # ==================== Snapshots ====================
+
+    async def create_snapshot(
+        self, snapshot: "SnapshotCreate"
+    ) -> "Snapshot":
+        """Create an immutable snapshot of external content."""
+        from app.models.external_reference import Snapshot
+
+        db = await get_db()
+        snapshot_id = _generate_id()
+        now = _now()
+
+        await db.execute(
+            """
+            INSERT INTO snapshots
+            (id, reference_id, content_type, content_path, content_inline,
+             content_hash, captured_at, captured_by, capture_reason, source_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                snapshot.reference_id,
+                snapshot.content_type,
+                snapshot.content_path,
+                snapshot.content_inline,
+                snapshot.content_hash,
+                now,
+                snapshot.captured_by,
+                snapshot.capture_reason.value if snapshot.capture_reason else "manual",
+                snapshot.source_version,
+            ),
+        )
+        await db.commit()
+
+        return Snapshot(
+            id=snapshot_id,
+            reference_id=snapshot.reference_id,
+            content_type=snapshot.content_type,
+            content_path=snapshot.content_path,
+            content_inline=snapshot.content_inline,
+            content_hash=snapshot.content_hash,
+            captured_at=now,
+            captured_by=snapshot.captured_by,
+            capture_reason=snapshot.capture_reason,
+            source_version=snapshot.source_version,
+        )
+
+    async def get_snapshot(self, snapshot_id: str) -> "Snapshot | None":
+        """Get a snapshot by ID."""
+        from app.models.external_reference import CaptureReason, Snapshot
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT * FROM snapshots WHERE id = ?", (snapshot_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Snapshot(
+            id=row["id"],
+            reference_id=row["reference_id"],
+            content_type=row["content_type"],
+            content_path=row["content_path"],
+            content_inline=row["content_inline"],
+            content_hash=row["content_hash"],
+            captured_at=row["captured_at"],
+            captured_by=row["captured_by"],
+            capture_reason=CaptureReason(row["capture_reason"])
+            if row["capture_reason"]
+            else None,
+            source_version=row["source_version"],
+        )
+
+    async def get_snapshots_for_reference(
+        self, reference_id: str, limit: int = 10
+    ) -> list["Snapshot"]:
+        """Get all snapshots for an external reference."""
+        from app.models.external_reference import CaptureReason, Snapshot
+
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT * FROM snapshots
+            WHERE reference_id = ?
+            ORDER BY captured_at DESC
+            LIMIT ?
+            """,
+            (reference_id, limit),
+        )
+        rows = await cursor.fetchall()
+
+        return [
+            Snapshot(
+                id=row["id"],
+                reference_id=row["reference_id"],
+                content_type=row["content_type"],
+                content_path=row["content_path"],
+                content_inline=row["content_inline"],
+                content_hash=row["content_hash"],
+                captured_at=row["captured_at"],
+                captured_by=row["captured_by"],
+                capture_reason=CaptureReason(row["capture_reason"])
+                if row["capture_reason"]
+                else None,
+                source_version=row["source_version"],
+            )
+            for row in rows
+        ]
+
+    # ==================== Node ↔ Reference Links ====================
+
+    async def link_node_reference(
+        self,
+        workflow_id: str,
+        node_id: str,
+        reference_id: str,
+        relationship: str = "source",
+        added_by: str | None = None,
+    ) -> "NodeExternalRef":
+        """Link a workflow node to an external reference."""
+        from app.models.external_reference import NodeExternalRef, ReferenceRelationship
+
+        db = await get_db()
+        now = _now()
+
+        # Upsert the link
+        await db.execute(
+            """
+            INSERT OR REPLACE INTO node_external_refs
+            (node_id, reference_id, workflow_id, relationship, added_at, added_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (node_id, reference_id, workflow_id, relationship, now, added_by),
+        )
+        await db.commit()
+
+        return NodeExternalRef(
+            node_id=node_id,
+            reference_id=reference_id,
+            workflow_id=workflow_id,
+            relationship=ReferenceRelationship(relationship),
+            added_at=now,
+            added_by=added_by,
+        )
+
+    async def unlink_node_reference(
+        self, node_id: str, reference_id: str
+    ) -> bool:
+        """Remove link between a node and external reference."""
+        db = await get_db()
+        cursor = await db.execute(
+            "DELETE FROM node_external_refs WHERE node_id = ? AND reference_id = ?",
+            (node_id, reference_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def get_node_references(
+        self, workflow_id: str, node_id: str
+    ) -> list["NodeExternalRefWithDetails"]:
+        """Get all external references linked to a node, with full reference details."""
+        from app.models.external_reference import (
+            ExternalReferenceWithProjection,
+            NodeExternalRefWithDetails,
+            ReferenceRelationship,
+        )
+
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT nr.*, r.*, p.id as proj_id, p.title as proj_title,
+                   p.status as proj_status, p.owner as proj_owner, p.summary as proj_summary,
+                   p.properties_json as proj_props, p.relationships_json as proj_rels,
+                   p.fetched_at, p.stale_after, p.freshness_slo_seconds, p.retrieval_mode,
+                   p.content_hash
+            FROM node_external_refs nr
+            JOIN external_references r ON nr.reference_id = r.id
+            LEFT JOIN projections p ON r.id = p.reference_id
+            WHERE nr.workflow_id = ? AND nr.node_id = ?
+            ORDER BY nr.added_at DESC
+            """,
+            (workflow_id, node_id),
+        )
+        rows = await cursor.fetchall()
+
+        results = []
+        for row in rows:
+            # Build projection if it exists
+            projection = None
+            if row["proj_id"]:
+                from datetime import datetime
+
+                from app.models.external_reference import Projection, RetrievalMode
+
+                projection = Projection(
+                    id=row["proj_id"],
+                    reference_id=row["reference_id"],
+                    title=row["proj_title"],
+                    status=row["proj_status"],
+                    owner=row["proj_owner"],
+                    summary=row["proj_summary"],
+                    properties=json.loads(row["proj_props"] or "{}"),
+                    relationships=json.loads(row["proj_rels"] or "[]"),
+                    fetched_at=datetime.fromisoformat(row["fetched_at"]),
+                    stale_after=datetime.fromisoformat(row["stale_after"]),
+                    freshness_slo_seconds=row["freshness_slo_seconds"],
+                    retrieval_mode=RetrievalMode(row["retrieval_mode"]),
+                    content_hash=row["content_hash"],
+                )
+
+            # Build reference with projection
+            ref_with_proj = ExternalReferenceWithProjection(
+                id=row["id"],
+                system=row["system"],
+                object_type=row["object_type"],
+                external_id=row["external_id"],
+                canonical_url=row["canonical_url"],
+                version=row["version"],
+                version_type=row["version_type"],
+                display_name=row["display_name"],
+                created_at=row["created_at"],
+                last_seen_at=row["last_seen_at"],
+                projection=projection,
+            )
+
+            # Build the full link object
+            results.append(
+                NodeExternalRefWithDetails(
+                    node_id=row["node_id"],
+                    reference_id=row["reference_id"],
+                    workflow_id=row["workflow_id"],
+                    relationship=ReferenceRelationship(row["relationship"]),
+                    added_at=row["added_at"],
+                    added_by=row["added_by"],
+                    reference=ref_with_proj,
+                )
+            )
+
+        return results
+
+    async def get_nodes_for_reference(
+        self, reference_id: str
+    ) -> list["NodeExternalRef"]:
+        """Get all nodes linked to an external reference."""
+        from app.models.external_reference import NodeExternalRef, ReferenceRelationship
+
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT * FROM node_external_refs
+            WHERE reference_id = ?
+            ORDER BY added_at DESC
+            """,
+            (reference_id,),
+        )
+        rows = await cursor.fetchall()
+
+        return [
+            NodeExternalRef(
+                node_id=row["node_id"],
+                reference_id=row["reference_id"],
+                workflow_id=row["workflow_id"],
+                relationship=ReferenceRelationship(row["relationship"]),
+                added_at=row["added_at"],
+                added_by=row["added_by"],
+            )
+            for row in rows
+        ]
+
+    # ==================== Context Packs ====================
+
+    async def save_context_pack(self, pack: "ContextPack") -> "ContextPack":
+        """Save a context pack for audit purposes."""
+
+        db = await get_db()
+
+        await db.execute(
+            """
+            INSERT INTO context_packs
+            (id, workflow_id, source_node_id, traversal_rule, resources_json,
+             oldest_projection, any_stale, estimated_tokens, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pack.id,
+                pack.workflow_id,
+                pack.source_node_id,
+                pack.traversal_rule,
+                json.dumps([r.model_dump() for r in pack.resources]),
+                pack.oldest_projection.isoformat() if pack.oldest_projection else None,
+                1 if pack.any_stale else 0,
+                pack.estimated_tokens,
+                pack.created_at.isoformat(),
+            ),
+        )
+        await db.commit()
+
+        return pack
+
+    async def get_context_pack(self, pack_id: str) -> "ContextPack | None":
+        """Get a context pack by ID."""
+        from datetime import datetime
+
+        from app.models.context_pack import ContextPack, ContextResource
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT * FROM context_packs WHERE id = ?", (pack_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        resources_data = json.loads(row["resources_json"] or "[]")
+        resources = [ContextResource.model_validate(r) for r in resources_data]
+
+        return ContextPack(
+            id=row["id"],
+            workflow_id=row["workflow_id"],
+            source_node_id=row["source_node_id"],
+            traversal_rule=row["traversal_rule"],
+            resources=resources,
+            oldest_projection=datetime.fromisoformat(row["oldest_projection"])
+            if row["oldest_projection"]
+            else None,
+            any_stale=bool(row["any_stale"]),
+            estimated_tokens=row["estimated_tokens"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+
+# Type hints for forward references
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.context_pack import ContextPack
+    from app.models.external_reference import (
+        ExternalReference,
+        ExternalReferenceCreate,
+        NodeExternalRef,
+        NodeExternalRefWithDetails,
+        Projection,
+        ProjectionCreate,
+        Snapshot,
+        SnapshotCreate,
+    )
 
 # Global instance
 graph_store = GraphStore()
