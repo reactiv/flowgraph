@@ -284,4 +284,33 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
         ON context_packs(workflow_id, created_at)
     """)
 
+    # Endpoints table - learnable API endpoints for workflows
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS endpoints (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            description TEXT,
+            http_method TEXT NOT NULL DEFAULT 'POST',
+            instruction TEXT NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'direct',
+            learned_skill_md TEXT,
+            learned_transformer_code TEXT,
+            learned_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_executed_at TEXT,
+            execution_count INTEGER DEFAULT 0,
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE,
+            UNIQUE(workflow_id, slug)
+        )
+    """)
+
+    # Endpoints indexes
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_endpoints_workflow
+        ON endpoints(workflow_id)
+    """)
+
     await db.commit()
