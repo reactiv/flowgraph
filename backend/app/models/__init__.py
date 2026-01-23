@@ -1,5 +1,11 @@
 """Pydantic models for Workflow Graph Studio."""
 
+from app.models.context_pack import (
+    ContextPack,
+    ContextPackRequest,
+    ContextPackResponse,
+    ContextResource,
+)
 from app.models.context_selector import (
     ContextPath,
     ContextPreview,
@@ -21,6 +27,24 @@ from app.models.endpoint import (
     EndpointUpdate,
 )
 from app.models.event import Event, EventCreate
+from app.models.external_reference import (
+    CaptureReason,
+    ExternalReference,
+    ExternalReferenceCreate,
+    ExternalReferenceWithProjection,
+    FreshnessSLO,
+    NodeExternalRef,
+    NodeExternalRefCreate,
+    NodeExternalRefWithDetails,
+    Projection,
+    ProjectionCreate,
+    ProjectionUpdate,
+    ReferenceRelationship,
+    RetrievalMode,
+    Snapshot,
+    SnapshotCreate,
+    VersionType,
+)
 from app.models.node import Node, NodeCreate, NodeUpdate
 from app.models.suggestion import (
     FieldValueSuggestion,
@@ -111,4 +135,26 @@ __all__ = [
     "ContextPreviewRequest",
     "ParseContextSelectorRequest",
     "default_context_selector",
+    # External References (Pointer/Projection/Snapshot)
+    "ExternalReference",
+    "ExternalReferenceCreate",
+    "ExternalReferenceWithProjection",
+    "Projection",
+    "ProjectionCreate",
+    "ProjectionUpdate",
+    "Snapshot",
+    "SnapshotCreate",
+    "NodeExternalRef",
+    "NodeExternalRefCreate",
+    "NodeExternalRefWithDetails",
+    "VersionType",
+    "RetrievalMode",
+    "ReferenceRelationship",
+    "CaptureReason",
+    "FreshnessSLO",
+    # Context Packs
+    "ContextPack",
+    "ContextPackRequest",
+    "ContextPackResponse",
+    "ContextResource",
 ]

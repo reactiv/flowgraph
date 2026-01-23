@@ -153,4 +153,164 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
         ON endpoints(workflow_id)
     """)
 
+    # =========================================================================
+    # External References (Pointer Layer)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS external_references (
+            id TEXT PRIMARY KEY,
+            system TEXT NOT NULL,
+            object_type TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            canonical_url TEXT,
+            version TEXT,
+            version_type TEXT DEFAULT 'etag',
+            display_name TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(system, external_id)
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_refs_system_type
+        ON external_references(system, object_type)
+    """)
+
+    # =========================================================================
+    # Projections (Cached Fields Layer)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS projections (
+            id TEXT PRIMARY KEY,
+            reference_id TEXT NOT NULL,
+            title TEXT,
+            status TEXT,
+            owner TEXT,
+            summary TEXT,
+            properties_json TEXT DEFAULT '{}',
+            relationships_json TEXT DEFAULT '[]',
+            fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+            stale_after TEXT NOT NULL,
+            freshness_slo_seconds INTEGER NOT NULL DEFAULT 3600,
+            retrieval_mode TEXT DEFAULT 'cached',
+            content_hash TEXT,
+            FOREIGN KEY (reference_id) REFERENCES external_references(id) ON DELETE CASCADE,
+            UNIQUE(reference_id)
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_projections_stale
+        ON projections(stale_after)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_projections_reference
+        ON projections(reference_id)
+    """)
+
+    # =========================================================================
+    # Snapshots (Immutable Copy Layer)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS snapshots (
+            id TEXT PRIMARY KEY,
+            reference_id TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            content_path TEXT,
+            content_inline TEXT,
+            content_hash TEXT NOT NULL,
+            captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+            captured_by TEXT,
+            capture_reason TEXT DEFAULT 'manual',
+            source_version TEXT,
+            FOREIGN KEY (reference_id) REFERENCES external_references(id) ON DELETE CASCADE
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_snapshots_reference
+        ON snapshots(reference_id)
+    """)
+
+    # =========================================================================
+    # Node ↔ Reference Links
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS node_external_refs (
+            node_id TEXT NOT NULL,
+            reference_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            relationship TEXT DEFAULT 'source',
+            added_at TEXT NOT NULL DEFAULT (datetime('now')),
+            added_by TEXT,
+            PRIMARY KEY (node_id, reference_id),
+            FOREIGN KEY (reference_id) REFERENCES external_references(id) ON DELETE CASCADE,
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_node_refs_workflow
+        ON node_external_refs(workflow_id)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_node_refs_reference
+        ON node_external_refs(reference_id)
+    """)
+
+    # =========================================================================
+    # Context Packs (Audit Trail)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS context_packs (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            source_node_id TEXT NOT NULL,
+            traversal_rule TEXT,
+            resources_json TEXT NOT NULL DEFAULT '[]',
+            oldest_projection TEXT,
+            any_stale INTEGER DEFAULT 0,
+            estimated_tokens INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_context_packs_workflow
+        ON context_packs(workflow_id, created_at)
+    """)
+
+    # Endpoints table - learnable API endpoints for workflows
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS endpoints (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            description TEXT,
+            http_method TEXT NOT NULL DEFAULT 'POST',
+            instruction TEXT NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'direct',
+            learned_skill_md TEXT,
+            learned_transformer_code TEXT,
+            learned_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_executed_at TEXT,
+            execution_count INTEGER DEFAULT 0,
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE,
+            UNIQUE(workflow_id, slug)
+        )
+    """)
+
+    # Endpoints indexes
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_endpoints_workflow
+        ON endpoints(workflow_id)
+    """)
+
     await db.commit()
