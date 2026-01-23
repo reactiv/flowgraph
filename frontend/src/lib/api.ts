@@ -37,6 +37,17 @@ import type {
   SuggestionResponse,
 } from '@/types/suggestion';
 import type { ContextPreview, ContextPreviewNode, ContextSelector } from '@/types/context-selector';
+import type {
+  ApplyPreviewRequest,
+  ApplyPreviewResponse,
+  Endpoint,
+  EndpointCreate,
+  EndpointExecuteRequest,
+  EndpointExecuteResponse,
+  EndpointsResponse,
+  EndpointUpdate,
+  HttpMethod,
+} from '@/types/endpoint';
 
 const API_BASE = '/api/v1';
 
@@ -483,4 +494,100 @@ export const api = {
     fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/rules/${ruleId}`, {
       method: 'DELETE',
     }),
+
+  // Endpoints
+  listEndpoints: (workflowId: string) =>
+    fetchJson<EndpointsResponse>(`/workflows/${workflowId}/endpoints`),
+
+  createEndpoint: (workflowId: string, endpoint: EndpointCreate) =>
+    fetchJson<Endpoint>(`/workflows/${workflowId}/endpoints`, {
+      method: 'POST',
+      body: JSON.stringify(endpoint),
+    }),
+
+  getEndpoint: (workflowId: string, endpointId: string) =>
+    fetchJson<Endpoint>(`/workflows/${workflowId}/endpoints/${endpointId}`),
+
+  updateEndpoint: (workflowId: string, endpointId: string, update: EndpointUpdate) =>
+    fetchJson<Endpoint>(`/workflows/${workflowId}/endpoints/${endpointId}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    }),
+
+  deleteEndpoint: (workflowId: string, endpointId: string) =>
+    fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/endpoints/${endpointId}`, {
+      method: 'DELETE',
+    }),
+
+  resetEndpointLearning: (workflowId: string, endpointId: string) =>
+    fetchJson<Endpoint>(`/workflows/${workflowId}/endpoints/${endpointId}/reset-learning`, {
+      method: 'POST',
+    }),
+
+  /**
+   * Execute an endpoint synchronously.
+   * For streaming progress, use executeEndpointStream instead.
+   */
+  executeEndpoint: async (
+    workflowId: string,
+    slug: string,
+    method: HttpMethod,
+    data?: EndpointExecuteRequest
+  ): Promise<EndpointExecuteResponse> => {
+    const url = `/x/${workflowId}/${slug}${data?.learn ? '?learn=true' : ''}`;
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: data?.inputData ? JSON.stringify(data.inputData) : undefined,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(
+        typeof error.detail === 'string'
+          ? error.detail
+          : error.detail?.message || `HTTP ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Get the URL for an endpoint (for display/copy).
+   */
+  getEndpointUrl: (workflowId: string, slug: string) =>
+    `${window.location.origin}/x/${workflowId}/${slug}`,
+
+  /**
+   * Apply a previously previewed endpoint result.
+   * Note: Uses fetch directly since /x/ routes are not prefixed with /api/v1
+   */
+  applyEndpointPreview: async (
+    workflowId: string,
+    slug: string,
+    request: ApplyPreviewRequest
+  ): Promise<ApplyPreviewResponse> => {
+    const response = await fetch(`/x/${workflowId}/${slug}/apply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(
+        typeof error.detail === 'string'
+          ? error.detail
+          : error.detail?.message || `HTTP ${response.status}`
+      );
+    }
+
+    return response.json();
+  },
 };

@@ -12,6 +12,14 @@ from app.models.context_selector import (
     default_context_selector,
 )
 from app.models.edge import Edge, EdgeCreate
+from app.models.endpoint import (
+    Endpoint,
+    EndpointCreate,
+    EndpointExecuteRequest,
+    EndpointExecuteResponse,
+    EndpointsResponse,
+    EndpointUpdate,
+)
 from app.models.event import Event, EventCreate
 from app.models.node import Node, NodeCreate, NodeUpdate
 from app.models.suggestion import (
@@ -47,6 +55,13 @@ from app.models.workflow import (
 )
 
 __all__ = [
+    # Endpoints
+    "Endpoint",
+    "EndpointCreate",
+    "EndpointUpdate",
+    "EndpointExecuteRequest",
+    "EndpointExecuteResponse",
+    "EndpointsResponse",
     # Workflow Definition (Schema)
     "WorkflowDefinition",
     "NodeType",

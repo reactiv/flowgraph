@@ -11,6 +11,9 @@ from app.db.database import get_db
 from app.models import (
     Edge,
     EdgeCreate,
+    Endpoint,
+    EndpointCreate,
+    EndpointUpdate,
     Event,
     EventCreate,
     Node,
@@ -1070,6 +1073,330 @@ class GraphStore:
             )
             for row in rows
         ]
+
+    # ==================== Endpoints ====================
+
+    async def create_endpoint(
+        self, workflow_id: str, endpoint: EndpointCreate
+    ) -> Endpoint:
+        """Create a new endpoint for a workflow."""
+        db = await get_db()
+        endpoint_id = _generate_id()
+        now = _now()
+
+        await db.execute(
+            """
+            INSERT INTO endpoints (
+                id, workflow_id, name, slug, description, http_method,
+                instruction, mode, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                endpoint_id,
+                workflow_id,
+                endpoint.name,
+                endpoint.slug,
+                endpoint.description,
+                endpoint.http_method,
+                endpoint.instruction,
+                endpoint.mode,
+                now,
+                now,
+            ),
+        )
+        await db.commit()
+
+        return Endpoint(
+            id=endpoint_id,
+            workflow_id=workflow_id,
+            name=endpoint.name,
+            slug=endpoint.slug,
+            description=endpoint.description,
+            http_method=endpoint.http_method,
+            instruction=endpoint.instruction,
+            mode=endpoint.mode,
+            is_learned=False,
+            learned_at=None,
+            learned_skill_md=None,
+            created_at=now,
+            updated_at=now,
+            last_executed_at=None,
+            execution_count=0,
+        )
+
+    async def get_endpoint(
+        self, workflow_id: str, endpoint_id: str
+    ) -> Endpoint | None:
+        """Get an endpoint by ID."""
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT id, workflow_id, name, slug, description, http_method,
+                   instruction, mode, learned_skill_md, learned_transformer_code,
+                   learned_at, created_at, updated_at, last_executed_at, execution_count
+            FROM endpoints
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (endpoint_id, workflow_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Endpoint(
+            id=row["id"],
+            workflow_id=row["workflow_id"],
+            name=row["name"],
+            slug=row["slug"],
+            description=row["description"],
+            http_method=row["http_method"],
+            instruction=row["instruction"],
+            mode=row["mode"],
+            is_learned=row["learned_at"] is not None,
+            learned_at=row["learned_at"],
+            learned_skill_md=row["learned_skill_md"],
+            learned_transformer_code=row["learned_transformer_code"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            last_executed_at=row["last_executed_at"],
+            execution_count=row["execution_count"],
+        )
+
+    async def get_endpoint_by_slug(
+        self, workflow_id: str, slug: str
+    ) -> Endpoint | None:
+        """Get an endpoint by its slug."""
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT id, workflow_id, name, slug, description, http_method,
+                   instruction, mode, learned_skill_md, learned_transformer_code,
+                   learned_at, created_at, updated_at, last_executed_at, execution_count
+            FROM endpoints
+            WHERE workflow_id = ? AND slug = ?
+            """,
+            (workflow_id, slug),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Endpoint(
+            id=row["id"],
+            workflow_id=row["workflow_id"],
+            name=row["name"],
+            slug=row["slug"],
+            description=row["description"],
+            http_method=row["http_method"],
+            instruction=row["instruction"],
+            mode=row["mode"],
+            is_learned=row["learned_at"] is not None,
+            learned_at=row["learned_at"],
+            learned_skill_md=row["learned_skill_md"],
+            learned_transformer_code=row["learned_transformer_code"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            last_executed_at=row["last_executed_at"],
+            execution_count=row["execution_count"],
+        )
+
+    async def list_endpoints(self, workflow_id: str) -> tuple[list[Endpoint], int]:
+        """List all endpoints for a workflow. Returns (endpoints, total_count)."""
+        db = await get_db()
+
+        # Get total count
+        cursor = await db.execute(
+            "SELECT COUNT(*) as count FROM endpoints WHERE workflow_id = ?",
+            (workflow_id,),
+        )
+        row = await cursor.fetchone()
+        total = row["count"] if row else 0
+
+        # Get endpoints (without learned_skill_md for list view)
+        cursor = await db.execute(
+            """
+            SELECT id, workflow_id, name, slug, description, http_method,
+                   instruction, mode, learned_at, created_at, updated_at,
+                   last_executed_at, execution_count
+            FROM endpoints
+            WHERE workflow_id = ?
+            ORDER BY created_at DESC
+            """,
+            (workflow_id,),
+        )
+        rows = await cursor.fetchall()
+
+        endpoints = [
+            Endpoint(
+                id=row["id"],
+                workflow_id=row["workflow_id"],
+                name=row["name"],
+                slug=row["slug"],
+                description=row["description"],
+                http_method=row["http_method"],
+                instruction=row["instruction"],
+                mode=row["mode"],
+                is_learned=row["learned_at"] is not None,
+                learned_at=row["learned_at"],
+                learned_skill_md=None,  # Excluded from list view
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                last_executed_at=row["last_executed_at"],
+                execution_count=row["execution_count"],
+            )
+            for row in rows
+        ]
+
+        return endpoints, total
+
+    async def update_endpoint(
+        self, workflow_id: str, endpoint_id: str, update: EndpointUpdate
+    ) -> Endpoint | None:
+        """Update an endpoint."""
+        db = await get_db()
+
+        # Get current endpoint
+        current = await self.get_endpoint(workflow_id, endpoint_id)
+        if current is None:
+            return None
+
+        # Build update fields
+        now = _now()
+        new_name = update.name if update.name is not None else current.name
+        new_description = (
+            update.description if update.description is not None else current.description
+        )
+        new_http_method = (
+            update.http_method if update.http_method is not None else current.http_method
+        )
+        new_instruction = (
+            update.instruction if update.instruction is not None else current.instruction
+        )
+        new_mode = update.mode if update.mode is not None else current.mode
+
+        await db.execute(
+            """
+            UPDATE endpoints
+            SET name = ?, description = ?, http_method = ?, instruction = ?,
+                mode = ?, updated_at = ?
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (
+                new_name,
+                new_description,
+                new_http_method,
+                new_instruction,
+                new_mode,
+                now,
+                endpoint_id,
+                workflow_id,
+            ),
+        )
+        await db.commit()
+
+        return Endpoint(
+            id=endpoint_id,
+            workflow_id=workflow_id,
+            name=new_name,
+            slug=current.slug,  # Slug cannot be changed
+            description=new_description,
+            http_method=new_http_method,
+            instruction=new_instruction,
+            mode=new_mode,
+            is_learned=current.is_learned,
+            learned_at=current.learned_at,
+            learned_skill_md=current.learned_skill_md,
+            created_at=current.created_at,
+            updated_at=now,
+            last_executed_at=current.last_executed_at,
+            execution_count=current.execution_count,
+        )
+
+    async def delete_endpoint(self, workflow_id: str, endpoint_id: str) -> bool:
+        """Delete an endpoint."""
+        db = await get_db()
+        cursor = await db.execute(
+            "DELETE FROM endpoints WHERE id = ? AND workflow_id = ?",
+            (endpoint_id, workflow_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def update_endpoint_learned(
+        self,
+        workflow_id: str,
+        endpoint_id: str,
+        skill_md: str,
+        transformer_code: str | None = None,
+    ) -> Endpoint | None:
+        """Update an endpoint with learned assets after successful learning."""
+        db = await get_db()
+        now = _now()
+
+        await db.execute(
+            """
+            UPDATE endpoints
+            SET learned_skill_md = ?, learned_transformer_code = ?,
+                learned_at = ?, updated_at = ?
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (skill_md, transformer_code, now, now, endpoint_id, workflow_id),
+        )
+        await db.commit()
+
+        return await self.get_endpoint(workflow_id, endpoint_id)
+
+    async def reset_endpoint_learning(
+        self, workflow_id: str, endpoint_id: str
+    ) -> Endpoint | None:
+        """Clear learned assets from an endpoint."""
+        db = await get_db()
+        now = _now()
+
+        await db.execute(
+            """
+            UPDATE endpoints
+            SET learned_skill_md = NULL, learned_transformer_code = NULL,
+                learned_at = NULL, updated_at = ?
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (now, endpoint_id, workflow_id),
+        )
+        await db.commit()
+
+        return await self.get_endpoint(workflow_id, endpoint_id)
+
+    async def record_endpoint_execution(
+        self, workflow_id: str, endpoint_id: str
+    ) -> None:
+        """Record that an endpoint was executed (updates last_executed_at and count)."""
+        db = await get_db()
+        now = _now()
+
+        await db.execute(
+            """
+            UPDATE endpoints
+            SET last_executed_at = ?, execution_count = execution_count + 1
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (now, endpoint_id, workflow_id),
+        )
+        await db.commit()
+
+    async def get_endpoint_learned_code(
+        self, workflow_id: str, endpoint_id: str
+    ) -> str | None:
+        """Get just the learned transformer code for an endpoint."""
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT learned_transformer_code FROM endpoints WHERE id = ? AND workflow_id = ?",
+            (endpoint_id, workflow_id),
+        )
+        row = await cursor.fetchone()
+        return row["learned_transformer_code"] if row else None
 
     # ==================== Reset & Seed ====================
 

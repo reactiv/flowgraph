@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 export interface TransformerEvent {
   event: string;
@@ -24,19 +24,80 @@ interface TransformerProgressProps {
   error?: string | null;
 }
 
-function formatToolInput(input: Record<string, unknown>): string {
+/** Format tool input for collapsed view (brief summary) */
+function formatToolInput(tool: string | undefined, input: Record<string, unknown>): string {
+  // Special handling for run_transformer
+  if (tool === 'mcp__transformer-tools__run_transformer') {
+    return 'Running transform.py';
+  }
   // Show relevant parts of tool input
   if ('pattern' in input) return `pattern: "${input.pattern}"`;
   if ('file_path' in input) return `${input.file_path}`;
-  if ('command' in input) return `${input.command}`;
-  return JSON.stringify(input).slice(0, 100);
+  if ('command' in input) {
+    const cmd = String(input.command);
+    // Show first line only for multi-line commands
+    const firstLine = cmd.split('\n')[0] ?? cmd;
+    return firstLine.length > 60 ? firstLine.slice(0, 60) + '...' : firstLine;
+  }
+  return JSON.stringify(input).slice(0, 80) + (JSON.stringify(input).length > 80 ? '...' : '');
 }
 
+/** Format tool result for collapsed view (truncated) */
 function formatToolResult(result: string): string {
-  if (result.length > 200) {
-    return result.slice(0, 200) + '...';
+  if (result.length > 100) {
+    return result.slice(0, 100) + '...';
   }
   return result;
+}
+
+/** Format tool input for expanded view (full content) */
+function formatExpandedInput(tool: string | undefined, input: Record<string, unknown>): string {
+  // Special handling for run_transformer - show the code
+  if (tool === 'mcp__transformer-tools__run_transformer') {
+    if ('code' in input) {
+      return String(input.code);
+    }
+  }
+  // Bash commands - show full command
+  if (tool === 'Bash' && 'command' in input) {
+    return String(input.command);
+  }
+  // Write tool - show file path and content
+  if (tool === 'Write' && 'file_path' in input) {
+    const content = input.content ? String(input.content) : '(no content)';
+    return `File: ${input.file_path}\n${'─'.repeat(40)}\n${content}`;
+  }
+  // Read tool - show file path
+  if (tool === 'Read' && 'file_path' in input) {
+    return `Reading: ${input.file_path}`;
+  }
+  // Default: pretty-print JSON
+  return JSON.stringify(input, null, 2);
+}
+
+/** Check if an event has expandable content */
+function hasExpandableContent(event: TransformerEvent): boolean {
+  if (event.event === 'tool_call') {
+    // All tool calls can be expanded to show full input
+    return Boolean(event.input && Object.keys(event.input).length > 0);
+  }
+  if (event.event === 'tool_result') {
+    // Results can be expanded if they're long
+    return Boolean(event.result && event.result.length > 100);
+  }
+  if (event.event === 'text') {
+    // Text messages can be expanded if long
+    return Boolean(event.text && event.text.length > 150);
+  }
+  if (event.event === 'system_prompt') {
+    // System prompts are always expandable
+    return Boolean(event.prompt);
+  }
+  if (event.event === 'user_instruction') {
+    // User instructions are always expandable
+    return Boolean(event.instruction);
+  }
+  return false;
 }
 
 export function TransformerProgress({
@@ -45,15 +106,31 @@ export function TransformerProgress({
   error,
 }: TransformerProgressProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
 
-  // Filter to tool calls and relevant events
+  const toggleEventExpanded = useCallback((index: number) => {
+    setExpandedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  // Filter to tool calls and relevant events (including text for agent messages)
   const toolEvents = events.filter(
     (e) =>
       e.event === 'tool_call' ||
       e.event === 'tool_result' ||
       e.event === 'validation' ||
       e.event === 'phase' ||
-      e.event === 'progress'
+      e.event === 'progress' ||
+      e.event === 'text' ||
+      e.event === 'system_prompt' ||
+      e.event === 'user_instruction'
   );
 
   // Get the latest phase event (reverse to find last match)
@@ -178,34 +255,101 @@ export function TransformerProgress({
           </button>
 
           {isExpanded && (
-            <div className="max-h-64 overflow-y-auto p-2 space-y-1 text-xs font-mono">
-              {toolEvents.slice(-30).map((event, index) => {
-                if (event.event === 'tool_call') {
-                  return (
-                    <div key={index} className="flex items-start gap-2 text-muted-foreground">
-                      <span className="text-blue-500 flex-shrink-0">{'>'}</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                        {event.tool}
-                      </span>
-                      <span className="truncate opacity-70">
-                        {event.input ? formatToolInput(event.input) : ''}
-                      </span>
-                    </div>
-                  );
-                }
-                if (event.event === 'tool_result') {
+            <div className="max-h-96 overflow-y-auto p-2 space-y-1 text-xs font-mono">
+              {toolEvents.slice(-50).map((event, index) => {
+                const globalIndex = toolEvents.length - 50 + index;
+                const eventIndex = globalIndex >= 0 ? globalIndex : index;
+                const isEventExpanded = expandedEvents.has(eventIndex);
+                const canExpand = hasExpandableContent(event);
+
+                // Agent text messages
+                if (event.event === 'text') {
+                  const text = event.text || '';
+                  const isLong = text.length > 150;
                   return (
                     <div
                       key={index}
-                      className="flex items-start gap-2 text-muted-foreground/70 pl-4"
+                      className={`text-muted-foreground pl-4 border-l-2 border-muted/50 py-1 ${canExpand ? 'cursor-pointer hover:bg-muted/30 rounded-r' : ''}`}
+                      onClick={canExpand ? () => toggleEventExpanded(eventIndex) : undefined}
                     >
-                      <span className="text-green-500 flex-shrink-0">{'<'}</span>
-                      <span className="truncate">
-                        {event.result ? formatToolResult(event.result) : '(empty)'}
-                      </span>
+                      <div className="flex items-start gap-2">
+                        <span className="text-slate-400 flex-shrink-0 italic">Agent:</span>
+                        <span className="italic opacity-80">
+                          {isEventExpanded || !isLong ? text : text.slice(0, 150) + '...'}
+                        </span>
+                        {isLong && (
+                          <span className="text-muted-foreground/50 flex-shrink-0">
+                            {isEventExpanded ? '[-]' : '[+]'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 }
+
+                // Tool calls - expandable
+                if (event.event === 'tool_call') {
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div
+                        className={`flex items-start gap-2 text-muted-foreground ${canExpand ? 'cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1' : ''}`}
+                        onClick={canExpand ? () => toggleEventExpanded(eventIndex) : undefined}
+                      >
+                        <span className="text-blue-500 flex-shrink-0">{'>'}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-semibold flex-shrink-0">
+                          {event.tool}
+                        </span>
+                        <span className="truncate opacity-70 flex-1">
+                          {event.input ? formatToolInput(event.tool, event.input) : ''}
+                        </span>
+                        {canExpand && (
+                          <span className="text-muted-foreground/50 flex-shrink-0">
+                            {isEventExpanded ? '[-]' : '[+]'}
+                          </span>
+                        )}
+                      </div>
+                      {isEventExpanded && event.input && (
+                        <div className="ml-6 p-2 bg-muted/40 rounded border border-muted overflow-x-auto">
+                          <pre className="whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto">
+                            {formatExpandedInput(event.tool, event.input)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Tool results - expandable
+                if (event.event === 'tool_result') {
+                  const result = event.result || '(empty)';
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div
+                        className={`flex items-start gap-2 text-muted-foreground/70 pl-4 ${canExpand ? 'cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1' : ''}`}
+                        onClick={canExpand ? () => toggleEventExpanded(eventIndex) : undefined}
+                      >
+                        <span className="text-green-500 flex-shrink-0">{'<'}</span>
+                        <span className="truncate flex-1">
+                          {formatToolResult(result)}
+                        </span>
+                        {canExpand && (
+                          <span className="text-muted-foreground/50 flex-shrink-0">
+                            {isEventExpanded ? '[-]' : '[+]'}
+                          </span>
+                        )}
+                      </div>
+                      {isEventExpanded && (
+                        <div className="ml-6 p-2 bg-green-500/5 rounded border border-green-500/20 overflow-x-auto">
+                          <pre className="whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto text-muted-foreground">
+                            {result}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Validation results
                 if (event.event === 'validation') {
                   return (
                     <div
@@ -222,6 +366,8 @@ export function TransformerProgress({
                     </div>
                   );
                 }
+
+                // Phase/progress messages
                 if (event.event === 'phase' || event.event === 'progress') {
                   return (
                     <div key={index} className="flex items-start gap-2 text-purple-500">
@@ -230,6 +376,65 @@ export function TransformerProgress({
                     </div>
                   );
                 }
+
+                // System prompt - collapsible
+                if (event.event === 'system_prompt') {
+                  const prompt = (event.prompt as string) || '';
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div
+                        className="flex items-start gap-2 text-orange-600 dark:text-orange-400 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
+                        onClick={() => toggleEventExpanded(eventIndex)}
+                      >
+                        <span className="flex-shrink-0">⚙</span>
+                        <span className="font-semibold flex-shrink-0">System Prompt</span>
+                        <span className="truncate opacity-70 flex-1">
+                          {prompt.slice(0, 60)}...
+                        </span>
+                        <span className="text-muted-foreground/50 flex-shrink-0">
+                          {isEventExpanded ? '[-]' : '[+]'}
+                        </span>
+                      </div>
+                      {isEventExpanded && (
+                        <div className="ml-6 p-2 bg-orange-500/5 rounded border border-orange-500/20 overflow-x-auto">
+                          <pre className="whitespace-pre-wrap text-[11px] max-h-96 overflow-y-auto text-muted-foreground">
+                            {prompt}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // User instruction - collapsible
+                if (event.event === 'user_instruction') {
+                  const instruction = (event.instruction as string) || '';
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div
+                        className="flex items-start gap-2 text-cyan-600 dark:text-cyan-400 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
+                        onClick={() => toggleEventExpanded(eventIndex)}
+                      >
+                        <span className="flex-shrink-0">📝</span>
+                        <span className="font-semibold flex-shrink-0">User Instruction</span>
+                        <span className="truncate opacity-70 flex-1">
+                          {instruction.slice(0, 60)}...
+                        </span>
+                        <span className="text-muted-foreground/50 flex-shrink-0">
+                          {isEventExpanded ? '[-]' : '[+]'}
+                        </span>
+                      </div>
+                      {isEventExpanded && (
+                        <div className="ml-6 p-2 bg-cyan-500/5 rounded border border-cyan-500/20 overflow-x-auto">
+                          <pre className="whitespace-pre-wrap text-[11px] max-h-96 overflow-y-auto text-muted-foreground">
+                            {instruction}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return null;
               })}
 
