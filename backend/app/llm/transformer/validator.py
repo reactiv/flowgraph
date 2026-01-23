@@ -346,17 +346,110 @@ def validate_artifact_with_custom(
         return result
 
 
-def get_schema_description(model: type[BaseModel]) -> str:
+def get_schema_description(model: type[BaseModel], compact: bool = True) -> str:
     """Get a human-readable description of a Pydantic model's schema.
 
     This is used in the system prompt to help the agent understand
     what structure the output should have.
 
+    For WorkflowDefinition models, this can optionally use a compact DSL format
+    that is 3-10x more token-efficient than full JSON schema.
+
     Args:
         model: Pydantic model class.
+        compact: If True, use compact DSL format for supported models.
 
     Returns:
-        JSON schema as a formatted string.
+        Schema description as a formatted string.
     """
+    # Check if this is a WorkflowDefinition and compact mode is requested
+    if compact:
+        try:
+            # Import here to avoid circular imports
+            from app.models.workflow import WorkflowDefinition
+
+            if model is WorkflowDefinition or (
+                hasattr(model, "__mro__") and WorkflowDefinition in model.__mro__
+            ):
+                from app.llm.transformer.schema_dsl import convert_schema_to_dsl
+
+                # Generate a template schema showing the expected structure
+                # We create a minimal example to show the DSL format
+                template_schema = {
+                    "name": "<workflow name>",
+                    "description": "<workflow description>",
+                    "nodeTypes": [
+                        {
+                            "type": "<NodeTypeName>",
+                            "displayName": "<Display Name>",
+                            "titleField": "<field_key>",
+                            "fields": [
+                                {
+                                    "key": "<field_key>",
+                                    "label": "<Field Label>",
+                                    "kind": "string|number|datetime|enum|person|json|tag[]|file[]",
+                                    "required": True,
+                                    "values": ["<for enum fields>"],
+                                }
+                            ],
+                            "states": {
+                                "enabled": True,
+                                "initial": "<initial_state>",
+                                "values": ["<state1>", "<state2>"],
+                                "transitions": [{"from": "<state1>", "to": "<state2>"}],
+                            },
+                        }
+                    ],
+                    "edgeTypes": [
+                        {
+                            "type": "<EDGE_TYPE>",
+                            "displayName": "<edge display name>",
+                            "from": "<SourceNodeType>",
+                            "to": "<TargetNodeType>",
+                        }
+                    ],
+                }
+
+                dsl_legend = """The output should be a WorkflowDefinition JSON object:
+
+```
+{
+  "workflowId": "<unique-id>",
+  "name": "<workflow name>",
+  "description": "<workflow description>",
+  "nodeTypes": [...],   // Array of node type definitions
+  "edgeTypes": [...],   // Array of edge type definitions
+  "rules": [...]        // Optional array of business rules
+}
+```
+
+## DSL Reference (for understanding schema structure)
+
+The following DSL notation describes the workflow structure:
+"""
+                dsl_content = convert_schema_to_dsl(template_schema)
+                return dsl_legend + dsl_content + """
+
+## Field Kinds
+- string: Text field
+- string! : Required text field
+- number: Numeric field
+- datetime: Date/time field
+- enum(a|b|c): Optional enum with values a, b, c
+- enum!(a|b|c): Required enum
+- person: Person/user reference
+- json: Arbitrary JSON data
+- tag[]: Array of tags
+- file[]: Array of file references
+
+## State Notation
+- [state1→state2→state3]: Linear state progression
+- [a↔b]: Bidirectional transition between states
+- [a→b, a→c]: Multiple transitions from same state
+"""
+        except ImportError:
+            pass  # Fall back to JSON schema
+
+    # Default: return full JSON schema
     schema = model.model_json_schema()
     return json.dumps(schema, indent=2)

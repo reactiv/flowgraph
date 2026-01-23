@@ -13,6 +13,7 @@ from typing import Any
 
 from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
+from app.llm.transformer.schema_dsl import workflow_to_dsl
 from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.seed_validators import create_seed_data_validator
 from app.llm.transformer.validator import validate_artifact_with_custom
@@ -43,7 +44,7 @@ SEED_FROM_FILES_INSTRUCTION = """Transform data into SeedData for a workflow gra
 
 ## Workflow Schema
 
-{schema_json}
+{schema_dsl}
 
 ## Output Format
 
@@ -169,12 +170,12 @@ class FileSeeder:
 
         yield {"event": "phase", "phase": "transforming", "message": "Analyzing files..."}
 
-        # Build instruction with schema context
-        schema_json = definition.model_dump_json(indent=2, by_alias=True)
+        # Build instruction with schema context (compact DSL for token efficiency)
+        schema_dsl = workflow_to_dsl(definition)
         user_instruction = instruction or "Extract all relevant data from the input files."
 
         full_instruction = SEED_FROM_FILES_INSTRUCTION.format(
-            schema_json=schema_json,
+            schema_dsl=schema_dsl,
             instruction=user_instruction,
         )
 
@@ -352,8 +353,8 @@ class FileSeeder:
                 "message": "Fetching from external sources...",
             }
 
-        # Build instruction with schema context
-        schema_json = definition.model_dump_json(indent=2, by_alias=True)
+        # Build instruction with schema context (compact DSL for token efficiency)
+        schema_dsl = workflow_to_dsl(definition)
 
         if files:
             user_instruction = instruction or "Extract all relevant data from the input files."
@@ -362,7 +363,7 @@ class FileSeeder:
             user_instruction = instruction  # Already validated as non-None above
 
         full_instruction = SEED_FROM_FILES_INSTRUCTION.format(
-            schema_json=schema_json,
+            schema_dsl=schema_dsl,
             instruction=user_instruction,
         )
         logger.info(f"user_instruction={user_instruction!r}")

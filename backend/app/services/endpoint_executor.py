@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
+from app.llm.transformer.schema_dsl import convert_schema_to_dsl
 from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.seed_validators import create_seed_data_validator
 from app.llm.transformer.validator import CustomValidationError
@@ -131,7 +132,7 @@ GET_INSTRUCTION_TEMPLATE = """Query the workflow graph based on the user's input
 {instruction}
 
 ## Workflow Schema
-{schema_json}
+{schema_dsl}
 
 ## Input Data
 The input.json file contains the query parameters or criteria provided by the user.
@@ -151,7 +152,7 @@ POST_INSTRUCTION_TEMPLATE = """Create or update nodes and edges in the workflow 
 {instruction}
 
 ## Workflow Schema
-{schema_json}
+{schema_dsl}
 
 ## Input Data
 The input.json file contains the raw data to be transformed and stored.
@@ -212,7 +213,7 @@ PUT_INSTRUCTION_TEMPLATE = """Update existing nodes in the workflow graph.
 {instruction}
 
 ## Workflow Schema
-{schema_json}
+{schema_dsl}
 
 ## Input Data
 The input.json file contains the update data with node identifiers and new values.
@@ -232,7 +233,7 @@ DELETE_INSTRUCTION_TEMPLATE = """Delete nodes from the workflow graph.
 {instruction}
 
 ## Workflow Schema
-{schema_json}
+{schema_dsl}
 
 ## Input Data
 The input.json file contains the criteria for which nodes to delete.
@@ -365,16 +366,17 @@ class EndpointExecutor:
 
             # Build instruction based on HTTP method
             # Only include essential schema info (node_types, edge_types) - exclude rules and views
-            schema_dict = workflow.model_dump(by_alias=True)
+            # Use compact DSL format for token efficiency
+            schema_dict = workflow.model_dump(by_alias=True, mode="json")
             essential_schema = {
                 "name": schema_dict.get("name"),
                 "description": schema_dict.get("description"),
                 "nodeTypes": schema_dict.get("nodeTypes", []),
                 "edgeTypes": schema_dict.get("edgeTypes", []),
             }
-            schema_json = json.dumps(essential_schema, indent=2)
+            schema_dsl = convert_schema_to_dsl(essential_schema)
             instruction = self._build_instruction(
-                endpoint, schema_json, should_learn
+                endpoint, schema_dsl, should_learn
             )
 
             # Determine output model and config based on HTTP method
@@ -574,7 +576,7 @@ class EndpointExecutor:
                     logger.warning(f"Failed to clean up {dir_path}: {e}")
 
     def _build_instruction(
-        self, endpoint: Endpoint, schema_json: str, learn: bool
+        self, endpoint: Endpoint, schema_dsl: str, learn: bool
     ) -> str:
         """Build the full instruction for the transformer."""
         templates = {
@@ -586,7 +588,7 @@ class EndpointExecutor:
 
         template = templates.get(endpoint.http_method, POST_INSTRUCTION_TEMPLATE)
         instruction = template.format(
-            schema_json=schema_json,
+            schema_dsl=schema_dsl,
             instruction=endpoint.instruction,
         )
 
