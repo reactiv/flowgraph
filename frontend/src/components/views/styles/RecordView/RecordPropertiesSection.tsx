@@ -1,6 +1,7 @@
 'use client';
 
 import type { Node, NodeType, Field } from '@/types/workflow';
+import { extractDisplayValue, toDisplayString } from '@/lib/node-utils';
 
 interface RecordPropertiesSectionProps {
   node: Node;
@@ -10,27 +11,30 @@ interface RecordPropertiesSectionProps {
 }
 
 function formatValue(value: unknown, field?: Field): string {
-  if (value === null || value === undefined) {
+  // Extract display value (handles annotated values with content key)
+  const displayValue = extractDisplayValue(value);
+
+  if (displayValue === null || displayValue === undefined) {
     return '—';
   }
 
-  if (field?.kind === 'datetime' && typeof value === 'string') {
+  if (field?.kind === 'datetime' && typeof displayValue === 'string') {
     try {
-      return new Date(value).toLocaleString();
+      return new Date(displayValue).toLocaleString();
     } catch {
-      return String(value);
+      return String(displayValue);
     }
   }
 
   if (field?.kind === 'json') {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(displayValue, null, 2);
   }
 
-  if (Array.isArray(value)) {
-    return value.join(', ');
+  if (Array.isArray(displayValue)) {
+    return displayValue.map((v) => toDisplayString(v)).join(', ');
   }
 
-  return String(value);
+  return String(displayValue);
 }
 
 export function RecordPropertiesSection({

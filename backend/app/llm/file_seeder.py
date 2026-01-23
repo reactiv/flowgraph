@@ -22,23 +22,28 @@ from app.storage.upload_store import UploadStore, get_upload_store
 logger = logging.getLogger(__name__)
 
 
-SEED_FROM_FILES_INSTRUCTION = """Transform the input files into SeedData for a workflow graph.
+SEED_FROM_FILES_INSTRUCTION = """Transform data into SeedData for a workflow graph.
+
+## IMPORTANT: User Instructions (READ FIRST)
+
+{instruction}
 
 ## Your Task
 
-1. Explore the input files to understand their structure and content
-2. Extract entities that match the node types defined in the workflow schema
-3. Create SeedNode objects for each entity with appropriate properties
-4. Create SeedEdge objects to connect related nodes
-5. Output a complete SeedData object with nodes and edges
+1. First, check your available skills by running: ls -la .claude/skills/
+2. Explore the input sources to understand their structure and content:
+   - If input files are present in the working directory, explore them
+   - If instructed to use external sources (DynamoDB, APIs, etc.), use the appropriate skills
+3. Extract entities that match the node types defined in the workflow schema
+4. Create SeedNode objects for each entity with appropriate properties
+5. Create SeedEdge objects to connect related nodes
+6. Output a complete SeedData object with nodes and edges
+
+**Remember to follow the User Instructions above when deciding what data to include.**
 
 ## Workflow Schema
 
 {schema_json}
-
-## User Instructions
-
-{instruction}
 
 ## Output Format
 
@@ -66,6 +71,7 @@ For SeedEdge:
 - Match field keys exactly as defined in the schema
 - Include all required fields for each node type
 - Create meaningful relationships based on the data structure
+- If using external sources, write code that fetches and transforms the data
 """
 
 
@@ -278,7 +284,7 @@ class FileSeeder:
         self,
         workflow_id: str,
         definition: WorkflowDefinition,
-        upload_id: str,
+        upload_id: str | None = None,
         instruction: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Generate and execute transform.py, return preview without inserting.
@@ -287,10 +293,14 @@ class FileSeeder:
         inserting into the database. Returns the script content and a preview
         of what would be imported.
 
+        If upload_id is not provided, runs in external sources mode where the
+        transformer relies solely on the instruction to fetch data from external
+        services (e.g., DynamoDB, APIs) using available skills.
+
         Args:
             workflow_id: The workflow to seed.
             definition: The workflow definition schema.
-            upload_id: The upload session ID containing the files.
+            upload_id: Optional upload session ID containing the files.
             instruction: Optional additional instructions for transformation.
 
         Yields:
@@ -305,30 +315,58 @@ class FileSeeder:
             - complete: Preview complete with script_content and preview stats
             - error: Error occurred
         """
-        # Get uploaded files
-        try:
-            files = await self.upload_store.get_files(upload_id)
-        except FileNotFoundError:
+        logger.info(
+            f"preview_transform called: workflow_id={workflow_id}, "
+            f"upload_id={upload_id}, instruction={instruction!r}"
+        )
+
+        # Get uploaded files (if upload_id provided)
+        files: list[Path] = []
+        if upload_id:
+            try:
+                files = await self.upload_store.get_files(upload_id)
+            except FileNotFoundError:
+                yield {
+                    "event": "error",
+                    "message": f"Upload session {upload_id} not found or expired",
+                }
+                return
+
+        # External sources mode: no files, but must have instruction
+        if not files and not instruction:
             yield {
                 "event": "error",
-                "message": f"Upload session {upload_id} not found or expired",
+                "message": (
+                    "No files uploaded. "
+                    "Please provide instructions to fetch data from external sources."
+                ),
             }
             return
 
-        if not files:
-            yield {"event": "error", "message": "No files found in upload session"}
-            return
-
-        yield {"event": "phase", "phase": "transforming", "message": "Analyzing files..."}
+        if files:
+            yield {"event": "phase", "phase": "transforming", "message": "Analyzing files..."}
+        else:
+            yield {
+                "event": "phase",
+                "phase": "transforming",
+                "message": "Fetching from external sources...",
+            }
 
         # Build instruction with schema context
         schema_json = definition.model_dump_json(indent=2, by_alias=True)
-        user_instruction = instruction or "Extract all relevant data from the input files."
+
+        if files:
+            user_instruction = instruction or "Extract all relevant data from the input files."
+        else:
+            # External sources mode - instruction is required and describes how to fetch data
+            user_instruction = instruction  # Already validated as non-None above
 
         full_instruction = SEED_FROM_FILES_INSTRUCTION.format(
             schema_json=schema_json,
             instruction=user_instruction,
         )
+        logger.info(f"user_instruction={user_instruction!r}")
+        logger.debug(f"full_instruction preview:\n{full_instruction[:500]}...")
 
         # Use a temp work directory for preview (will be cleaned up)
         work_dir = Path(tempfile.mkdtemp(prefix=f"preview_{workflow_id}_"))
@@ -448,7 +486,7 @@ class FileSeeder:
         self,
         workflow_id: str,
         definition: WorkflowDefinition,
-        upload_id: str,
+        upload_id: str | None,
         script_content: str,
         seed_data_json: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
@@ -457,10 +495,12 @@ class FileSeeder:
         If seed_data_json is provided (from preview), uses it directly without
         re-executing the script. Otherwise falls back to re-executing the script.
 
+        For external sources mode (no upload_id), seed_data_json is required.
+
         Args:
             workflow_id: The workflow to seed.
             definition: The workflow definition schema.
-            upload_id: The upload session ID containing the files.
+            upload_id: Optional upload session ID containing the files.
             script_content: The Python script (for fallback if no cached data).
             seed_data_json: Cached seed data JSON from preview (skips re-execution).
 
@@ -487,10 +527,24 @@ class FileSeeder:
                 seed_data = SeedData.model_validate_json(seed_data_json)
             except Exception as e:
                 logger.warning(f"Failed to parse cached seed_data_json: {e}")
-                # Fall through to script execution
+                if not upload_id:
+                    # External sources mode without valid cached data - can't recover
+                    yield {
+                        "event": "error",
+                        "message": f"Failed to parse cached data: {e}",
+                    }
+                    return
+                # Fall through to script execution with files
 
         # Fall back to re-executing script if no cached data
         if seed_data is None:
+            if not upload_id:
+                yield {
+                    "event": "error",
+                    "message": "No cached data and no upload session - cannot proceed",
+                }
+                return
+
             # Get uploaded files
             try:
                 files = await self.upload_store.get_files(upload_id)

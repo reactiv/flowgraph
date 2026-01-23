@@ -1,6 +1,7 @@
 'use client';
 
 import { formatDateTime } from '@/lib/utils';
+import { toDisplayString, extractDisplayValue } from '@/lib/node-utils';
 import type { Node, NodeType, FieldKind } from '@/types/workflow';
 
 interface SummaryTabProps {
@@ -9,8 +10,9 @@ interface SummaryTabProps {
 }
 
 export function SummaryTab({ node, nodeType }: SummaryTabProps) {
-  // Get summary if it exists
-  const summary = node.properties?.summary as string | undefined;
+  // Get summary if it exists (handle annotated values)
+  const rawSummary = node.properties?.summary;
+  const summary = rawSummary ? toDisplayString(rawSummary) : undefined;
 
   // Get key fields to display (first few non-system fields)
   const keyFields = nodeType.fields
@@ -79,24 +81,27 @@ export function SummaryTab({ node, nodeType }: SummaryTabProps) {
 }
 
 function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
-  if (value === null || value === undefined) {
+  // Extract the display value (handle annotated values)
+  const displayValue = extractDisplayValue(value);
+
+  if (displayValue === null || displayValue === undefined) {
     return <span className="text-gray-400">-</span>;
   }
 
   switch (kind) {
     case 'datetime':
-      return <>{formatDateTime(value as string)}</>;
+      return <>{formatDateTime(displayValue as string)}</>;
 
     case 'tag[]':
-      if (Array.isArray(value) && value.length > 0) {
+      if (Array.isArray(displayValue) && displayValue.length > 0) {
         return (
           <div className="flex flex-wrap gap-1">
-            {value.map((tag, i) => (
+            {displayValue.map((tag, i) => (
               <span
                 key={i}
                 className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700"
               >
-                {String(tag)}
+                {toDisplayString(tag)}
               </span>
             ))}
           </div>
@@ -105,26 +110,26 @@ function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
       return <span className="text-gray-400">-</span>;
 
     case 'json':
-      if (typeof value === 'object') {
+      if (typeof displayValue === 'object') {
         return (
           <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-32">
-            {JSON.stringify(value, null, 2)}
+            {JSON.stringify(displayValue, null, 2)}
           </pre>
         );
       }
-      return <>{String(value)}</>;
+      return <>{String(displayValue)}</>;
 
     case 'enum':
       return (
         <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-700">
-          {String(value)}
+          {toDisplayString(displayValue)}
         </span>
       );
 
     case 'number':
-      return <>{typeof value === 'number' ? value.toLocaleString() : String(value)}</>;
+      return <>{typeof displayValue === 'number' ? displayValue.toLocaleString() : String(displayValue)}</>;
 
     default:
-      return <>{String(value)}</>;
+      return <>{toDisplayString(displayValue)}</>;
   }
 }

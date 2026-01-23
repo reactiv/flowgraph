@@ -2,6 +2,7 @@
 
 import type { Node } from '@/types/workflow';
 import type { CardTemplate } from '@/types/view-templates';
+import { toDisplayString } from '@/lib/node-utils';
 
 interface NodeCardProps {
   node: Node;
@@ -64,17 +65,17 @@ const STATUS_COLORS: Record<string, string> = {
 export function NodeCard({ node, cardTemplate, onClick, draggable, onDragStart }: NodeCardProps) {
   // Get title from cardTemplate or fall back to node.title
   const title = cardTemplate?.titleField
-    ? (node.properties[cardTemplate.titleField] as string) || node.title
+    ? toDisplayString(node.properties[cardTemplate.titleField]) || node.title
     : node.title;
 
   // Get subtitle from cardTemplate
   const subtitle = cardTemplate?.subtitleField
-    ? (node.properties[cardTemplate.subtitleField] as string)
+    ? toDisplayString(node.properties[cardTemplate.subtitleField]) || null
     : null;
 
   // Get status
   const status = cardTemplate?.statusField
-    ? (node.properties[cardTemplate.statusField] as string) || node.status
+    ? toDisplayString(node.properties[cardTemplate.statusField]) || node.status
     : node.status;
 
   // Get body fields
@@ -136,7 +137,7 @@ export function NodeCard({ node, cardTemplate, onClick, draggable, onDragStart }
             return (
               <p key={field} className="truncate text-sm text-gray-600">
                 <span className="font-medium capitalize">{field.replace(/_/g, ' ')}:</span>{' '}
-                {String(value)}
+                {toDisplayString(value)}
               </p>
             );
           })}

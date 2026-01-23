@@ -37,6 +37,51 @@ export function getNodeFieldValue(node: Node, field: string): unknown {
 }
 
 /**
+ * Extract a display string from a value that might be an "annotated value" object.
+ * Annotated values have the structure { content, generated_at, author } where
+ * the actual value is in the `content` field.
+ */
+export function extractDisplayValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  // Check for annotated value object with content key
+  if (
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'content' in value &&
+    typeof (value as Record<string, unknown>).content !== 'undefined'
+  ) {
+    return (value as Record<string, unknown>).content;
+  }
+  return value;
+}
+
+/**
+ * Safely convert any value to a display string.
+ * Handles annotated values, arrays, objects, and primitives.
+ */
+export function toDisplayString(value: unknown, fallback: string = ''): string {
+  const extracted = extractDisplayValue(value);
+  if (extracted === null || extracted === undefined) {
+    return fallback;
+  }
+  if (typeof extracted === 'string') {
+    return extracted;
+  }
+  if (typeof extracted === 'number' || typeof extracted === 'boolean') {
+    return String(extracted);
+  }
+  if (Array.isArray(extracted)) {
+    return extracted.map((v) => toDisplayString(v)).join(', ');
+  }
+  if (typeof extracted === 'object') {
+    return JSON.stringify(extracted);
+  }
+  return String(extracted);
+}
+
+/**
  * Get a field value from a node as a string (for display purposes).
  * Returns a fallback string for null/undefined values.
  */
@@ -46,8 +91,5 @@ export function getNodeFieldValueAsString(
   fallback: string = 'Unknown'
 ): string {
   const value = getNodeFieldValue(node, field);
-  if (value === null || value === undefined) {
-    return fallback;
-  }
-  return String(value);
+  return toDisplayString(value, fallback);
 }

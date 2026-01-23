@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { toDisplayString } from '@/lib/node-utils';
 import { useViewUrlState } from '@/lib/use-view-url-state';
 import type { Node } from '@/types/workflow';
 import type { ViewTemplate, ViewTemplateCreate } from '@/types/view-templates';
@@ -282,10 +283,10 @@ export default function WorkflowPage() {
                         <StatusBadge status={node.status || 'Unknown'} />
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {(node.properties?.author as string) || '-'}
+                        {toDisplayString(node.properties?.author, '-')}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground max-w-md truncate">
-                        {(node.properties?.summary as string) || '-'}
+                        {toDisplayString(node.properties?.summary, '-')}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         {formatDate(node.created_at)}
