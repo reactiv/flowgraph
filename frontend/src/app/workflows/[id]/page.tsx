@@ -161,9 +161,20 @@ export default function WorkflowPage() {
       {/* Header */}
       <div className="border-b bg-white p-4">
         <div className="mb-4">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-primary mb-2 inline-block">
-            &larr; Back to home
-          </Link>
+          <div className="flex items-center justify-between mb-2">
+            <Link href="/" className="text-sm text-muted-foreground hover:text-primary inline-block">
+              &larr; Back to home
+            </Link>
+            <Link
+              href={`/workflows/${workflowId}/endpoints`}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md hover:bg-muted transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Endpoints
+            </Link>
+          </div>
           <h1 className="text-2xl font-bold">{workflow.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">{workflow.description}</p>
         </div>

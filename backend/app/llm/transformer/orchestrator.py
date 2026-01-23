@@ -7,6 +7,7 @@ Pydantic-schema-compliant artifacts.
 import json
 import logging
 import shutil
+import subprocess
 import tempfile
 import time
 import uuid
@@ -48,6 +49,7 @@ T = TypeVar("T", bound=BaseModel)
 EventCallback = Callable[[str, dict[str, Any]], None]
 
 
+
 DIRECT_MODE_PROMPT = """You are an expert data transformer.
 
 Your task is to transform input files into a specific output format that matches a Pydantic schema.
@@ -83,11 +85,13 @@ Your task is to write Python code that transforms input files into a validated o
 
 ## Instructions
 
-1. First, explore the input files in the working directory to understand their structure
-2. Write a Python script to ./transform.py that transforms the inputs
-3. Call run_transformer to execute your script
-4. Call validate_artifact to check the output against the schema
-5. If validation fails, fix your code and repeat steps 3-4
+1. First, list your available skills to see what capabilities you have
+2. Run `ls -la .claude/skills/` to see the skills directory
+3. Explore the input files in the working directory to understand their structure
+4. Write a Python script to ./transform.py that transforms the inputs
+5. Call run_transformer to execute your script
+6. Call validate_artifact to check the output against the schema
+7. If validation fails, fix your code and repeat steps 5-6
 
 ## Output Schema (Pydantic)
 
@@ -110,123 +114,39 @@ Your script should:
 - Keep code simple and readable
 """
 
-FILE_TYPE_HANDLING_PROMPT = """
-Use the following tools to handle file types:
-
-### .zip file:
-- Write python code to investigate the zip file and ensure that your
-final script operates on the zip file, which is what the user wants to transform.
-
-### .pdf file:
-Use google.genai to process pdf files:
-
-**Reading**
-```python
-from google import genai
-from google.genai import types
-import pathlib
-
-client = genai.Client()
-
-# Retrieve and encode the PDF byte
-filepath = pathlib.Path('file.pdf')
-
-prompt = "Parse this pdf file: verbatim text and short descriptions for images inline"
-response = client.models.generate_content(
-  model="gemini-3-flash-preview",
-  contents=[
-      types.Part.from_bytes(
-        data=filepath.read_bytes(),
-        mime_type='application/pdf',
-      ),
-      prompt])
-print(response.text)
-
-**Extracting structured data**
-
-Use Pydantic models to extract structured data from the pdf file.
-
-```python
-class Model(BaseModel):
-    ...
-
-client = genai.Client()
-
-response = client.models.generate_content(
-    model="gemini-3-flash-preview",
-    contents=prompt,
-    config={
-        "response_mime_type": "application/json",
-        "response_json_schema": Model.model_json_schema(),
-    },
-)
-```
-
-## External Data Sources
-
-You have access to Skills for reading data from external services.
-**Always use Skills instead of WebFetch for authenticated services.**
-
-### Notion Data
-When you see Notion URLs (notion.so, notion.site) or instructions mentioning Notion:
-- **Use the `notion` skill** - invoke it with `/notion` or the Skill tool
-- WebFetch will NOT work for Notion - it requires API authentication
-- The skill can read databases, pages, and their content
-
-### Google Drive Data
-When you see Google Drive URLs (drive.google.com) or instructions mentioning Google Drive:
-- **Use the `google-drive` skill** - invoke it with `/google-drive` or the Skill tool
-- WebFetch will NOT work for Google Drive - it requires OAuth authentication
-- The skill can list folders, download files, and export Google Docs/Sheets
-
-### Excel/Spreadsheets
-For .xlsx, .xlsm, .csv, .tsv files:
-- **Use the `xlsx` skill** for reading and analyzing spreadsheet data
-
-### Word Documents
-For .docx files:
-- **Use the `docx` skill** for reading and creating Word documents
-
-**Important**: Do NOT use WebFetch or WebSearch for Notion or Google Drive URLs.
-These services require authentication that only the Skills can provide.
-"""
-
 LEARNING_PROMPT = """
 ## Learning Mode
 
 After you successfully validate your output, you MUST generate a SKILL.md file that
-documents how to repeat this transformation.
+captures what you learned so future runs can reuse your work.
+
+IMPORTANT: Future runs will have access to any transform.py you created. The SKILL.md
+should help the agent understand the transformation without needing to re-derive it.
 
 Write the skill to ./SKILL.md with this format:
 
 ```yaml
 ---
 name: <short-name-for-this-transformation>
-description: <when to use this skill - natural language>
+description: <when to use this skill>
 ---
 ```
 
-# <Title describing the transformation>
+# <Title>
 
-## Overview
-Explain what this transformation does and when to use it.
+## What This Does
+Brief description of the transformation.
 
-## Input Format
-Describe the expected input files and their structure.
+## Input
+What input.json contains and its structure.
 
-## Transformation Approach
-Explain the key steps to transform the input.
+## Output
+What gets produced and key fields.
 
-## Code Example
-Provide the working code (your transform.py or key patterns).
-
-## Output Schema
-Describe the output format and key fields.
-
-## Important Notes
-- Any gotchas or edge cases discovered
-- Performance considerations
-- Required dependencies
+## Key Insights
+- Important patterns or mappings discovered
+- Edge cases handled
+- Any non-obvious decisions made
 """
 
 
@@ -240,6 +160,114 @@ class DataTransformer:
     def __init__(self):
         """Initialize the transformer."""
         pass  # No API key needed - SDK handles authentication
+
+    def _try_execute_transform_py(
+        self,
+        work_dir: Path,
+        output_model: type[T],
+        output_format: str,
+        custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
+        on_event: EventCallback | None = None,
+    ) -> tuple[bool, TransformRun[T] | None, str | None]:
+        """Try to execute an existing transform.py programmatically.
+
+        Args:
+            work_dir: Working directory containing transform.py and input files.
+            output_model: Pydantic model for output validation.
+            output_format: Expected output format ('json' or 'jsonl').
+            custom_validator: Optional custom validator function.
+            on_event: Optional callback for streaming events.
+
+        Returns:
+            Tuple of (success, result, error_message).
+            If success, result contains the TransformRun.
+            If failure, error_message explains why.
+        """
+        transform_path = work_dir / "transform.py"
+        output_path = work_dir / f"output.{output_format}"
+
+        if not transform_path.exists():
+            return False, None, "transform.py not found"
+
+        if on_event:
+            on_event("phase", {
+                "phase": "executing",
+                "message": "Executing learned transform.py...",
+            })
+
+        try:
+            # Execute transform.py
+            result = subprocess.run(
+                ["python", str(transform_path)],
+                cwd=str(work_dir),
+                capture_output=True,
+                text=True,
+                timeout=60,  # 60 second timeout
+            )
+
+            if result.returncode != 0:
+                error_msg = result.stderr or result.stdout or "Unknown error"
+                logger.warning(f"transform.py failed: {error_msg[:500]}")
+                return False, None, f"transform.py exited with code {result.returncode}"
+
+            # Check if output was created
+            if not output_path.exists():
+                return False, None, "transform.py did not create output file"
+
+            # Validate the output
+            validation = validate_artifact_with_custom(
+                file_path=output_path,
+                model=output_model,
+                format=output_format,
+                custom_validator=custom_validator,
+            )
+
+            if not validation.valid:
+                error_msg = "; ".join(validation.errors[:3])
+                logger.warning(f"Output validation failed: {error_msg}")
+                return False, None, f"Output validation failed: {error_msg}"
+
+            # Parse the output
+            content = output_path.read_text()
+            if output_format == "json":
+                data = json.loads(content)
+                items = [output_model.model_validate(data)]
+            else:  # jsonl
+                items = []
+                for line in content.strip().split("\n"):
+                    if line.strip():
+                        items.append(output_model.model_validate(json.loads(line)))
+
+            if on_event:
+                on_event("phase", {
+                    "phase": "complete",
+                    "message": f"Successfully executed transform.py ({len(items)} items)",
+                })
+
+            # Build the result
+            run_result = TransformRun(
+                manifest=TransformManifest(
+                    artifact_path=str(output_path),
+                    artifact_format=output_format,
+                    item_count=len(items),
+                    schema_hash=compute_schema_hash(output_model),
+                    validation_passed=True,
+                    sample=[items[0].model_dump()] if items else None,
+                    run_id="replay",
+                ),
+                items=items,
+                learned=None,  # No learning in replay mode
+                debug={"mode": "replay", "source": "transform.py"},
+            )
+
+            return True, run_result, None
+
+        except subprocess.TimeoutExpired:
+            logger.warning("transform.py timed out")
+            return False, None, "transform.py timed out after 60 seconds"
+        except Exception as e:
+            logger.warning(f"Error executing transform.py: {e}")
+            return False, None, str(e)
 
     async def transform(
         self,
@@ -292,22 +320,33 @@ class DataTransformer:
                     raise ValueError(f"Input path not found: {input_path}")
 
             # Copy skills directory so agent can discover them via setting_sources
+            # Merge with existing skills (e.g., learned endpoint skills) instead of overwriting
             skills_src = Path(__file__).parent.parent.parent.parent / ".claude" / "skills"
             available_skills = []
             logger.info(f"Looking for skills at: {skills_src} (exists: {skills_src.exists()})")
+            skills_dest = work_dir / ".claude" / "skills"
+            skills_dest.mkdir(parents=True, exist_ok=True)
+
+            # First, collect any pre-existing skills (e.g., learned endpoint skills)
+            if skills_dest.exists():
+                for skill_dir in skills_dest.iterdir():
+                    if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                        available_skills.append(skill_dir.name)
+                        logger.info(f"Found pre-existing skill: {skill_dir.name}")
+
             if skills_src.exists():
                 try:
-                    skills_dest = work_dir / ".claude" / "skills"
-                    # Remove existing skills dir if present (for persistent work_dirs)
-                    if skills_dest.exists():
-                        shutil.rmtree(skills_dest)
-                    skills_dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(skills_src, skills_dest)
+                    # Copy each skill directory individually, preserving existing ones
+                    for skill_dir in skills_src.iterdir():
+                        if skill_dir.is_dir():
+                            dest_skill = skills_dest / skill_dir.name
+                            if not dest_skill.exists():
+                                shutil.copytree(skill_dir, dest_skill)
+                                if (dest_skill / "SKILL.md").exists():
+                                    available_skills.append(skill_dir.name)
+                            else:
+                                logger.info(f"Preserving existing skill: {skill_dir.name}")
                     logger.info(f"Copied skills from {skills_src} to {skills_dest}")
-                    # List available skills
-                    for skill_dir in skills_dest.iterdir():
-                        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
-                            available_skills.append(skill_dir.name)
                     if on_event and available_skills:
                         on_event("skills_available", {
                             "skills": available_skills,
@@ -327,6 +366,37 @@ class DataTransformer:
                         "message": "Skills directory not found - external data sources unavailable",
                         "path": str(skills_src),
                     })
+
+            # For code mode without learning, try to execute existing transform.py first
+            transform_path = work_dir / "transform.py"
+            if (
+                config.mode == "code"
+                and not config.learn
+                and transform_path.exists()
+            ):
+                logger.info("Found existing transform.py, attempting direct execution")
+                success, replay_result, error = self._try_execute_transform_py(
+                    work_dir=work_dir,
+                    output_model=output_model,
+                    output_format=config.output_format,
+                    custom_validator=custom_validator,
+                    on_event=on_event,
+                )
+
+                if success and replay_result:
+                    elapsed = time.time() - start_time
+                    replay_result.debug["elapsed_seconds"] = round(elapsed, 2)
+                    logger.info("Direct execution of transform.py succeeded")
+                    return replay_result
+                else:
+                    # Fall back to agent
+                    logger.info(f"Direct execution failed ({error}), falling back to agent")
+                    if on_event:
+                        on_event("phase", {
+                            "phase": "fallback",
+                            "message": "Direct execution failed, falling back to agent",
+                            "error": error,
+                        })
 
             # Run the agent
             result = await self._run_agent(
@@ -383,11 +453,14 @@ class DataTransformer:
                 output_file=output_file,
                 schema_json=schema_json,
             )
-        system_prompt += FILE_TYPE_HANDLING_PROMPT
 
         # Add learning prompt if learn mode is enabled
         if config.learn:
             system_prompt += LEARNING_PROMPT
+
+        # Remind agent about skills
+        system_prompt += "\n\nRemember to check your available skills."
+
         # Create custom MCP tools
         mcp_server = create_transformer_tools(
             work_dir=work_dir,
@@ -431,7 +504,7 @@ class DataTransformer:
             debug["tool_calls"].append({
                 "call_number": tool_call_count,
                 "tool": tool_name,
-                "input": tool_input,
+                "input": tool_input,  # Keep full input in debug
             })
 
             # Emit dedicated skill event when Skill tool is invoked
@@ -521,6 +594,7 @@ class DataTransformer:
 
         # Configure the agent with hooks
         options = ClaudeAgentOptions(
+            model="claude-opus-4-5-20251101",
             system_prompt=system_prompt,
             cwd=str(work_dir),
             max_turns=config.max_iterations,
@@ -531,6 +605,9 @@ class DataTransformer:
             setting_sources=["project"],  # Load skills from .claude/skills/
         )
 
+        # Emit prompts for debugging visibility
+        emit("system_prompt", {"prompt": system_prompt})
+        emit("user_instruction", {"instruction": instruction})
         emit("iteration_start", {"iteration": 1, "max": config.max_iterations})
 
         async with ClaudeSDKClient(options=options) as client:

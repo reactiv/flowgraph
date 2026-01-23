@@ -93,8 +93,10 @@ async def health_check() -> dict[str, str]:
 
 
 # Import and include routers after app is created to avoid circular imports
-from app.api import files, templates, workflows  # noqa: E402
+from app.api import endpoints, execute, files, templates, workflows  # noqa: E402
 
 app.include_router(files.router, prefix="/api/v1", tags=["files"])
 app.include_router(templates.router, prefix="/api/v1", tags=["templates"])
 app.include_router(workflows.router, prefix="/api/v1", tags=["workflows"])
+app.include_router(endpoints.router, prefix="/api/v1", tags=["endpoints"])
+app.include_router(execute.router, tags=["execute"])

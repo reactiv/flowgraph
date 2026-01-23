@@ -6,6 +6,10 @@ const nextConfig = {
         source: '/api/:path*',
         destination: 'http://backend:8000/api/:path*',
       },
+      {
+        source: '/x/:path*',
+        destination: 'http://backend:8000/x/:path*',
+      },
     ];
   },
   webpack: (config, { dev }) => {
