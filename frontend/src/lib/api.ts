@@ -48,6 +48,20 @@ import type {
   EndpointUpdate,
   HttpMethod,
 } from '@/types/endpoint';
+import type {
+  ConnectorsResponse,
+  ExternalReference,
+  NodeExternalRefCreate,
+  NodeExternalRefWithDetails,
+  NodeRefsResponse,
+  Projection,
+  ReferencesResponse,
+  ReferenceRelationship,
+  RefreshProjectionResponse,
+  ResolveUrlResponse,
+  Snapshot,
+  SnapshotsResponse,
+} from '@/types/external-reference';
 
 const API_BASE = '/api/v1';
 
@@ -590,4 +604,126 @@ export const api = {
 
     return response.json();
   },
+
+  // ==================== External References ====================
+
+  /**
+   * List all external references with optional filters.
+   */
+  listReferences: (params?: { system?: string; object_type?: string; limit?: number; offset?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.system) searchParams.set('system', params.system);
+    if (params?.object_type) searchParams.set('object_type', params.object_type);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+    const query = searchParams.toString();
+    return fetchJson<ReferencesResponse>(`/references${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Get an external reference by ID, including its projection.
+   */
+  getReference: (referenceId: string) =>
+    fetchJson<ExternalReference & { projection: Projection | null }>(`/references/${referenceId}`),
+
+  /**
+   * Delete an external reference.
+   */
+  deleteReference: (referenceId: string) =>
+    fetchJson<{ deleted: boolean }>(`/references/${referenceId}`, {
+      method: 'DELETE',
+    }),
+
+  /**
+   * Resolve a URL to an external reference.
+   * Identifies the appropriate connector, extracts metadata, creates/updates reference.
+   */
+  resolveUrl: (url: string) =>
+    fetchJson<ResolveUrlResponse>('/references/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
+  /**
+   * Force refresh the projection for an external reference.
+   */
+  refreshProjection: (referenceId: string) =>
+    fetchJson<RefreshProjectionResponse>(`/references/${referenceId}/refresh`, {
+      method: 'POST',
+    }),
+
+  /**
+   * Get the cached projection for an external reference.
+   */
+  getProjection: (referenceId: string) =>
+    fetchJson<Projection | null>(`/references/${referenceId}/projection`),
+
+  /**
+   * Create an immutable snapshot of external content.
+   */
+  createSnapshot: (referenceId: string, captureReason: string = 'manual', capturedBy?: string) => {
+    const params = new URLSearchParams();
+    params.set('capture_reason', captureReason);
+    if (capturedBy) params.set('captured_by', capturedBy);
+
+    return fetchJson<Snapshot>(`/references/${referenceId}/snapshot?${params.toString()}`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * List snapshots for an external reference.
+   */
+  listSnapshots: (referenceId: string, limit: number = 10) =>
+    fetchJson<SnapshotsResponse>(`/references/${referenceId}/snapshots?limit=${limit}`),
+
+  /**
+   * Get a snapshot by ID.
+   */
+  getSnapshot: (snapshotId: string) =>
+    fetchJson<Snapshot>(`/snapshots/${snapshotId}`),
+
+  // ==================== Node ↔ Reference Links ====================
+
+  /**
+   * Get all external references linked to a node.
+   */
+  getNodeReferences: (workflowId: string, nodeId: string) =>
+    fetchJson<NodeRefsResponse>(`/workflows/${workflowId}/nodes/${nodeId}/refs`),
+
+  /**
+   * Link an external reference to a workflow node.
+   */
+  linkNodeReference: (
+    workflowId: string,
+    nodeId: string,
+    referenceId: string,
+    relationship: ReferenceRelationship = 'source',
+    addedBy?: string
+  ) =>
+    fetchJson<NodeExternalRefWithDetails>(`/workflows/${workflowId}/nodes/${nodeId}/refs`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reference_id: referenceId,
+        relationship,
+        added_by: addedBy,
+      } as NodeExternalRefCreate),
+    }),
+
+  /**
+   * Remove link between a node and external reference.
+   */
+  unlinkNodeReference: (workflowId: string, nodeId: string, referenceId: string) =>
+    fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/nodes/${nodeId}/refs/${referenceId}`, {
+      method: 'DELETE',
+    }),
+
+  // ==================== Connectors ====================
+
+  /**
+   * List available connectors and their capabilities.
+   */
+  listConnectors: () =>
+    fetchJson<ConnectorsResponse>('/connectors'),
 };

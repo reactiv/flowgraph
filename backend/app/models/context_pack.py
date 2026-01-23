@@ -18,6 +18,7 @@ class ContextResource(BaseModel):
     # Identity
     reference_id: str | None = Field(None, description="External reference ID (if external)")
     node_id: str | None = Field(None, description="Workflow node ID (if internal)")
+    node_type: str | None = Field(None, description="Workflow node type (e.g., 'Sample', 'Analysis')")
 
     # Data included
     title: str | None = Field(None, description="Display title")

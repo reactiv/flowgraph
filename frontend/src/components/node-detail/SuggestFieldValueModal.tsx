@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Sparkles, Loader2, AlertCircle, Check } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Sparkles, Loader2, AlertCircle, Check, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Node, Field } from '@/types/workflow';
-import type { FieldValueSuggestion } from '@/types/suggestion';
+import type { Node, Field, WorkflowDefinition } from '@/types/workflow';
+import type { FieldValueSuggestion, ExternalContentOptions } from '@/types/suggestion';
+import type { ContextSelector } from '@/types/context-selector';
+import { createDefaultContextSelector } from '@/types/context-selector';
+import { ContextView } from '@/components/context-view/ContextView';
 
 interface SuggestFieldValueModalProps {
   workflowId: string;
+  workflowDefinition: WorkflowDefinition;
   node: Node;
   field: Field;
   currentValue: unknown;
@@ -18,6 +22,7 @@ interface SuggestFieldValueModalProps {
 
 export function SuggestFieldValueModal({
   workflowId,
+  workflowDefinition,
   node,
   field,
   currentValue,
@@ -30,6 +35,22 @@ export function SuggestFieldValueModal({
   const [error, setError] = useState<string | null>(null);
   const [guidance, setGuidance] = useState('');
 
+  // Context configuration state
+  const [contextSelector, setContextSelector] = useState<ContextSelector | null>(null);
+  const [isContextExpanded, setIsContextExpanded] = useState(false);
+
+  // External content options
+  const [includeExternalContent, setIncludeExternalContent] = useState(true);
+  const [includeFullContent, setIncludeFullContent] = useState(false);
+
+  // Default context selector for field suggestions
+  const defaultContextSelector = useMemo(
+    () => createDefaultContextSelector(undefined, 'outgoing', node.type),
+    [node.type]
+  );
+
+  const effectiveContextSelector = contextSelector ?? defaultContextSelector;
+
   // Editable value
   const [editedValue, setEditedValue] = useState<unknown>(null);
 
@@ -40,6 +61,10 @@ export function SuggestFieldValueModal({
       setEditedValue(null);
       setError(null);
       setGuidance('');
+      setContextSelector(null);
+      setIsContextExpanded(false);
+      setIncludeExternalContent(true);
+      setIncludeFullContent(false);
       setIsGenerating(false);
     }
   }, [isOpen]);
@@ -49,11 +74,20 @@ export function SuggestFieldValueModal({
     setError(null);
 
     try {
+      const externalContent: ExternalContentOptions = {
+        include_projections: includeExternalContent,
+        include_full_content: includeFullContent,
+      };
+
       const response = await api.suggestFieldValue(
         workflowId,
         node.id,
         field.key,
-        { guidance: guidance.trim() || undefined }
+        {
+          guidance: guidance.trim() || undefined,
+          context_selector: effectiveContextSelector,
+          external_content: externalContent,
+        }
       );
 
       const firstSuggestion = response.suggestions[0];
@@ -86,6 +120,10 @@ export function SuggestFieldValueModal({
     setEditedValue(null);
     setError(null);
     setGuidance('');
+    setContextSelector(null);
+    setIsContextExpanded(false);
+    setIncludeExternalContent(true);
+    setIncludeFullContent(false);
     setIsGenerating(false);
     onClose();
   };
@@ -161,6 +199,70 @@ export function SuggestFieldValueModal({
                     </div>
                   </div>
                 )}
+
+                {/* Context Configuration Section */}
+                <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden text-left">
+                  <button
+                    type="button"
+                    onClick={() => setIsContextExpanded(!isContextExpanded)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Configure Context
+                      </span>
+                    </div>
+                    {isContextExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
+
+                  {isContextExpanded && (
+                    <div className="p-4 border-t border-gray-200 space-y-4">
+                      <ContextView
+                        workflowId={workflowId}
+                        workflowDefinition={workflowDefinition}
+                        sourceNodeId={node.id}
+                        contextSelector={effectiveContextSelector}
+                        onContextSelectorChange={setContextSelector}
+                        mode="compact"
+                        showGraph={false}
+                        showNaturalLanguage={true}
+                        sourceType={node.type}
+                      />
+
+                      {/* External References Toggle */}
+                      <div className="pt-3 border-t border-gray-200">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">External References</h4>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={includeExternalContent}
+                              onChange={(e) => setIncludeExternalContent(e.target.checked)}
+                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="text-gray-600">Include external reference content</span>
+                          </label>
+                          {includeExternalContent && (
+                            <label className="flex items-center gap-2 text-sm ml-6">
+                              <input
+                                type="checkbox"
+                                checked={includeFullContent}
+                                onChange={(e) => setIncludeFullContent(e.target.checked)}
+                                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <span className="text-gray-600">Include full snapshot content (heavier)</span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Guidance input */}
                 <div className="mb-4 text-left">

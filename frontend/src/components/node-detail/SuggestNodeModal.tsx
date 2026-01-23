@@ -45,6 +45,8 @@ export function SuggestNodeModal({
   const [guidance, setGuidance] = useState('');
   const [contextSelector, setContextSelector] = useState<ContextSelector | null>(null);
   const [isContextExpanded, setIsContextExpanded] = useState(false);
+  const [includeExternalContent, setIncludeExternalContent] = useState(true);
+  const [includeFullContent, setIncludeFullContent] = useState(false);
 
   // Use default context selector if not customized
   const effectiveContextSelector = contextSelector ?? defaultContextSelector;
@@ -66,6 +68,12 @@ export function SuggestNodeModal({
         {
           guidance: guidance.trim() || undefined,
           context_selector: effectiveContextSelector,
+          external_content: includeExternalContent
+            ? {
+                include_projections: true,
+                include_full_content: includeFullContent,
+              }
+            : undefined,
         }
       );
 
@@ -118,6 +126,8 @@ export function SuggestNodeModal({
     setGuidance('');
     setContextSelector(null);
     setIsContextExpanded(false);
+    setIncludeExternalContent(true);
+    setIncludeFullContent(false);
     setIsGenerating(false);
     setIsAccepting(false);
     onClose();
@@ -200,6 +210,31 @@ export function SuggestNodeModal({
                         direction={direction}
                         targetType={targetTypeName}
                       />
+
+                      {/* External References Options */}
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">External References</h4>
+                        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={includeExternalContent}
+                            onChange={(e) => setIncludeExternalContent(e.target.checked)}
+                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          Include external reference content
+                        </label>
+                        {includeExternalContent && (
+                          <label className="flex items-center gap-2 text-sm text-gray-600 ml-6 mt-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={includeFullContent}
+                              onChange={(e) => setIncludeFullContent(e.target.checked)}
+                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            Include full snapshot content (heavier)
+                          </label>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

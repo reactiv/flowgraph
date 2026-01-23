@@ -464,6 +464,7 @@ class ContextGatherer:
             return ContextResource(
                 reference_id=ref.id,
                 node_id=node.id,
+                node_type=node.type,
                 title=proj.title if proj else node.title,
                 content=proj.summary if proj else None,
                 properties=proj.properties if proj else node.properties,
@@ -479,6 +480,7 @@ class ContextGatherer:
             # Internal node only
             return ContextResource(
                 node_id=node.id,
+                node_type=node.type,
                 title=node.title,
                 content=None,
                 properties=node.properties,
@@ -499,6 +501,7 @@ class ContextGatherer:
     ) -> ContextResource:
         """Convert a node dictionary to a ContextResource."""
         node_id = node_dict.get("id")
+        node_type = node_dict.get("type")
 
         # Check for external references
         if node_id:
@@ -520,6 +523,7 @@ class ContextGatherer:
                 return ContextResource(
                     reference_id=ref.id,
                     node_id=node_id,
+                    node_type=node_type,
                     title=proj.title if proj else node_dict.get("title"),
                     content=proj.summary if proj else None,
                     properties=proj.properties if proj else node_dict.get("properties", {}),
@@ -535,6 +539,7 @@ class ContextGatherer:
         # Internal node only
         return ContextResource(
             node_id=node_id,
+            node_type=node_type,
             title=node_dict.get("title"),
             content=None,
             properties=node_dict.get("properties", {}),

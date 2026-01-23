@@ -13,9 +13,10 @@ import { NodeDetailHeader } from './NodeDetailHeader';
 import { SummaryTab } from './tabs/SummaryTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
 import { RelationshipsTab } from './tabs/RelationshipsTab';
+import { ReferencesTab } from './tabs/ReferencesTab';
 import { RulesTab } from './tabs/RulesTab';
 
-type TabId = 'summary' | 'properties' | 'relationships' | 'rules';
+type TabId = 'summary' | 'properties' | 'relationships' | 'references' | 'rules';
 
 interface NodeDetailPanelProps {
   workflowId: string;
@@ -159,6 +160,7 @@ export function NodeDetailPanel({
     { id: 'summary', label: 'Summary' },
     { id: 'properties', label: 'Properties' },
     { id: 'relationships', label: 'Relationships' },
+    { id: 'references', label: 'References' },
     ...(hasApplicableRules ? [{ id: 'rules' as TabId, label: 'Rules' }] : []),
   ];
 
@@ -238,6 +240,7 @@ export function NodeDetailPanel({
               {activeTab === 'properties' && (
                 <PropertiesTab
                   workflowId={workflowId}
+                  workflowDefinition={workflowDefinition}
                   node={node}
                   nodeType={nodeType}
                   onSave={handlePropertiesSave}
@@ -254,6 +257,12 @@ export function NodeDetailPanel({
                   isLoading={neighborsLoading}
                   onNodeClick={handleRelatedNodeClick}
                   onSuggestAccept={handleSuggestAccept}
+                />
+              )}
+              {activeTab === 'references' && (
+                <ReferencesTab
+                  workflowId={workflowId}
+                  node={node}
                 />
               )}
               {activeTab === 'rules' && (

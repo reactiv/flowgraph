@@ -185,6 +185,16 @@ class Snapshot(SnapshotCreate):
 # =============================================================================
 
 
+class LinkReferenceRequest(BaseModel):
+    """API request to link a reference to a node."""
+
+    reference_id: str = Field(..., description="External reference ID")
+    relationship: ReferenceRelationship = Field(
+        ReferenceRelationship.SOURCE, description="How node relates to reference"
+    )
+    added_by: str | None = Field(None, description="User who created the link")
+
+
 class NodeExternalRefCreate(BaseModel):
     """Link a workflow node to an external reference."""
 
