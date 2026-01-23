@@ -121,6 +121,9 @@ class ApplyPreviewRequest(BaseModel):
     transform_result: dict[str, Any] = Field(
         ..., alias="transformResult", description="The transform result from preview"
     )
+    match_result: dict[str, Any] | None = Field(
+        None, alias="matchResult", description="Optional matching results for POST endpoints"
+    )
 
 
 class ApplyPreviewResponse(BaseModel):

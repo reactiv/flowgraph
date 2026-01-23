@@ -18,6 +18,8 @@ from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.seed_validators import create_seed_data_validator
 from app.models import EdgeCreate, Endpoint, NodeCreate, NodeUpdate, WorkflowDefinition
 from app.models.endpoint import EndpointExecuteResponse
+from app.models.match import MatchDecision, MatchResult
+from app.services.node_matcher import NodeMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +424,19 @@ class EndpointExecutor:
 
                 preview = self._preview_result(endpoint, transform_result.items[0])
 
+                # Run matching for POST endpoints to detect duplicates
+                match_result: MatchResult | None = None
+                if endpoint.http_method == "POST":
+                    seed_data = transform_result.items[0]
+                    if isinstance(seed_data, SeedData):
+                        yield {
+                            "event": "phase",
+                            "phase": "matching",
+                            "message": "Matching against existing graph...",
+                        }
+                        matcher = NodeMatcher(graph_store, workflow_id)
+                        match_result = await matcher.match_seed_data(seed_data)
+
                 elapsed_ms = int((time.time() - start_time) * 1000)
 
                 # Include learned assets if available (from endpoint or from this run)
@@ -436,7 +451,7 @@ class EndpointExecutor:
                     else endpoint.learned_transformer_code
                 )
 
-                yield {
+                complete_event: dict[str, Any] = {
                     "event": "complete",
                     "execution_time_ms": elapsed_ms,
                     "preview": True,
@@ -445,6 +460,10 @@ class EndpointExecutor:
                     "learned_transformer_code": learned_transformer_code,
                     **preview,
                 }
+                if match_result:
+                    complete_event["match_result"] = match_result.model_dump()
+
+                yield complete_event
 
         finally:
             # Clean up directories
@@ -654,11 +673,108 @@ class EndpointExecutor:
 
         return nodes_created, edges_created
 
+    async def _insert_seed_data_with_matching(
+        self,
+        workflow_id: str,
+        seed_data: SeedData,
+        match_result: MatchResult,
+    ) -> tuple[int, int, int]:
+        """Insert/update seed data based on match results.
+
+        Args:
+            workflow_id: The workflow ID.
+            seed_data: The seed data to insert.
+            match_result: The matching results from NodeMatcher.
+
+        Returns:
+            Tuple of (nodes_created, nodes_updated, edges_created).
+        """
+        temp_id_to_real_id: dict[str, str] = {}
+        nodes_created = 0
+        nodes_updated = 0
+        edges_created = 0
+
+        # Process node matches
+        for i, node_match in enumerate(match_result.node_matches):
+            seed_node = seed_data.nodes[i]
+
+            if node_match.decision == MatchDecision.CREATE:
+                try:
+                    node = await graph_store.create_node(
+                        workflow_id,
+                        NodeCreate(
+                            type=seed_node.node_type,
+                            title=seed_node.title,
+                            status=seed_node.status,
+                            properties=seed_node.properties,
+                        ),
+                    )
+                    temp_id_to_real_id[seed_node.temp_id] = node.id
+                    nodes_created += 1
+                except Exception as e:
+                    logger.warning(f"Failed to create node {seed_node.temp_id}: {e}")
+
+            elif node_match.decision == MatchDecision.UPDATE:
+                if node_match.matched_node_id:
+                    try:
+                        await graph_store.update_node(
+                            workflow_id,
+                            node_match.matched_node_id,
+                            NodeUpdate(
+                                title=seed_node.title,
+                                status=seed_node.status,
+                                properties=seed_node.properties,
+                            ),
+                        )
+                        temp_id_to_real_id[seed_node.temp_id] = node_match.matched_node_id
+                        nodes_updated += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to update node {node_match.matched_node_id}: {e}"
+                        )
+
+            elif node_match.decision == MatchDecision.SKIP:
+                # Map temp_id to existing node for edge resolution
+                if node_match.matched_node_id:
+                    temp_id_to_real_id[seed_node.temp_id] = node_match.matched_node_id
+
+        # Process edge matches
+        for i, edge_match in enumerate(match_result.edge_matches):
+            if edge_match.decision == MatchDecision.CREATE:
+                seed_edge = seed_data.edges[i]
+                from_id = temp_id_to_real_id.get(seed_edge.from_temp_id)
+                to_id = temp_id_to_real_id.get(seed_edge.to_temp_id)
+
+                if not from_id or not to_id:
+                    logger.warning(
+                        f"Edge references unknown temp_id: "
+                        f"{seed_edge.from_temp_id} -> {seed_edge.to_temp_id}"
+                    )
+                    continue
+
+                try:
+                    await graph_store.create_edge(
+                        workflow_id,
+                        EdgeCreate(
+                            type=seed_edge.edge_type,
+                            from_node_id=from_id,
+                            to_node_id=to_id,
+                            properties=seed_edge.properties,
+                        ),
+                    )
+                    edges_created += 1
+                except Exception as e:
+                    logger.warning(f"Failed to create edge: {e}")
+            # SKIP edges are ignored (already exist)
+
+        return nodes_created, nodes_updated, edges_created
+
     async def apply_preview(
         self,
         endpoint: Endpoint,
         workflow_id: str,
         transform_result: dict[str, Any],
+        match_result: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Apply a previously previewed transformation result.
 
@@ -666,6 +782,7 @@ class EndpointExecutor:
             endpoint: The endpoint configuration.
             workflow_id: The workflow ID.
             transform_result: The transform_result from a preview execution.
+            match_result: Optional matching results for POST endpoints.
 
         Returns:
             Dict with applied changes counts.
@@ -682,7 +799,22 @@ class EndpointExecutor:
         else:
             return {"error": f"Unknown HTTP method: {endpoint.http_method}"}
 
-        # Apply using the existing method
+        # For POST endpoints with matching, use the matching-aware insert
+        if endpoint.http_method == "POST" and match_result and isinstance(result, SeedData):
+            match_result_model = MatchResult(**match_result)
+            nodes_created, nodes_updated, edges_created = (
+                await self._insert_seed_data_with_matching(
+                    workflow_id, result, match_result_model
+                )
+            )
+            await graph_store.record_endpoint_execution(workflow_id, endpoint.id)
+            return {
+                "nodes_created": nodes_created,
+                "nodes_updated": nodes_updated,
+                "edges_created": edges_created,
+            }
+
+        # Apply using the existing method for other cases
         applied = await self._apply_result(endpoint, workflow_id, result)
 
         # Record execution

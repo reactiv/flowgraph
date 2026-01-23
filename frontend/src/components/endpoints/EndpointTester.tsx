@@ -190,6 +190,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
           edgesToCreate: result.edges_to_create as PendingResult['edgesToCreate'],
           updatesToApply: result.updates_to_apply as PendingResult['updatesToApply'],
           nodesToDelete: result.nodes_to_delete as PendingResult['nodesToDelete'],
+          matchResult: result.match_result as PendingResult['matchResult'],
         });
         // Don't set response yet - wait for confirmation
         return;
@@ -317,6 +318,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
     try {
       const result = await api.applyEndpointPreview(workflowId, endpoint.slug, {
         transformResult: pendingResult.transformResult as unknown as Record<string, unknown>,
+        matchResult: pendingResult.matchResult as unknown as Record<string, unknown> | undefined,
       });
 
       const timeMs = Date.now() - startTime;
