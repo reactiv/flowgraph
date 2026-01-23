@@ -60,6 +60,12 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
     if (matchResult) {
       const { node_matches, edge_matches } = matchResult;
 
+      // Build lookup maps for O(1) access (instead of O(n) find() in loops)
+      const nodesByTempId = new Map(nodes.map((n) => [n.temp_id, n]));
+      const edgesByKey = new Map(
+        edges.map((e) => [`${e.edge_type}:${e.from_temp_id}:${e.to_temp_id}`, e])
+      );
+
       // Group node matches by decision
       const toCreate = node_matches.filter((m) => m.decision === 'create');
       const toUpdate = node_matches.filter((m) => m.decision === 'update');
@@ -111,7 +117,7 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
               </h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {toCreate.map((match, i) => {
-                  const node = nodes.find((n) => n.temp_id === match.temp_id) || null;
+                  const node = nodesByTempId.get(match.temp_id) || null;
                   return <NodeWithMatchCard key={i} node={node} match={match} />;
                 })}
               </div>
@@ -129,7 +135,7 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
               </h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {toUpdate.map((match, i) => {
-                  const node = nodes.find((n) => n.temp_id === match.temp_id) || null;
+                  const node = nodesByTempId.get(match.temp_id) || null;
                   return <NodeWithMatchCard key={i} node={node} match={match} />;
                 })}
               </div>
@@ -179,12 +185,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
               </h4>
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {edgesToCreate.map((match, i) => {
-                  const edge = edges.find(
-                    (e) =>
-                      e.from_temp_id === match.from_temp_id &&
-                      e.to_temp_id === match.to_temp_id &&
-                      e.edge_type === match.edge_type
-                  );
+                  const edgeKey = `${match.edge_type}:${match.from_temp_id}:${match.to_temp_id}`;
+                  const edge = edgesByKey.get(edgeKey);
                   return edge ? <EdgeWithMatchCard key={i} edge={edge} match={match} /> : null;
                 })}
               </div>

@@ -45,3 +45,6 @@ coverage/
 # Logs
 *.log
 npm-debug.log*
+
+# Test data files
+input.json

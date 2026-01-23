@@ -36,7 +36,7 @@ def _load_config() -> tuple[str, str]:
             with open(config_path) as f:
                 config = json.load(f)
                 return config.get("workflow_id", ""), config.get("db_path", "workflow.db")
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
 
     # Fall back to environment variables
@@ -64,6 +64,20 @@ class GraphAPI:
             self._conn = sqlite3.connect(self.db_path)
             self._conn.row_factory = sqlite3.Row
         return self._conn
+
+    def close(self) -> None:
+        """Close the database connection if open."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+    def __enter__(self) -> "GraphAPI":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: Exception | None, exc_tb: object) -> None:
+        """Context manager exit - ensures connection is closed."""
+        self.close()
 
     def search_nodes(
         self,

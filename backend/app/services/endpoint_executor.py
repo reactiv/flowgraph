@@ -794,9 +794,15 @@ class EndpointExecutor:
         nodes_updated = 0
         edges_created = 0
 
+        # Build lookup map for seed nodes by temp_id
+        seed_nodes_by_temp_id = {n.temp_id: n for n in seed_data.nodes}
+
         # Process node matches
-        for i, node_match in enumerate(match_result.node_matches):
-            seed_node = seed_data.nodes[i]
+        for node_match in match_result.node_matches:
+            seed_node = seed_nodes_by_temp_id.get(node_match.temp_id)
+            if not seed_node:
+                logger.warning(f"No seed node found for temp_id: {node_match.temp_id}")
+                continue
 
             if node_match.decision == MatchDecision.CREATE:
                 try:
@@ -838,10 +844,19 @@ class EndpointExecutor:
                 if node_match.matched_node_id:
                     temp_id_to_real_id[seed_node.temp_id] = node_match.matched_node_id
 
+        # Build lookup map for seed edges by (edge_type, from_temp_id, to_temp_id)
+        seed_edges_by_key = {
+            (e.edge_type, e.from_temp_id, e.to_temp_id): e for e in seed_data.edges
+        }
+
         # Process edge matches
-        for i, edge_match in enumerate(match_result.edge_matches):
+        for edge_match in match_result.edge_matches:
             if edge_match.decision == MatchDecision.CREATE:
-                seed_edge = seed_data.edges[i]
+                edge_key = (edge_match.edge_type, edge_match.from_temp_id, edge_match.to_temp_id)
+                seed_edge = seed_edges_by_key.get(edge_key)
+                if not seed_edge:
+                    logger.warning(f"No seed edge found for: {edge_key}")
+                    continue
                 from_id = temp_id_to_real_id.get(seed_edge.from_temp_id)
                 to_id = temp_id_to_real_id.get(seed_edge.to_temp_id)
 
