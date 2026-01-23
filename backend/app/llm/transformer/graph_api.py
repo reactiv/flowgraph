@@ -19,11 +19,35 @@ Usage in transform.py:
 import json
 import os
 import sqlite3
+from pathlib import Path
 from typing import Any
 
-# Context from environment (set by transformer tools.py)
-WORKFLOW_ID = os.environ.get("WORKFLOW_ID", "")
-DB_PATH = os.environ.get("WORKFLOW_DB_PATH", "workflow.db")
+
+def _load_config() -> tuple[str, str]:
+    """Load workflow_id and db_path from config file or environment.
+
+    Tries in order:
+    1. .graph_config.json in the current directory (written by orchestrator)
+    2. Environment variables WORKFLOW_ID and WORKFLOW_DB_PATH
+    """
+    config_path = Path(".graph_config.json")
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+                return config.get("workflow_id", ""), config.get("db_path", "workflow.db")
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Fall back to environment variables
+    return (
+        os.environ.get("WORKFLOW_ID", ""),
+        os.environ.get("WORKFLOW_DB_PATH", "workflow.db"),
+    )
+
+
+# Context loaded at import time
+WORKFLOW_ID, DB_PATH = _load_config()
 
 
 class GraphAPI:

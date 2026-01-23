@@ -17,6 +17,7 @@ from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
 from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.seed_validators import create_seed_data_validator
+from app.llm.transformer.validator import CustomValidationError
 from app.models import EdgeCreate, Endpoint, NodeCreate, NodeUpdate, WorkflowDefinition
 from app.models.endpoint import EndpointExecuteResponse
 from app.models.match import MatchDecision, MatchResult
@@ -42,7 +43,7 @@ class UpdateResult(BaseModel):
 
     updates: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="List of node updates with node_id and new properties",
+        description="List of node updates with node_id and properties",
     )
 
 
@@ -52,6 +53,74 @@ class DeleteResult(BaseModel):
     node_ids: list[str] = Field(
         default_factory=list, description="List of node IDs to delete"
     )
+
+
+def validate_update_result(update_result: UpdateResult) -> list[CustomValidationError]:
+    """Validate that UpdateResult has the correct structure for applying updates.
+
+    Checks:
+    - Each update has a node_id (string)
+    - Each update has a properties dict
+
+    Args:
+        update_result: The UpdateResult to validate.
+
+    Returns:
+        List of validation errors.
+    """
+    errors: list[CustomValidationError] = []
+
+    for i, update in enumerate(update_result.updates):
+        # Check node_id exists and is a string
+        node_id = update.get("node_id")
+        if not node_id:
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].node_id",
+                    message="Missing required field 'node_id' in update",
+                    code="missing_node_id",
+                    context={"update_keys": list(update.keys())},
+                )
+            )
+        elif not isinstance(node_id, str):
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].node_id",
+                    message=f"node_id must be a string, got {type(node_id).__name__}",
+                    code="invalid_node_id_type",
+                    context={"node_id": str(node_id)[:100]},
+                )
+            )
+
+        # Check properties exists and is a dict
+        if "properties" not in update:
+            # Provide helpful message with the keys that were provided
+            provided_keys = [k for k in update.keys() if k != "node_id"]
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].properties",
+                    message=(
+                        f"Missing required field 'properties' in update. "
+                        f"Got keys: {provided_keys}. Wrap your property values in a 'properties' dict."
+                    ),
+                    code="missing_properties",
+                    context={
+                        "node_id": node_id,
+                        "provided_keys": provided_keys,
+                    },
+                )
+            )
+        elif not isinstance(update["properties"], dict):
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].properties",
+                    message=f"properties must be a dict, got {type(update['properties']).__name__}",
+                    code="invalid_properties_type",
+                    context={"node_id": node_id},
+                )
+            )
+
+    return errors
 
 
 # Instruction templates for different HTTP methods
@@ -316,10 +385,12 @@ class EndpointExecutor:
             transform_result = None
             transform_error = None
 
-            # Create custom validator for SeedData (POST endpoints)
+            # Create custom validator based on HTTP method
             custom_validator = None
             if endpoint.http_method == "POST":
                 custom_validator = create_seed_data_validator(workflow)
+            elif endpoint.http_method == "PUT":
+                custom_validator = validate_update_result
 
             def on_event(event_type: str, data: dict[str, Any]) -> None:
                 events_queue.put_nowait({"event": event_type, **data})
@@ -580,7 +651,7 @@ class EndpointExecutor:
                 node_id = update.get("node_id")
                 properties = update.get("properties", {})
 
-                if node_id:
+                if node_id and properties:
                     updated = await graph_store.update_node(
                         workflow_id,
                         node_id,

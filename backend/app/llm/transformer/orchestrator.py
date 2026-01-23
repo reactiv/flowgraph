@@ -456,6 +456,17 @@ class DataTransformer:
             copied_files = self.copy_files(copies)
             logger.info(f"Prepared work directory with {len(copied_files)} items: {copied_files}")
 
+            # Write graph config file for graph_api.py to use
+            if config.workflow_id or config.db_path:
+                graph_config = {
+                    "workflow_id": config.workflow_id or "",
+                    "db_path": config.db_path or "",
+                }
+                graph_config_path = work_dir / ".graph_config.json"
+                with open(graph_config_path, "w") as f:
+                    json.dump(graph_config, f)
+                logger.debug(f"Wrote graph config: {graph_config}")
+
             # Build detailed file list for frontend display
             workspace_files = []
             for copy in copies:
