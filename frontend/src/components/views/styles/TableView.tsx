@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Node } from '@/types/workflow';
 import type { TableConfig } from '@/types/view-templates';
-import { getNodeFieldValue } from '@/lib/node-utils';
+import { getNodeFieldValue, extractDisplayValue, toDisplayString } from '@/lib/node-utils';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -97,22 +97,25 @@ function getStatusColors(status: string): { bg: string; text: string } {
 }
 
 function formatCellValue(value: unknown): string {
-  if (value === null || value === undefined) {
+  // Extract display value (handles annotated values with content key)
+  const displayValue = extractDisplayValue(value);
+
+  if (displayValue === null || displayValue === undefined) {
     return '-';
   }
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No';
+  if (typeof displayValue === 'boolean') {
+    return displayValue ? 'Yes' : 'No';
   }
-  if (value instanceof Date) {
-    return value.toLocaleDateString();
+  if (displayValue instanceof Date) {
+    return displayValue.toLocaleDateString();
   }
-  if (typeof value === 'object') {
-    if (Array.isArray(value)) {
-      return value.join(', ');
+  if (typeof displayValue === 'object') {
+    if (Array.isArray(displayValue)) {
+      return displayValue.map((v) => toDisplayString(v)).join(', ');
     }
-    return JSON.stringify(value);
+    return JSON.stringify(displayValue);
   }
-  return String(value);
+  return String(displayValue);
 }
 
 // Use shared utility for field value extraction

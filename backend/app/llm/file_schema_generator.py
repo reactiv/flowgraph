@@ -49,6 +49,45 @@ Write a complete WorkflowDefinition JSON that captures the structure of the uplo
 The schema should allow importing the actual data from these files in a future step.
 """
 
+SCHEMA_FROM_EXTERNAL_SOURCES_INSTRUCTION = """
+Create a WorkflowDefinition schema by exploring external data sources.
+
+## Your Task
+
+1. Check available skills in .claude/skills to see what external data sources are available
+2. Use the appropriate skill(s) to connect to and explore the external data source(s)
+3. Identify the key entities (these become node types)
+4. Identify relationships between entities (these become edge types)
+5. Create a comprehensive WorkflowDefinition
+
+## User's Description
+
+{description}
+
+## Schema Generation Options
+
+- Include state machines: {include_states}
+- Include tagging system: {include_tags}
+- Use scientific terminology: {scientific_terminology}
+
+## Guidelines
+
+- First, explore the skills directory to understand what external sources are available
+- Connect to the external source and sample the data to understand its structure
+- Node types should be in PascalCase (e.g., "Message", "Author", "Link")
+- Edge types should be in UPPER_SNAKE_CASE (e.g., "AUTHORED_BY", "CONTAINS_LINK")
+- Field keys should be in snake_case (e.g., "created_at", "author_name")
+- Choose appropriate field kinds: string, number, datetime, enum, person, json, tag[], file[]
+- For enum fields, provide realistic values based on the data
+- Include states if the data suggests progression (e.g., Draft -> Published)
+- Create edges that represent meaningful relationships in the data
+
+## Output
+
+Write a complete WorkflowDefinition JSON that captures the structure of the external data source.
+The schema should allow importing the actual data from this source in a future step.
+"""
+
 
 class FileSchemaGenerator:
     """Generate WorkflowDefinition schemas from uploaded files.
@@ -69,14 +108,14 @@ class FileSchemaGenerator:
 
     async def generate_schema_from_files(
         self,
-        upload_id: str,
+        upload_id: str | None,
         description: str,
         options: SchemaGenerationOptions | None = None,
     ) -> tuple[WorkflowDefinition, SchemaValidationResult, list[ViewTemplateCreate]]:
-        """Generate a workflow schema from uploaded files.
+        """Generate a workflow schema from uploaded files or external sources.
 
         Args:
-            upload_id: The upload session ID containing the files.
+            upload_id: The upload session ID, or None for external sources mode.
             description: User's description of the desired workflow.
             options: Schema generation options.
 
@@ -108,14 +147,15 @@ class FileSchemaGenerator:
 
     async def generate_schema_with_events(
         self,
-        upload_id: str,
+        upload_id: str | None,
         description: str,
         options: SchemaGenerationOptions | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """Generate schema from files, yielding events for SSE streaming.
+        """Generate schema from files or external sources, yielding events for SSE streaming.
 
         Args:
-            upload_id: The upload session ID containing the files.
+            upload_id: The upload session ID containing the files,
+                or None for external sources mode.
             description: User's description of the desired workflow.
             options: Schema generation options.
 
@@ -134,24 +174,37 @@ class FileSchemaGenerator:
         if options is None:
             options = SchemaGenerationOptions()
 
-        # Get uploaded files
-        try:
-            files = await self.upload_store.get_files(upload_id)
-        except FileNotFoundError:
-            yield {"event": "error", "message": f"Upload session {upload_id} not found or expired"}
-            return
+        # Get uploaded files or use external sources mode
+        files = []
+        if upload_id:
+            try:
+                files = await self.upload_store.get_files(upload_id)
+            except FileNotFoundError:
+                yield {
+                    "event": "error",
+                    "message": f"Upload session {upload_id} not found or expired",
+                }
+                return
 
-        if not files:
-            yield {"event": "error", "message": "No files found in upload session"}
-            return
+            if not files:
+                yield {"event": "error", "message": "No files found in upload session"}
+                return
 
-        # Build instruction
-        instruction = SCHEMA_FROM_FILES_INSTRUCTION.format(
-            description=description,
-            include_states="Yes" if options.include_states else "No",
-            include_tags="Yes" if options.include_tags else "No",
-            scientific_terminology="Yes" if options.scientific_terminology else "No",
-        )
+            # Build instruction for files mode
+            instruction = SCHEMA_FROM_FILES_INSTRUCTION.format(
+                description=description,
+                include_states="Yes" if options.include_states else "No",
+                include_tags="Yes" if options.include_tags else "No",
+                scientific_terminology="Yes" if options.scientific_terminology else "No",
+            )
+        else:
+            # External sources mode - no files, agent uses skills
+            instruction = SCHEMA_FROM_EXTERNAL_SOURCES_INSTRUCTION.format(
+                description=description,
+                include_states="Yes" if options.include_states else "No",
+                include_tags="Yes" if options.include_tags else "No",
+                scientific_terminology="Yes" if options.scientific_terminology else "No",
+            )
 
         # Configure transformer for direct mode (schema is small)
         config = TransformConfig(
@@ -219,11 +272,16 @@ class FileSchemaGenerator:
                 f"Manifest: {transform_result.manifest}, "
                 f"Debug: {transform_result.debug}"
             )
+            artifact_path = (
+                transform_result.manifest.artifact_path
+                if transform_result.manifest
+                else "None"
+            )
             yield {
                 "event": "error",
                 "message": (
                     f"Schema generation completed but produced no items. "
-                    f"Manifest artifact: {transform_result.manifest.artifact_path if transform_result.manifest else 'None'}"
+                    f"Manifest artifact: {artifact_path}"
                 ),
             }
             return

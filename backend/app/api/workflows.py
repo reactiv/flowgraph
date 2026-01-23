@@ -103,7 +103,7 @@ class EdgesResponse(BaseModel):
 class ConfirmTransformRequest(BaseModel):
     """Request to confirm and execute a transform script."""
 
-    upload_id: str
+    upload_id: str = ""  # Optional - empty for external sources mode with cached data
     script_content: str
     seed_data_json: str | None = None  # Cached output from preview - skips re-execution
 
@@ -176,7 +176,7 @@ async def create_from_language(
 
 @router.get("/workflows/from-files/stream")
 async def create_from_files_stream(
-    upload_id: str = Query(..., description="Upload session ID"),
+    upload_id: str | None = Query(None, description="Upload session ID"),
     description: str = Query(..., description="Workflow description"),
     include_states: bool = Query(True, description="Include state machines"),
     include_tags: bool = Query(True, description="Include tagging system"),
@@ -188,6 +188,10 @@ async def create_from_files_stream(
     and generate a WorkflowDefinition schema. Progress events are streamed
     in real-time using Server-Sent Events.
 
+    When upload_id is provided, files from that upload session are used.
+    When upload_id is not provided (external sources mode), the agent uses
+    its skills to fetch data from external sources like DynamoDB.
+
     Events are sent in the format:
         data: {"event": "tool_call", "tool": "Read", "input": {...}}
         data: {"event": "tool_result", "tool": "Read", "result": "..."}
@@ -196,15 +200,16 @@ async def create_from_files_stream(
 
     The final event will have event="complete" and include the generated schema.
     """
-    # Verify upload exists
+    # Verify upload exists if provided
     store = get_upload_store()
-    try:
-        await store.get_manifest(upload_id)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Upload session {upload_id} not found or expired",
-        )
+    if upload_id:
+        try:
+            await store.get_manifest(upload_id)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Upload session {upload_id} not found or expired",
+            )
 
     options = SchemaGenerationOptions(
         include_states=include_states,
@@ -1305,14 +1310,18 @@ async def seed_from_files_stream(
 @router.get("/workflows/{workflow_id}/seed-from-files/preview/stream")
 async def preview_seed_from_files(
     workflow_id: str,
-    upload_id: str = Query(..., description="Upload session ID"),
-    instruction: str | None = Query(None, description="Additional transformation instructions"),
+    upload_id: str | None = Query(None, description="Upload session ID"),
+    instruction: str | None = Query(None, description="Transformation instructions"),
 ) -> StreamingResponse:
     """Generate and execute transform script, return preview without inserting.
 
     This endpoint runs the full transformer (generates and executes transform.py)
     but stops before inserting data into the database. It returns the script
     content and a preview of what would be imported.
+
+    If upload_id is not provided, the transformer runs in external sources mode
+    where it relies solely on the instruction to fetch data from external services
+    (e.g., DynamoDB, APIs) using available skills.
 
     Events are sent in the format:
         data: {"event": "phase", "phase": "transforming", "message": "..."}
@@ -1325,20 +1334,28 @@ async def preview_seed_from_files(
     - instruction: The instruction used (for regeneration)
     - preview: Object with node_count, edge_count, and sample_nodes
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"preview_seed_from_files: workflow_id={workflow_id}, "
+        f"upload_id={upload_id}, instruction={instruction!r}"
+    )
+
     # Verify workflow exists
     workflow = await graph_store.get_workflow(workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    # Verify upload exists
+    # Verify upload exists if provided
     store = get_upload_store()
-    try:
-        await store.get_manifest(upload_id)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Upload session {upload_id} not found or expired",
-        )
+    if upload_id:
+        try:
+            await store.get_manifest(upload_id)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Upload session {upload_id} not found or expired",
+            )
 
     seeder = FileSeeder(upload_store=store)
 
@@ -1378,6 +1395,10 @@ async def confirm_seed_from_files(
     it against the same input files, validates the output, and inserts the
     data into the database.
 
+    If seed_data_json is provided (cached from preview), uses it directly
+    without needing files or re-execution. This enables external sources mode
+    where data was fetched from APIs/databases rather than files.
+
     Events are sent in the format:
         data: {"event": "phase", "phase": "executing", "message": "..."}
         data: {"event": "phase", "phase": "validating", "message": "..."}
@@ -1392,14 +1413,21 @@ async def confirm_seed_from_files(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    # Verify upload exists
+    # Verify upload exists if provided (not required for external sources with cached data)
     store = get_upload_store()
-    try:
-        await store.get_manifest(request.upload_id)
-    except FileNotFoundError:
+    if request.upload_id:
+        try:
+            await store.get_manifest(request.upload_id)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Upload session {request.upload_id} not found or expired",
+            )
+    elif not request.seed_data_json:
+        # No upload_id and no cached data - can't proceed
         raise HTTPException(
-            status_code=404,
-            detail=f"Upload session {request.upload_id} not found or expired",
+            status_code=400,
+            detail="Either upload_id or seed_data_json is required",
         )
 
     seeder = FileSeeder(upload_store=store)

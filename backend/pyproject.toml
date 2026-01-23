@@ -25,6 +25,8 @@ dependencies = [
     "google-api-python-client>=2.0.0",
     "google-auth>=2.0.0",
     "google-auth-oauthlib>=1.0.0",
+    # AWS integration
+    "boto3>=1.35.0",
     # Document handling
     "openpyxl>=3.1.0",
     "pandas>=2.0.0",

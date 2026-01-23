@@ -3,6 +3,7 @@
 import type { Node } from '@/types/workflow';
 import type { CardsConfig } from '@/types/view-templates';
 import { NodeCard } from '../cards/NodeCard';
+import { toDisplayString } from '@/lib/node-utils';
 
 interface CardsViewProps {
   nodes: Node[];
@@ -101,16 +102,16 @@ export function CardsView({ nodes, config, onNodeClick, onStatusChange: _onStatu
 
     // Get title and subtitle using cardTemplate or fallbacks
     const title = cardTemplate?.titleField
-      ? (focusedNode.properties[cardTemplate.titleField] as string) || focusedNode.title
+      ? toDisplayString(focusedNode.properties[cardTemplate.titleField]) || focusedNode.title
       : focusedNode.title;
 
     const subtitle = cardTemplate?.subtitleField
-      ? (focusedNode.properties[cardTemplate.subtitleField] as string)
+      ? toDisplayString(focusedNode.properties[cardTemplate.subtitleField]) || null
       : null;
 
     const bodyFields = cardTemplate?.bodyFields || [];
     const status = cardTemplate?.statusField
-      ? (focusedNode.properties[cardTemplate.statusField] as string) || focusedNode.status
+      ? toDisplayString(focusedNode.properties[cardTemplate.statusField]) || focusedNode.status
       : focusedNode.status;
 
     return (
@@ -141,7 +142,7 @@ export function CardsView({ nodes, config, onNodeClick, onStatusChange: _onStatu
                     <span className="font-medium capitalize text-gray-700">
                       {field.replace(/_/g, ' ')}:
                     </span>{' '}
-                    {String(value)}
+                    {toDisplayString(value)}
                   </p>
                 );
               })}
@@ -171,11 +172,11 @@ export function CardsView({ nodes, config, onNodeClick, onStatusChange: _onStatu
           {nodes.map((node) => {
             // Get title using cardTemplate or fallback
             const chipTitle = cardTemplate?.titleField
-              ? (node.properties[cardTemplate.titleField] as string) || node.title
+              ? toDisplayString(node.properties[cardTemplate.titleField]) || node.title
               : node.title;
 
             const status = cardTemplate?.statusField
-              ? (node.properties[cardTemplate.statusField] as string) || node.status
+              ? toDisplayString(node.properties[cardTemplate.statusField]) || node.status
               : node.status;
 
             return (

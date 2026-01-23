@@ -99,6 +99,7 @@ export default function CreateWorkflowPage() {
   const [dataScale, setDataScale] = useState<'small' | 'medium' | 'large'>('medium');
   const [seedSource, setSeedSource] = useState<'synthetic' | 'files'>('synthetic');
   const [seedInstruction, setSeedInstruction] = useState('');
+  const [useExternalSources, setUseExternalSources] = useState(false);
 
   // Generation state
   const [generatedDefinition, setGeneratedDefinition] = useState<WorkflowDefinition | null>(null);
@@ -185,15 +186,18 @@ export default function CreateWorkflowPage() {
         currentUploadId = uploadResult.upload_id;
       }
 
-      // If we have uploaded files, use the transformer SSE endpoint
-      if (currentUploadId) {
+      // If we have uploaded files OR external sources mode, use the transformer SSE endpoint
+      if (currentUploadId || useExternalSources) {
         const params = new URLSearchParams({
-          upload_id: currentUploadId,
           description: description,
           include_states: String(options.includeStates ?? true),
           include_tags: String(options.includeTags ?? true),
           scientific_terminology: String(options.scientificTerminology ?? false),
         });
+        // Only include upload_id if we have one
+        if (currentUploadId) {
+          params.set('upload_id', currentUploadId);
+        }
 
         const result = await schemaStream.start(
           `/api/v1/workflows/from-files/stream?${params.toString()}`
@@ -251,14 +255,16 @@ export default function CreateWorkflowPage() {
       const workflow = await api.createFromDefinition(definitionWithViews);
 
       // Seed based on selected source
-      if (seedSource === 'files' && currentUploadId) {
+      const useTransformer = seedSource === 'files' && (currentUploadId || useExternalSources);
+      if (useTransformer) {
         // Store workflow ID for later use in confirmation
         setPendingWorkflowId(workflow.id);
 
         // Generate preview (runs transformer, gets script + preview)
-        const params = new URLSearchParams({
-          upload_id: currentUploadId,
-        });
+        const params = new URLSearchParams();
+        if (currentUploadId) {
+          params.set('upload_id', currentUploadId);
+        }
         if (seedInstruction.trim()) {
           params.set('instruction', seedInstruction.trim());
         }
@@ -291,7 +297,9 @@ export default function CreateWorkflowPage() {
 
   // Handle confirmation of transform
   const handleConfirmTransform = async () => {
-    if (!pendingWorkflowId || !uploadId) return;
+    if (!pendingWorkflowId) return;
+    // For external sources mode without files, we rely on cached seed_data_json
+    if (!uploadId && !transformSeedDataJson) return;
 
     try {
       await confirmStream.start(
@@ -299,7 +307,7 @@ export default function CreateWorkflowPage() {
         {
           method: 'POST',
           body: JSON.stringify({
-            upload_id: uploadId,
+            upload_id: uploadId || '',  // Empty string for external sources mode
             script_content: transformScript,
             seed_data_json: transformSeedDataJson,  // Use cached output to skip re-execution
           }),
@@ -479,6 +487,22 @@ export default function CreateWorkflowPage() {
                 disabled={isProcessing}
                 error={uploadError}
               />
+              {/* External sources toggle */}
+              <label className="flex items-center gap-2 text-sm border rounded-lg p-3 bg-muted/30 cursor-pointer mt-3">
+                <input
+                  type="checkbox"
+                  checked={useExternalSources}
+                  onChange={(e) => setUseExternalSources(e.target.checked)}
+                  disabled={isProcessing}
+                  className="rounded"
+                />
+                <div>
+                  <span className="font-medium">Use external sources</span>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    Connect to external services (DynamoDB, APIs, etc.) via agent skills instead of files
+                  </p>
+                </div>
+              </label>
             </div>
 
             {/* Options */}
@@ -552,10 +576,12 @@ export default function CreateWorkflowPage() {
               {isUploading
                 ? 'Uploading Files...'
                 : schemaStream.isRunning
-                ? 'Analyzing Files...'
-                : isGenerating
-                ? 'Generating Schema...'
-                : 'Generate Schema'}
+                  ? selectedFiles.length > 0
+                    ? 'Analyzing Files...'
+                    : 'Connecting to External Sources...'
+                  : isGenerating
+                    ? 'Generating Schema...'
+                    : 'Generate Schema'}
             </button>
           </div>
         )}
@@ -767,20 +793,41 @@ export default function CreateWorkflowPage() {
                     </>
                   )}
 
+                  {/* External sources toggle */}
+                  <label className="flex items-center gap-2 text-sm border rounded-lg p-3 bg-muted/30 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useExternalSources}
+                      onChange={(e) => setUseExternalSources(e.target.checked)}
+                      disabled={isCreating || isUploading || isPreviewingTransform}
+                      className="rounded"
+                    />
+                    <div>
+                      <span className="font-medium">Use external sources</span>
+                      <p className="text-muted-foreground text-xs mt-0.5">
+                        Connect to external services (DynamoDB, APIs, etc.) via instructions instead of files
+                      </p>
+                    </div>
+                  </label>
+
                   {/* Instructions for transformation */}
-                  {(selectedFiles.length > 0 || hasUploadedFiles) && (
+                  {(selectedFiles.length > 0 || hasUploadedFiles || useExternalSources) && (
                     <div>
                       <label
                         htmlFor="seed-instruction"
                         className="block text-sm font-medium mb-2"
                       >
-                        Transformation Instructions (optional)
+                        {useExternalSources && !hasUploadedFiles && selectedFiles.length === 0
+                          ? 'Instructions (required for external sources)'
+                          : 'Transformation Instructions (optional)'}
                       </label>
                       <textarea
                         id="seed-instruction"
                         value={seedInstruction}
                         onChange={(e) => setSeedInstruction(e.target.value)}
-                        placeholder="Provide any specific instructions for how to transform your data... For example: 'Only include messages from the core-ml channel' or 'Skip any messages without links'"
+                        placeholder={useExternalSources && !hasUploadedFiles && selectedFiles.length === 0
+                          ? "Describe how to fetch and transform data from external sources... For example: 'Read from the curie-data DynamoDB table and extract workflow definitions'"
+                          : "Provide any specific instructions for how to transform your data... For example: 'Only include messages from the core-ml channel' or 'Skip any messages without links'"}
                         className="w-full h-24 px-3 py-2 border rounded-lg resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         disabled={isCreating || isUploading || isPreviewingTransform}
                       />
@@ -847,7 +894,8 @@ export default function CreateWorkflowPage() {
                   isPreviewingTransform ||
                   isConfirmingTransform ||
                   (validation?.errors && validation.errors.length > 0) ||
-                  (seedSource === 'files' && !uploadId && selectedFiles.length === 0)
+                  (seedSource === 'files' && !uploadId && selectedFiles.length === 0 && !useExternalSources) ||
+                  (seedSource === 'files' && useExternalSources && !uploadId && selectedFiles.length === 0 && !seedInstruction.trim())
                 }
                 className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -861,8 +909,10 @@ export default function CreateWorkflowPage() {
                   ? 'Seeding Data...'
                   : isCreating
                   ? 'Creating Workflow...'
-                  : seedSource === 'files' && !uploadId && selectedFiles.length === 0
+                  : seedSource === 'files' && !uploadId && selectedFiles.length === 0 && !useExternalSources
                   ? 'Upload Files First'
+                  : seedSource === 'files' && useExternalSources && !uploadId && selectedFiles.length === 0 && !seedInstruction.trim()
+                  ? 'Add Instructions First'
                   : 'Create Workflow'}
               </button>
             </div>
