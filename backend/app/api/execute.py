@@ -190,7 +190,7 @@ async def apply_endpoint_preview(
 
     executor = get_executor()
     result = await executor.apply_preview(
-        endpoint, workflow_id, body.transform_result
+        endpoint, workflow_id, body.transform_result, body.match_result
     )
 
     return ApplyPreviewResponse(

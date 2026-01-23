@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import shutil
 import tempfile
 import time
@@ -16,8 +17,11 @@ from app.db import graph_store
 from app.llm.transformer import DataTransformer, TransformConfig
 from app.llm.transformer.seed_models import SeedData
 from app.llm.transformer.seed_validators import create_seed_data_validator
+from app.llm.transformer.validator import CustomValidationError
 from app.models import EdgeCreate, Endpoint, NodeCreate, NodeUpdate, WorkflowDefinition
 from app.models.endpoint import EndpointExecuteResponse
+from app.models.match import MatchDecision, MatchResult
+from app.services.node_matcher import NodeMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +43,7 @@ class UpdateResult(BaseModel):
 
     updates: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="List of node updates with node_id and new properties",
+        description="List of node updates with node_id and properties",
     )
 
 
@@ -49,6 +53,74 @@ class DeleteResult(BaseModel):
     node_ids: list[str] = Field(
         default_factory=list, description="List of node IDs to delete"
     )
+
+
+def validate_update_result(update_result: UpdateResult) -> list[CustomValidationError]:
+    """Validate that UpdateResult has the correct structure for applying updates.
+
+    Checks:
+    - Each update has a node_id (string)
+    - Each update has a properties dict
+
+    Args:
+        update_result: The UpdateResult to validate.
+
+    Returns:
+        List of validation errors.
+    """
+    errors: list[CustomValidationError] = []
+
+    for i, update in enumerate(update_result.updates):
+        # Check node_id exists and is a string
+        node_id = update.get("node_id")
+        if not node_id:
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].node_id",
+                    message="Missing required field 'node_id' in update",
+                    code="missing_node_id",
+                    context={"update_keys": list(update.keys())},
+                )
+            )
+        elif not isinstance(node_id, str):
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].node_id",
+                    message=f"node_id must be a string, got {type(node_id).__name__}",
+                    code="invalid_node_id_type",
+                    context={"node_id": str(node_id)[:100]},
+                )
+            )
+
+        # Check properties exists and is a dict
+        if "properties" not in update:
+            # Provide helpful message with the keys that were provided
+            provided_keys = [k for k in update.keys() if k != "node_id"]
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].properties",
+                    message=(
+                        f"Missing required field 'properties' in update. "
+                        f"Got keys: {provided_keys}. Wrap your property values in a 'properties' dict."
+                    ),
+                    code="missing_properties",
+                    context={
+                        "node_id": node_id,
+                        "provided_keys": provided_keys,
+                    },
+                )
+            )
+        elif not isinstance(update["properties"], dict):
+            errors.append(
+                CustomValidationError(
+                    path=f"updates[{i}].properties",
+                    message=f"properties must be a dict, got {type(update['properties']).__name__}",
+                    code="invalid_properties_type",
+                    context={"node_id": node_id},
+                )
+            )
+
+    return errors
 
 
 # Instruction templates for different HTTP methods
@@ -73,7 +145,7 @@ Analyze the input criteria and return nodes that match. You can use the workflow
 to understand what node types and properties are available.
 """
 
-POST_INSTRUCTION_TEMPLATE = """Create new nodes and edges in the workflow graph.
+POST_INSTRUCTION_TEMPLATE = """Create or update nodes and edges in the workflow graph.
 
 ## Your Task
 {instruction}
@@ -84,9 +156,31 @@ POST_INSTRUCTION_TEMPLATE = """Create new nodes and edges in the workflow graph.
 ## Input Data
 The input.json file contains the raw data to be transformed and stored.
 
+## Querying Existing Nodes (graph_api.py)
+
+IMPORTANT: Before creating nodes, check if matching nodes already exist using graph_api.py.
+This prevents duplicate nodes when the input data corresponds to existing records.
+
+```python
+from graph_api import search_nodes, get_node
+
+# Search by type and properties (most common for matching by external ID)
+existing = search_nodes("Analysis", properties={{"result_id": "abc123"}})
+
+# Search by exact title
+existing = search_nodes("Sample", title_exact="Sample-001")
+
+# Search by title substring
+existing = search_nodes("Sample", title_contains="Sample")
+```
+
+When you find an existing node that should be updated:
+- Set `"intent": "update"` on the SeedNode
+- Set `"existing_node_id"` to the existing node's ID
+
 ## Output Format
 Return a SeedData object with:
-- nodes: List of SeedNode objects to create
+- nodes: List of SeedNode objects to create or update
 - edges: List of SeedEdge objects to connect nodes
 
 For SeedNode:
@@ -95,6 +189,8 @@ For SeedNode:
 - title: Display title for the node
 - status: Optional status value (if the node type has states)
 - properties: Field values matching the node type's field definitions
+- intent: "create" (default) or "update" - use "update" when modifying existing nodes
+- existing_node_id: Required when intent="update" - the ID of the node to update
 
 For SeedEdge:
 - edge_type: Must match a type from the workflow schema
@@ -103,6 +199,8 @@ For SeedEdge:
 - properties: Optional edge properties
 
 ## Important Guidelines
+- Use graph_api.py to check for existing nodes BEFORE deciding to create
+- When input has a unique identifier (like result_id), search for existing nodes with that ID
 - Use consistent temp_id prefixes by node type
 - Ensure all edge references use valid temp_ids from the nodes list
 - Match field keys exactly as defined in the schema
@@ -287,10 +385,12 @@ class EndpointExecutor:
             transform_result = None
             transform_error = None
 
-            # Create custom validator for SeedData (POST endpoints)
+            # Create custom validator based on HTTP method
             custom_validator = None
             if endpoint.http_method == "POST":
                 custom_validator = create_seed_data_validator(workflow)
+            elif endpoint.http_method == "PUT":
+                custom_validator = validate_update_result
 
             def on_event(event_type: str, data: dict[str, Any]) -> None:
                 events_queue.put_nowait({"event": event_type, **data})
@@ -320,6 +420,8 @@ class EndpointExecutor:
                             max_iterations=80,
                             work_dir=str(work_dir),
                             learn=should_learn,
+                            workflow_id=workflow_id,
+                            db_path=os.environ.get("DATABASE_PATH", "./data/workflow.db"),
                         ),
                         on_event=on_event,
                         custom_validator=custom_validator,
@@ -422,6 +524,19 @@ class EndpointExecutor:
 
                 preview = self._preview_result(endpoint, transform_result.items[0])
 
+                # Run matching for POST endpoints to detect duplicates
+                match_result: MatchResult | None = None
+                if endpoint.http_method == "POST":
+                    seed_data = transform_result.items[0]
+                    if isinstance(seed_data, SeedData):
+                        yield {
+                            "event": "phase",
+                            "phase": "matching",
+                            "message": "Matching against existing graph...",
+                        }
+                        matcher = NodeMatcher(graph_store, workflow_id)
+                        match_result = await matcher.match_seed_data(seed_data)
+
                 elapsed_ms = int((time.time() - start_time) * 1000)
 
                 # Include learned assets if available (from endpoint or from this run)
@@ -436,7 +551,7 @@ class EndpointExecutor:
                     else endpoint.learned_transformer_code
                 )
 
-                yield {
+                complete_event: dict[str, Any] = {
                     "event": "complete",
                     "execution_time_ms": elapsed_ms,
                     "preview": True,
@@ -445,6 +560,10 @@ class EndpointExecutor:
                     "learned_transformer_code": learned_transformer_code,
                     **preview,
                 }
+                if match_result:
+                    complete_event["match_result"] = match_result.model_dump()
+
+                yield complete_event
 
         finally:
             # Clean up directories
@@ -532,7 +651,7 @@ class EndpointExecutor:
                 node_id = update.get("node_id")
                 properties = update.get("properties", {})
 
-                if node_id:
+                if node_id and properties:
                     updated = await graph_store.update_node(
                         workflow_id,
                         node_id,
@@ -654,11 +773,123 @@ class EndpointExecutor:
 
         return nodes_created, edges_created
 
+    async def _insert_seed_data_with_matching(
+        self,
+        workflow_id: str,
+        seed_data: SeedData,
+        match_result: MatchResult,
+    ) -> tuple[int, int, int]:
+        """Insert/update seed data based on match results.
+
+        Args:
+            workflow_id: The workflow ID.
+            seed_data: The seed data to insert.
+            match_result: The matching results from NodeMatcher.
+
+        Returns:
+            Tuple of (nodes_created, nodes_updated, edges_created).
+        """
+        temp_id_to_real_id: dict[str, str] = {}
+        nodes_created = 0
+        nodes_updated = 0
+        edges_created = 0
+
+        # Build lookup map for seed nodes by temp_id
+        seed_nodes_by_temp_id = {n.temp_id: n for n in seed_data.nodes}
+
+        # Process node matches
+        for node_match in match_result.node_matches:
+            seed_node = seed_nodes_by_temp_id.get(node_match.temp_id)
+            if not seed_node:
+                logger.warning(f"No seed node found for temp_id: {node_match.temp_id}")
+                continue
+
+            if node_match.decision == MatchDecision.CREATE:
+                try:
+                    node = await graph_store.create_node(
+                        workflow_id,
+                        NodeCreate(
+                            type=seed_node.node_type,
+                            title=seed_node.title,
+                            status=seed_node.status,
+                            properties=seed_node.properties,
+                        ),
+                    )
+                    temp_id_to_real_id[seed_node.temp_id] = node.id
+                    nodes_created += 1
+                except Exception as e:
+                    logger.warning(f"Failed to create node {seed_node.temp_id}: {e}")
+
+            elif node_match.decision == MatchDecision.UPDATE:
+                if node_match.matched_node_id:
+                    try:
+                        await graph_store.update_node(
+                            workflow_id,
+                            node_match.matched_node_id,
+                            NodeUpdate(
+                                title=seed_node.title,
+                                status=seed_node.status,
+                                properties=seed_node.properties,
+                            ),
+                        )
+                        temp_id_to_real_id[seed_node.temp_id] = node_match.matched_node_id
+                        nodes_updated += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to update node {node_match.matched_node_id}: {e}"
+                        )
+
+            elif node_match.decision == MatchDecision.SKIP:
+                # Map temp_id to existing node for edge resolution
+                if node_match.matched_node_id:
+                    temp_id_to_real_id[seed_node.temp_id] = node_match.matched_node_id
+
+        # Build lookup map for seed edges by (edge_type, from_temp_id, to_temp_id)
+        seed_edges_by_key = {
+            (e.edge_type, e.from_temp_id, e.to_temp_id): e for e in seed_data.edges
+        }
+
+        # Process edge matches
+        for edge_match in match_result.edge_matches:
+            if edge_match.decision == MatchDecision.CREATE:
+                edge_key = (edge_match.edge_type, edge_match.from_temp_id, edge_match.to_temp_id)
+                seed_edge = seed_edges_by_key.get(edge_key)
+                if not seed_edge:
+                    logger.warning(f"No seed edge found for: {edge_key}")
+                    continue
+                from_id = temp_id_to_real_id.get(seed_edge.from_temp_id)
+                to_id = temp_id_to_real_id.get(seed_edge.to_temp_id)
+
+                if not from_id or not to_id:
+                    logger.warning(
+                        f"Edge references unknown temp_id: "
+                        f"{seed_edge.from_temp_id} -> {seed_edge.to_temp_id}"
+                    )
+                    continue
+
+                try:
+                    await graph_store.create_edge(
+                        workflow_id,
+                        EdgeCreate(
+                            type=seed_edge.edge_type,
+                            from_node_id=from_id,
+                            to_node_id=to_id,
+                            properties=seed_edge.properties,
+                        ),
+                    )
+                    edges_created += 1
+                except Exception as e:
+                    logger.warning(f"Failed to create edge: {e}")
+            # SKIP edges are ignored (already exist)
+
+        return nodes_created, nodes_updated, edges_created
+
     async def apply_preview(
         self,
         endpoint: Endpoint,
         workflow_id: str,
         transform_result: dict[str, Any],
+        match_result: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Apply a previously previewed transformation result.
 
@@ -666,6 +897,7 @@ class EndpointExecutor:
             endpoint: The endpoint configuration.
             workflow_id: The workflow ID.
             transform_result: The transform_result from a preview execution.
+            match_result: Optional matching results for POST endpoints.
 
         Returns:
             Dict with applied changes counts.
@@ -682,7 +914,22 @@ class EndpointExecutor:
         else:
             return {"error": f"Unknown HTTP method: {endpoint.http_method}"}
 
-        # Apply using the existing method
+        # For POST endpoints with matching, use the matching-aware insert
+        if endpoint.http_method == "POST" and match_result and isinstance(result, SeedData):
+            match_result_model = MatchResult(**match_result)
+            nodes_created, nodes_updated, edges_created = (
+                await self._insert_seed_data_with_matching(
+                    workflow_id, result, match_result_model
+                )
+            )
+            await graph_store.record_endpoint_execution(workflow_id, endpoint.id)
+            return {
+                "nodes_created": nodes_created,
+                "nodes_updated": nodes_updated,
+                "edges_created": edges_created,
+            }
+
+        # Apply using the existing method for other cases
         applied = await self._apply_result(endpoint, workflow_id, result)
 
         # Record execution

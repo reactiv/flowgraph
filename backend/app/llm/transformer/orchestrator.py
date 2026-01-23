@@ -12,6 +12,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -101,17 +102,39 @@ Your task is to write Python code that transforms input files into a validated o
 
 Your script should:
 - Read input files from the working directory
+- Query existing graph state using graph_api.py to find nodes to update or link
 - Write output to {output_file}
   - For json format: json.dump(result, f, indent=2)
   - For jsonl format: One json.dumps(record) per line
 - Use standard library (csv, json) or simple parsing
 - Handle errors gracefully with clear error messages
 
+## Querying Existing Graph State (graph_api.py)
+
+A `graph_api.py` module is available for querying existing nodes in the workflow graph.
+Use this when your input data may correspond to existing nodes that should be UPDATED
+rather than creating duplicates.
+
+```python
+from graph_api import search_nodes, get_node
+
+# Search for existing nodes by type and properties
+existing = search_nodes("Analysis", properties={{"result_id": "abc123"}})
+
+# Search by title
+existing = search_nodes("Sample", title_exact="Sample-001")
+existing = search_nodes("Sample", title_contains="Sample")
+
+# Get a specific node by ID
+node = get_node("node-uuid-here")
+```
+
 ## Important
 
 - Always validate your output before finishing
 - Fix all validation errors - the output MUST pass validation
 - Keep code simple and readable
+- Use graph_api.py to check for existing nodes when the input might be an update
 """
 
 LEARNING_PROMPT = """
@@ -150,6 +173,15 @@ What gets produced and key fields.
 """
 
 
+@dataclass
+class FileCopy:
+    """Specification for a file copy operation."""
+
+    src: Path
+    dest: Path
+    is_dir: bool = False
+
+
 class DataTransformer:
     """Orchestrates Claude to transform data into validated Pydantic outputs.
 
@@ -157,9 +189,65 @@ class DataTransformer:
     plus a custom validate_artifact tool.
     """
 
+    # Standard files that should be copied to work directories
+    TRANSFORMER_FILES: list[str] = ["graph_api.py"]
+
     def __init__(self):
         """Initialize the transformer."""
         pass  # No API key needed - SDK handles authentication
+
+    @classmethod
+    def get_transformer_dir(cls) -> Path:
+        """Get the transformer module directory."""
+        return Path(__file__).parent
+
+    @classmethod
+    def get_standard_copies(cls, work_dir: Path) -> list[FileCopy]:
+        """Get the standard file copies for a work directory.
+
+        Returns a list of FileCopy operations for files that should always
+        be available in the transformer work directory.
+        """
+        transformer_dir = cls.get_transformer_dir()
+        copies = []
+
+        for filename in cls.TRANSFORMER_FILES:
+            src = transformer_dir / filename
+            if src.exists():
+                copies.append(FileCopy(src=src, dest=work_dir / filename))
+
+        return copies
+
+    @staticmethod
+    def copy_files(copies: list[FileCopy]) -> list[str]:
+        """Execute a list of file copy operations.
+
+        Args:
+            copies: List of FileCopy operations to perform.
+
+        Returns:
+            List of successfully copied file names.
+        """
+        copied = []
+        for copy in copies:
+            try:
+                if copy.is_dir:
+                    if copy.src.is_dir():
+                        shutil.copytree(copy.src, copy.dest, dirs_exist_ok=True)
+                        copied.append(copy.dest.name)
+                        logger.debug(f"Copied directory {copy.src} -> {copy.dest}")
+                else:
+                    if copy.src.is_file():
+                        copy.dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy(copy.src, copy.dest)
+                        copied.append(copy.dest.name)
+                        logger.debug(f"Copied file {copy.src} -> {copy.dest}")
+                    else:
+                        logger.warning(f"Source file not found: {copy.src}")
+            except Exception as e:
+                logger.error(f"Failed to copy {copy.src} -> {copy.dest}: {e}")
+
+        return copied
 
     def _try_execute_transform_py(
         self,
@@ -168,6 +256,8 @@ class DataTransformer:
         output_format: str,
         custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
         on_event: EventCallback | None = None,
+        workflow_id: str | None = None,
+        db_path: str | None = None,
     ) -> tuple[bool, TransformRun[T] | None, str | None]:
         """Try to execute an existing transform.py programmatically.
 
@@ -177,12 +267,16 @@ class DataTransformer:
             output_format: Expected output format ('json' or 'jsonl').
             custom_validator: Optional custom validator function.
             on_event: Optional callback for streaming events.
+            workflow_id: Optional workflow ID for graph_api.py.
+            db_path: Optional database path for graph_api.py.
 
         Returns:
             Tuple of (success, result, error_message).
             If success, result contains the TransformRun.
             If failure, error_message explains why.
         """
+        import os
+
         transform_path = work_dir / "transform.py"
         output_path = work_dir / f"output.{output_format}"
 
@@ -196,6 +290,13 @@ class DataTransformer:
             })
 
         try:
+            # Build environment with graph API context
+            env = os.environ.copy()
+            if workflow_id:
+                env["WORKFLOW_ID"] = workflow_id
+            if db_path:
+                env["WORKFLOW_DB_PATH"] = db_path
+
             # Execute transform.py
             result = subprocess.run(
                 ["python", str(transform_path)],
@@ -203,6 +304,7 @@ class DataTransformer:
                 capture_output=True,
                 text=True,
                 timeout=60,  # 60 second timeout
+                env=env,
             )
 
             if result.returncode != 0:
@@ -308,64 +410,96 @@ class DataTransformer:
             cleanup_work_dir = True
 
         try:
-            # Copy inputs to work directory
+            # Build list of all files to copy to work directory
+            copies: list[FileCopy] = []
+
+            # 1. Input files
             for input_path in input_paths:
                 input_path = Path(input_path)
-                dest = work_dir / input_path.name
-                if input_path.is_file():
-                    shutil.copy(input_path, dest)
-                elif input_path.is_dir():
-                    shutil.copytree(input_path, dest)
-                else:
+                if not input_path.exists():
                     raise ValueError(f"Input path not found: {input_path}")
+                copies.append(FileCopy(
+                    src=input_path,
+                    dest=work_dir / input_path.name,
+                    is_dir=input_path.is_dir(),
+                ))
 
-            # Copy skills directory so agent can discover them via setting_sources
-            # Merge with existing skills (e.g., learned endpoint skills) instead of overwriting
+            # 2. Standard transformer files (graph_api.py, etc.)
+            copies.extend(self.get_standard_copies(work_dir))
+
+            # 3. Skills directory
             skills_src = Path(__file__).parent.parent.parent.parent / ".claude" / "skills"
-            available_skills = []
-            logger.info(f"Looking for skills at: {skills_src} (exists: {skills_src.exists()})")
             skills_dest = work_dir / ".claude" / "skills"
             skills_dest.mkdir(parents=True, exist_ok=True)
 
-            # First, collect any pre-existing skills (e.g., learned endpoint skills)
+            # Collect pre-existing skills (e.g., learned endpoint skills)
+            available_skills = []
             if skills_dest.exists():
                 for skill_dir in skills_dest.iterdir():
                     if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
                         available_skills.append(skill_dir.name)
-                        logger.info(f"Found pre-existing skill: {skill_dir.name}")
+                        logger.debug(f"Found pre-existing skill: {skill_dir.name}")
 
+            # Add skill directories to copy list (only if they don't exist)
             if skills_src.exists():
-                try:
-                    # Copy each skill directory individually, preserving existing ones
-                    for skill_dir in skills_src.iterdir():
-                        if skill_dir.is_dir():
-                            dest_skill = skills_dest / skill_dir.name
-                            if not dest_skill.exists():
-                                shutil.copytree(skill_dir, dest_skill)
-                                if (dest_skill / "SKILL.md").exists():
-                                    available_skills.append(skill_dir.name)
-                            else:
-                                logger.info(f"Preserving existing skill: {skill_dir.name}")
-                    logger.info(f"Copied skills from {skills_src} to {skills_dest}")
-                    if on_event and available_skills:
-                        on_event("skills_available", {
-                            "skills": available_skills,
-                            "message": f"Available skills: {', '.join(available_skills)}",
-                        })
-                except Exception as e:
-                    logger.error(f"Failed to copy skills: {e}")
-                    if on_event:
-                        on_event("skills_warning", {
-                            "message": f"Failed to load skills: {e}",
-                            "error": str(e),
-                        })
-            else:
-                logger.warning(f"Skills directory not found at {skills_src}")
-                if on_event:
-                    on_event("skills_warning", {
-                        "message": "Skills directory not found - external data sources unavailable",
-                        "path": str(skills_src),
-                    })
+                for skill_dir in skills_src.iterdir():
+                    if skill_dir.is_dir():
+                        dest_skill = skills_dest / skill_dir.name
+                        if not dest_skill.exists():
+                            copies.append(FileCopy(
+                                src=skill_dir,
+                                dest=dest_skill,
+                                is_dir=True,
+                            ))
+
+            # Execute all copies
+            copied_files = self.copy_files(copies)
+            logger.info(f"Prepared work directory with {len(copied_files)} items: {copied_files}")
+
+            # Write graph config file for graph_api.py to use
+            if config.workflow_id or config.db_path:
+                graph_config = {
+                    "workflow_id": config.workflow_id or "",
+                    "db_path": config.db_path or "",
+                }
+                graph_config_path = work_dir / ".graph_config.json"
+                with open(graph_config_path, "w") as f:
+                    json.dump(graph_config, f)
+                logger.debug(f"Wrote graph config: {graph_config}")
+
+            # Build detailed file list for frontend display
+            workspace_files = []
+            for copy in copies:
+                if copy.dest.exists():
+                    file_info = {
+                        "name": copy.dest.name,
+                        "path": str(copy.dest.relative_to(work_dir)),
+                        "is_dir": copy.is_dir,
+                    }
+                    if not copy.is_dir and copy.dest.is_file():
+                        file_info["size"] = copy.dest.stat().st_size
+                    workspace_files.append(file_info)
+
+            # Stream workspace files event to frontend
+            if on_event:
+                on_event("workspace_files", {
+                    "files": workspace_files,
+                    "work_dir": str(work_dir),
+                    "message": f"Prepared workspace with {len(workspace_files)} files",
+                })
+
+            # Update available skills list after copying
+            if skills_dest.exists():
+                for skill_dir in skills_dest.iterdir():
+                    if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                        if skill_dir.name not in available_skills:
+                            available_skills.append(skill_dir.name)
+
+            if on_event and available_skills:
+                on_event("skills_available", {
+                    "skills": available_skills,
+                    "message": f"Available skills: {', '.join(available_skills)}",
+                })
 
             # For code mode without learning, try to execute existing transform.py first
             transform_path = work_dir / "transform.py"
@@ -381,6 +515,8 @@ class DataTransformer:
                     output_format=config.output_format,
                     custom_validator=custom_validator,
                     on_event=on_event,
+                    workflow_id=config.workflow_id,
+                    db_path=config.db_path,
                 )
 
                 if success and replay_result:
@@ -468,6 +604,8 @@ class DataTransformer:
             output_format=config.output_format,
             input_paths=input_paths,
             custom_validator=custom_validator,
+            workflow_id=config.workflow_id,
+            db_path=config.db_path,
         )
 
         # Build allowed tools list

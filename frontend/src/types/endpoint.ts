@@ -192,6 +192,64 @@ export interface DeleteResult {
   node_ids: string[];
 }
 
+// ==================== Matching Types ====================
+
+/**
+ * Confidence level for a match.
+ */
+export type MatchConfidence = 'exact' | 'high' | 'medium' | 'none';
+
+/**
+ * What action to take for this item.
+ */
+export type MatchDecision = 'create' | 'update' | 'skip';
+
+/**
+ * Result of matching a single SeedNode against existing nodes.
+ */
+export interface NodeMatchResult {
+  temp_id: string;
+  incoming_node_type: string;
+  incoming_title: string;
+  decision: MatchDecision;
+  confidence: MatchConfidence;
+  matched_node_id?: string;
+  matched_node_title?: string;
+  matched_node_properties?: Record<string, unknown>;
+  properties_to_update?: Record<string, unknown>;
+  properties_unchanged?: string[];
+  match_reason?: string;
+}
+
+/**
+ * Result of matching a single SeedEdge against existing edges.
+ */
+export interface EdgeMatchResult {
+  edge_type: string;
+  from_temp_id: string;
+  to_temp_id: string;
+  decision: MatchDecision;
+  confidence: MatchConfidence;
+  from_node_id?: string;
+  to_node_id?: string;
+  matched_edge_id?: string;
+  match_reason?: string;
+}
+
+/**
+ * Complete match analysis for a SeedData delta.
+ */
+export interface MatchResult {
+  node_matches: NodeMatchResult[];
+  edge_matches: EdgeMatchResult[];
+  nodes_to_create: number;
+  nodes_to_update: number;
+  nodes_to_skip: number;
+  edges_to_create: number;
+  edges_to_skip: number;
+  temp_id_to_node_id: Record<string, string>;
+}
+
 /**
  * Pending result from preview mode execution.
  */
@@ -209,6 +267,8 @@ export interface PendingResult {
   edgesToCreate?: SeedEdge[];
   updatesToApply?: Array<{ node_id: string; properties: Record<string, unknown> }>;
   nodesToDelete?: string[];
+  // Matching results
+  matchResult?: MatchResult;
 }
 
 /**
@@ -216,6 +276,7 @@ export interface PendingResult {
  */
 export interface ApplyPreviewRequest {
   transformResult: Record<string, unknown>;
+  matchResult?: Record<string, unknown>;
 }
 
 /**

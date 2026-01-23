@@ -100,6 +100,12 @@ class TransformConfig(BaseModel):
     learn: bool = False
     """If True, generate a SKILL.md after successful transformation."""
 
+    workflow_id: str | None = None
+    """Workflow ID for graph_api.py to query existing nodes. Enables update intent."""
+
+    db_path: str | None = None
+    """Database path for graph_api.py to connect to. Defaults to DATABASE_PATH env var."""
+
 
 def compute_schema_hash(model: type[BaseModel]) -> str:
     """Compute a hash of a Pydantic model's schema.

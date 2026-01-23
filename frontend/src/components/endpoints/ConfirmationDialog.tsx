@@ -33,15 +33,33 @@ export function ConfirmationDialog({
 
   if (!open) return null;
 
-  const { httpMethod, nodesCreated = 0, edgesCreated = 0, nodesUpdated = 0, nodesDeleted = 0 } = pendingResult;
+  const { httpMethod, nodesCreated = 0, edgesCreated = 0, nodesUpdated = 0, nodesDeleted = 0, matchResult } = pendingResult;
 
-  // Build summary based on HTTP method
+  // Build summary based on HTTP method and matching results
   let summary = '';
   if (httpMethod === 'POST') {
-    const parts = [];
-    if (nodesCreated > 0) parts.push(`${nodesCreated} node${nodesCreated !== 1 ? 's' : ''}`);
-    if (edgesCreated > 0) parts.push(`${edgesCreated} edge${edgesCreated !== 1 ? 's' : ''}`);
-    summary = parts.length > 0 ? `Create ${parts.join(' and ')}` : 'No changes';
+    if (matchResult) {
+      // Use match result counts for accurate summary
+      const parts = [];
+      if (matchResult.nodes_to_create > 0) {
+        parts.push(`Create ${matchResult.nodes_to_create} node${matchResult.nodes_to_create !== 1 ? 's' : ''}`);
+      }
+      if (matchResult.nodes_to_update > 0) {
+        parts.push(`Update ${matchResult.nodes_to_update} node${matchResult.nodes_to_update !== 1 ? 's' : ''}`);
+      }
+      if (matchResult.nodes_to_skip > 0) {
+        parts.push(`Skip ${matchResult.nodes_to_skip} duplicate${matchResult.nodes_to_skip !== 1 ? 's' : ''}`);
+      }
+      if (matchResult.edges_to_create > 0) {
+        parts.push(`${matchResult.edges_to_create} edge${matchResult.edges_to_create !== 1 ? 's' : ''}`);
+      }
+      summary = parts.length > 0 ? parts.join(', ') : 'No changes';
+    } else {
+      const parts = [];
+      if (nodesCreated > 0) parts.push(`${nodesCreated} node${nodesCreated !== 1 ? 's' : ''}`);
+      if (edgesCreated > 0) parts.push(`${edgesCreated} edge${edgesCreated !== 1 ? 's' : ''}`);
+      summary = parts.length > 0 ? `Create ${parts.join(' and ')}` : 'No changes';
+    }
   } else if (httpMethod === 'PUT') {
     summary = nodesUpdated > 0 ? `Update ${nodesUpdated} node${nodesUpdated !== 1 ? 's' : ''}` : 'No updates';
   } else if (httpMethod === 'DELETE') {

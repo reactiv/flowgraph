@@ -5,6 +5,7 @@ built-in tools for Bash, Read, Write, etc.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,8 @@ def run_and_validate_transformer(
     output_format: str,
     input_paths: list[str] | None = None,
     custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
+    workflow_id: str | None = None,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """Execute a transformer script and validate its output.
 
@@ -42,6 +45,8 @@ def run_and_validate_transformer(
         output_format: Output format ('json' or 'jsonl').
         input_paths: Original input file paths for validation.
         custom_validator: Optional custom validator for domain-specific validation.
+        workflow_id: Optional workflow ID for graph_api.py to query existing nodes.
+        db_path: Optional database path for graph_api.py to connect to.
 
     Returns:
         Dict with success status, execution results, and validation results.
@@ -55,17 +60,37 @@ def run_and_validate_transformer(
     validation_dir = Path(tempfile.mkdtemp(prefix="transformer_validate_"))
 
     try:
-        # Copy original input files to validation directory
+        # Build list of files to copy to validation directory
+        from app.llm.transformer.orchestrator import DataTransformer, FileCopy
+
+        copies: list[FileCopy] = []
+
+        # 1. Original input files
         if input_paths:
             for input_path in input_paths:
                 src = Path(input_path)
-                if src.is_file():
-                    shutil.copy(src, validation_dir / src.name)
-                elif src.is_dir():
-                    shutil.copytree(src, validation_dir / src.name)
+                if src.exists():
+                    copies.append(FileCopy(
+                        src=src,
+                        dest=validation_dir / src.name,
+                        is_dir=src.is_dir(),
+                    ))
 
-        # Copy the script to validation directory
-        shutil.copy(script_path, validation_dir / "transform.py")
+        # 2. The transform script
+        copies.append(FileCopy(src=script_path, dest=validation_dir / "transform.py"))
+
+        # 3. Standard transformer files (graph_api.py, etc.)
+        copies.extend(DataTransformer.get_standard_copies(validation_dir))
+
+        # Execute all copies
+        DataTransformer.copy_files(copies)
+
+        # Build environment with graph API context
+        env = os.environ.copy()
+        if workflow_id:
+            env["WORKFLOW_ID"] = workflow_id
+        if db_path:
+            env["WORKFLOW_DB_PATH"] = db_path
 
         result = subprocess.run(
             [sys.executable, str(validation_dir / "transform.py")],
@@ -73,6 +98,7 @@ def run_and_validate_transformer(
             capture_output=True,
             text=True,
             timeout=600,  # 10 minutes - transformations can be slow
+            env=env,
         )
 
         # Copy output file back to work_dir if it was created
@@ -147,6 +173,8 @@ def create_transformer_tools(
     output_format: str = "jsonl",
     input_paths: list[str] | None = None,
     custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
+    workflow_id: str | None = None,
+    db_path: str | None = None,
 ):
     """Create custom MCP tools for the transformer.
 
@@ -156,6 +184,8 @@ def create_transformer_tools(
         output_format: Output format ('json' or 'jsonl').
         input_paths: Original input file paths for validation.
         custom_validator: Optional custom validator for domain-specific validation.
+        workflow_id: Optional workflow ID for graph_api.py to query existing nodes.
+        db_path: Optional database path for graph_api.py to connect to.
 
     Returns:
         SDK MCP server with custom tools.
@@ -252,6 +282,8 @@ def create_transformer_tools(
             output_format=output_format,
             input_paths=input_paths,
             custom_validator=custom_validator,
+            workflow_id=workflow_id,
+            db_path=db_path,
         )
 
         # Truncate response if too large

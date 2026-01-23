@@ -45,6 +45,13 @@ from app.models.external_reference import (
     SnapshotCreate,
     VersionType,
 )
+from app.models.match import (
+    EdgeMatchResult,
+    MatchConfidence,
+    MatchDecision,
+    MatchResult,
+    NodeMatchResult,
+)
 from app.models.node import Node, NodeCreate, NodeUpdate
 from app.models.suggestion import (
     FieldValueSuggestion,
@@ -86,6 +93,12 @@ __all__ = [
     "EndpointExecuteRequest",
     "EndpointExecuteResponse",
     "EndpointsResponse",
+    # Matching
+    "MatchConfidence",
+    "MatchDecision",
+    "NodeMatchResult",
+    "EdgeMatchResult",
+    "MatchResult",
     # Workflow Definition (Schema)
     "WorkflowDefinition",
     "NodeType",
