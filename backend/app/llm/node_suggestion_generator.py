@@ -9,6 +9,7 @@ from app.db.graph_store import GraphStore
 from app.llm.client import LLMClient, get_client
 from app.llm.context_gatherer import ContextGatherer
 from app.models import Node, NodeCreate, WorkflowDefinition
+from app.models.context_pack import ContextPackRequest, ContextResource
 from app.models.context_selector import default_context_selector
 from app.models.suggestion import (
     NodeSuggestion,
@@ -74,7 +75,14 @@ Return a JSON object with this exact structure:
 
 
 def _format_node_for_prompt(node: Node | dict[str, Any]) -> str:
-    """Format a node for inclusion in a prompt."""
+    """Format a node for inclusion in a prompt.
+
+    Supports external reference content via special keys:
+    - external_summary: Summary text from projection
+    - external_status: Status from external system
+    - external_owner: Owner from external system
+    - is_stale: Whether the external data may be stale
+    """
     if isinstance(node, Node):
         node = node.model_dump()
 
@@ -84,6 +92,22 @@ def _format_node_for_prompt(node: Node | dict[str, Any]) -> str:
     ]
     if node.get("status"):
         lines.append(f"Status: {node['status']}")
+
+    # Include external reference content if present
+    if node.get("external_summary") or node.get("external_status") or node.get("external_owner"):
+        lines.append("")
+        lines.append("**External Content:**")
+        if node.get("external_summary"):
+            summary = node["external_summary"]
+            if len(summary) > 500:
+                summary = summary[:500] + "..."
+            lines.append(f"Summary: {summary}")
+        if node.get("external_status"):
+            lines.append(f"External Status: {node['external_status']}")
+        if node.get("external_owner"):
+            lines.append(f"Owner: {node['external_owner']}")
+        if node.get("is_stale"):
+            lines.append("*Note: External data may be stale*")
 
     props = node.get("properties", {})
     if props:
@@ -217,6 +241,9 @@ class NodeSuggestionGenerator:
                 direction=direction,
                 target_node_type=context["target_type"].type,
                 context_nodes_count=context_nodes_count,
+                external_refs_included=context.get("external_refs_included", 0),
+                stale_refs_count=context.get("stale_refs_count", 0),
+                external_warnings=context.get("external_warnings", []),
             ),
         )
 
@@ -262,18 +289,103 @@ class NodeSuggestionGenerator:
 
         # Use context gatherer with the provided selector or default
         selector = options.context_selector or default_context_selector()
-        gathered = await self._context_gatherer.gather_context(
-            workflow_id, source_node_id, selector
-        )
 
-        return {
-            "definition": definition,
-            "source_node": gathered["source_node"],
-            "path_results": gathered["path_results"],
-            "edge_type_def": edge_type_def,
-            "target_type": target_type,
-            "direction": direction,
+        # Use context pack if external content is requested (default: True)
+        if options.external_content.include_projections:
+            pack_request = ContextPackRequest(
+                refresh_stale=options.external_content.refresh_stale,
+                include_snapshots=options.external_content.include_full_content,
+            )
+
+            pack_response = await self._context_gatherer.build_context_pack(
+                workflow_id, source_node_id, pack_request, selector
+            )
+
+            # Convert resources to source_node and path_results format
+            resources = pack_response.pack.resources
+            source_resource = resources[0] if resources else None
+            context_resources = resources[1:] if len(resources) > 1 else []
+
+            source_node = (
+                self._resource_to_node_dict(source_resource)
+                if source_resource
+                else {"id": source_node_id, "title": "Unknown", "type": "Unknown"}
+            )
+            path_results = self._resources_to_path_results(context_resources)
+
+            # Count external refs and stale refs
+            external_refs_count = sum(
+                1 for r in resources if r.reference_id is not None
+            )
+            stale_refs_count = sum(1 for r in resources if r.is_stale)
+
+            return {
+                "definition": definition,
+                "source_node": source_node,
+                "path_results": path_results,
+                "edge_type_def": edge_type_def,
+                "target_type": target_type,
+                "direction": direction,
+                "external_refs_included": external_refs_count,
+                "stale_refs_count": stale_refs_count,
+                "external_warnings": pack_response.warnings,
+            }
+        else:
+            # Use simple gather_context (no external reference content)
+            gathered = await self._context_gatherer.gather_context(
+                workflow_id, source_node_id, selector
+            )
+
+            return {
+                "definition": definition,
+                "source_node": gathered["source_node"],
+                "path_results": gathered["path_results"],
+                "edge_type_def": edge_type_def,
+                "target_type": target_type,
+                "direction": direction,
+                "external_refs_included": 0,
+                "stale_refs_count": 0,
+                "external_warnings": [],
+            }
+
+    def _resource_to_node_dict(self, resource: ContextResource) -> dict[str, Any]:
+        """Convert a ContextResource to node dict format for prompts.
+
+        Includes external content fields when available from projections.
+        """
+        result: dict[str, Any] = {
+            "id": resource.node_id,
+            "title": resource.title or "Untitled",
+            "type": resource.node_type or "Unknown",
+            "properties": resource.properties or {},
+            "path_name": resource.path_name,
+            "traversal_depth": resource.hop_depth,
         }
+
+        # Include external content if present
+        if resource.content:
+            result["external_summary"] = resource.content
+        if resource.projection:
+            if resource.projection.status:
+                result["external_status"] = resource.projection.status
+            if resource.projection.owner:
+                result["external_owner"] = resource.projection.owner
+            result["is_stale"] = resource.is_stale
+            result["external_source"] = resource.reference_id
+
+        return result
+
+    def _resources_to_path_results(
+        self, resources: list[ContextResource]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Group ContextResources by path_name for prompt formatting."""
+        path_results: dict[str, list[dict[str, Any]]] = {}
+        for resource in resources:
+            path_name = resource.path_name
+            if path_name not in path_results:
+                path_results[path_name] = []
+            path_results[path_name].append(self._resource_to_node_dict(resource))
+        return path_results
 
     def _build_prompt(self, context: dict[str, Any], options: SuggestionOptions) -> str:
         """Build the user prompt for suggestion generation."""

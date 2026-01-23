@@ -8,6 +8,25 @@ from app.models.context_selector import ContextSelector
 from app.models.node import NodeCreate
 
 
+class ExternalContentOptions(BaseModel):
+    """Options for including external reference content in suggestions."""
+
+    include_projections: bool = Field(
+        default=True,
+        description="Include projection summary and properties for nodes with external references",
+    )
+
+    include_full_content: bool = Field(
+        default=False,
+        description="Include full snapshot content if available (heavier but more complete)",
+    )
+
+    refresh_stale: bool = Field(
+        default=False,
+        description="Whether to refresh stale projections before gathering context",
+    )
+
+
 class SuggestionOptions(BaseModel):
     """Options for node suggestion generation."""
 
@@ -19,6 +38,11 @@ class SuggestionOptions(BaseModel):
 
     context_selector: ContextSelector | None = None
     """Custom context configuration. If None, uses default context gathering."""
+
+    external_content: ExternalContentOptions = Field(
+        default_factory=ExternalContentOptions
+    )
+    """Options for including external reference content in the suggestion context."""
 
 
 class SuggestionRequest(BaseModel):
@@ -56,6 +80,15 @@ class SuggestionContext(BaseModel):
     direction: Literal["incoming", "outgoing"]
     target_node_type: str
     context_nodes_count: int
+    external_refs_included: int = Field(
+        default=0, description="Number of nodes with external reference content included"
+    )
+    stale_refs_count: int = Field(
+        default=0, description="Number of external references that were stale"
+    )
+    external_warnings: list[str] = Field(
+        default_factory=list, description="Warnings about external content"
+    )
 
 
 class SuggestionResponse(BaseModel):
@@ -82,6 +115,11 @@ class FieldValueSuggestionOptions(BaseModel):
 
     context_selector: ContextSelector | None = None
     """Custom context configuration. If None, uses default context gathering."""
+
+    external_content: ExternalContentOptions = Field(
+        default_factory=ExternalContentOptions
+    )
+    """Options for including external reference content in the suggestion context."""
 
 
 class FieldValueSuggestionRequest(BaseModel):
@@ -113,6 +151,15 @@ class FieldValueSuggestionContext(BaseModel):
     field_label: str
     current_value: Any | None
     context_nodes_count: int
+    external_refs_included: int = Field(
+        default=0, description="Number of nodes with external reference content included"
+    )
+    stale_refs_count: int = Field(
+        default=0, description="Number of external references that were stale"
+    )
+    external_warnings: list[str] = Field(
+        default_factory=list, description="Warnings about external content"
+    )
 
 
 class FieldValueSuggestionResponse(BaseModel):

@@ -17,8 +17,8 @@ from app.models.external_reference import (
     ExternalReference,
     ExternalReferenceCreate,
     ExternalReferenceWithProjection,
+    LinkReferenceRequest,
     NodeExternalRef,
-    NodeExternalRefCreate,
     NodeExternalRefWithDetails,
     Projection,
     Snapshot,
@@ -173,10 +173,10 @@ async def resolve_url(request: ResolveUrlRequest) -> ResolveUrlResponse:
     # Create/update the reference
     ref = await graph_store.create_reference(ref_create)
 
-    # Try to fetch projection
+    # Try to fetch projection with content to get summary
     projection = None
     try:
-        proj_create, _ = await connector.read(ref, include_content=False)
+        proj_create, _ = await connector.read(ref, include_content=True)
         if proj_create:
             projection = await graph_store.upsert_projection(proj_create)
     except Exception:
@@ -218,10 +218,11 @@ async def refresh_projection(reference_id: str) -> RefreshProjectionResponse:
     try:
         connector = connector_class()
 
-        # Use conditional fetch if we have a version
-        if_none_match = ref.version if current_proj and not was_stale else None
+        # Force full fetch if summary is missing, otherwise use conditional fetch
+        needs_content = not current_proj or current_proj.summary is None
+        if_none_match = None if needs_content else (ref.version if not was_stale else None)
         proj_create, _ = await connector.read(
-            ref, include_content=False, if_none_match=if_none_match
+            ref, include_content=True, if_none_match=if_none_match
         )
 
         if proj_create is None:
@@ -360,7 +361,7 @@ async def get_snapshot(snapshot_id: str) -> Snapshot:
 async def link_node_reference(
     workflow_id: str,
     node_id: str,
-    link: NodeExternalRefCreate,
+    link: LinkReferenceRequest,
 ) -> NodeExternalRef:
     """Link an external reference to a workflow node."""
     # Verify node exists

@@ -2,18 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
-import type { Node, NodeType, Field } from '@/types/workflow';
+import type { Node, NodeType, Field, WorkflowDefinition } from '@/types/workflow';
 import { SuggestFieldValueModal } from '../SuggestFieldValueModal';
 
 interface PropertiesTabProps {
   workflowId: string;
+  workflowDefinition: WorkflowDefinition;
   node: Node;
   nodeType: NodeType;
   onSave: (properties: Record<string, unknown>) => void;
   isSaving: boolean;
 }
 
-export function PropertiesTab({ workflowId, node, nodeType, onSave, isSaving }: PropertiesTabProps) {
+export function PropertiesTab({ workflowId, workflowDefinition, node, nodeType, onSave, isSaving }: PropertiesTabProps) {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [isDirty, setIsDirty] = useState(false);
   const [suggestModal, setSuggestModal] = useState<{
@@ -99,6 +100,7 @@ export function PropertiesTab({ workflowId, node, nodeType, onSave, isSaving }: 
       {suggestModal.field && (
         <SuggestFieldValueModal
           workflowId={workflowId}
+          workflowDefinition={workflowDefinition}
           node={node}
           field={suggestModal.field}
           currentValue={formData[suggestModal.field.key]}
