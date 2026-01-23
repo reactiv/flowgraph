@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from app.db.graph_store import GraphStore
-from app.llm.transformer.seed_models import SeedData, SeedEdge, SeedNode
+from app.llm.transformer.seed_models import NodeIntent, SeedData, SeedEdge, SeedNode
 from app.llm.transformer.seed_validators import _levenshtein_distance
 from app.models.match import (
     EdgeMatchResult,
@@ -169,7 +169,58 @@ class NodeMatcher:
                 self._existing_edges_cache[key] = edge.id
 
     async def _match_node(self, seed_node: SeedNode) -> NodeMatchResult:
-        """Find best match for a seed node among existing nodes."""
+        """Find best match for a seed node among existing nodes.
+
+        If the seed node has explicit intent=UPDATE with existing_node_id,
+        that takes priority over fuzzy title matching.
+        """
+        # Check for explicit UPDATE intent with existing_node_id
+        if seed_node.intent == NodeIntent.UPDATE and seed_node.existing_node_id:
+            existing = await self.graph_store.get_node(
+                self.workflow_id, seed_node.existing_node_id
+            )
+            if existing:
+                # Compute property diff for the update
+                props_to_update = self._compute_property_diff(
+                    existing.properties,
+                    seed_node.properties,
+                )
+                unchanged = [k for k in seed_node.properties if k not in props_to_update]
+
+                # Check status change
+                status_changed = (
+                    seed_node.status is not None and seed_node.status != existing.status
+                )
+
+                if props_to_update or status_changed:
+                    return NodeMatchResult(
+                        temp_id=seed_node.temp_id,
+                        incoming_node_type=seed_node.node_type,
+                        incoming_title=seed_node.title,
+                        decision=MatchDecision.UPDATE,
+                        confidence=MatchConfidence.EXACT,
+                        matched_node_id=existing.id,
+                        matched_node_title=existing.title,
+                        matched_node_properties=existing.properties,
+                        properties_to_update=props_to_update if props_to_update else None,
+                        properties_unchanged=unchanged if unchanged else None,
+                        match_reason="Transform specified explicit update target",
+                    )
+                else:
+                    return NodeMatchResult(
+                        temp_id=seed_node.temp_id,
+                        incoming_node_type=seed_node.node_type,
+                        incoming_title=seed_node.title,
+                        decision=MatchDecision.SKIP,
+                        confidence=MatchConfidence.EXACT,
+                        matched_node_id=existing.id,
+                        matched_node_title=existing.title,
+                        match_reason="Explicit update target but no property changes",
+                    )
+            # If the specified node doesn't exist, fall through to CREATE
+            # (the node may have been deleted)
+
+        # Fall back to fuzzy title matching
         existing_nodes = self._existing_nodes_cache.get(seed_node.node_type, [])
 
         if not existing_nodes:

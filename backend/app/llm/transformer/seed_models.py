@@ -3,9 +3,21 @@
 These models match the structure expected by data_generator.py for insertion.
 """
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class NodeIntent(str, Enum):
+    """Intent for how a seed node should be processed.
+
+    CREATE: Always create a new node (default behavior)
+    UPDATE: Update an existing node (requires existing_node_id)
+    """
+
+    CREATE = "create"
+    UPDATE = "update"
 
 
 class SeedNode(BaseModel):
@@ -21,6 +33,14 @@ class SeedNode(BaseModel):
     properties: dict[str, Any] = Field(
         default_factory=dict,
         description="Field values matching the node type's field definitions",
+    )
+    intent: NodeIntent = Field(
+        default=NodeIntent.CREATE,
+        description="Intent: 'create' for new nodes, 'update' for existing nodes",
+    )
+    existing_node_id: str | None = Field(
+        default=None,
+        description="For UPDATE intent: the ID of the existing node to update",
     )
 
 

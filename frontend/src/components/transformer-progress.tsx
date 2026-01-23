@@ -97,6 +97,10 @@ function hasExpandableContent(event: TransformerEvent): boolean {
     // User instructions are always expandable
     return Boolean(event.instruction);
   }
+  if (event.event === 'workspace_files') {
+    // Workspace files are always expandable
+    return Boolean(event.files && Array.isArray(event.files) && event.files.length > 0);
+  }
   return false;
 }
 
@@ -130,7 +134,9 @@ export function TransformerProgress({
       e.event === 'progress' ||
       e.event === 'text' ||
       e.event === 'system_prompt' ||
-      e.event === 'user_instruction'
+      e.event === 'user_instruction' ||
+      e.event === 'workspace_files' ||
+      e.event === 'skills_available'
   );
 
   // Get the latest phase event (reverse to find last match)
@@ -431,6 +437,57 @@ export function TransformerProgress({
                           </pre>
                         </div>
                       )}
+                    </div>
+                  );
+                }
+
+                // Workspace files - collapsible list
+                if (event.event === 'workspace_files') {
+                  const files = (event.files as Array<{ name: string; path: string; is_dir: boolean; size?: number }>) || [];
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div
+                        className="flex items-start gap-2 text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
+                        onClick={() => toggleEventExpanded(eventIndex)}
+                      >
+                        <span className="flex-shrink-0">📁</span>
+                        <span className="font-semibold flex-shrink-0">Workspace Files</span>
+                        <span className="opacity-70 flex-1">
+                          {files.length} file{files.length !== 1 ? 's' : ''} prepared
+                        </span>
+                        <span className="text-muted-foreground/50 flex-shrink-0">
+                          {isEventExpanded ? '[-]' : '[+]'}
+                        </span>
+                      </div>
+                      {isEventExpanded && (
+                        <div className="ml-6 p-2 bg-emerald-500/5 rounded border border-emerald-500/20">
+                          <ul className="space-y-1 text-[11px] text-muted-foreground">
+                            {files.map((file, i) => (
+                              <li key={i} className="flex items-center gap-2">
+                                <span>{file.is_dir ? '📂' : '📄'}</span>
+                                <span className="font-mono">{file.path}</span>
+                                {file.size !== undefined && (
+                                  <span className="text-muted-foreground/50">
+                                    ({file.size} bytes)
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Skills available
+                if (event.event === 'skills_available') {
+                  const skills = (event.skills as string[]) || [];
+                  return (
+                    <div key={index} className="flex items-start gap-2 text-violet-600 dark:text-violet-400">
+                      <span className="flex-shrink-0">🧠</span>
+                      <span className="font-semibold flex-shrink-0">Skills:</span>
+                      <span className="opacity-80">{skills.join(', ')}</span>
                     </div>
                   );
                 }

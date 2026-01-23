@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import shutil
 import tempfile
 import time
@@ -75,7 +76,7 @@ Analyze the input criteria and return nodes that match. You can use the workflow
 to understand what node types and properties are available.
 """
 
-POST_INSTRUCTION_TEMPLATE = """Create new nodes and edges in the workflow graph.
+POST_INSTRUCTION_TEMPLATE = """Create or update nodes and edges in the workflow graph.
 
 ## Your Task
 {instruction}
@@ -86,9 +87,31 @@ POST_INSTRUCTION_TEMPLATE = """Create new nodes and edges in the workflow graph.
 ## Input Data
 The input.json file contains the raw data to be transformed and stored.
 
+## Querying Existing Nodes (graph_api.py)
+
+IMPORTANT: Before creating nodes, check if matching nodes already exist using graph_api.py.
+This prevents duplicate nodes when the input data corresponds to existing records.
+
+```python
+from graph_api import search_nodes, get_node
+
+# Search by type and properties (most common for matching by external ID)
+existing = search_nodes("Analysis", properties={{"result_id": "abc123"}})
+
+# Search by exact title
+existing = search_nodes("Sample", title_exact="Sample-001")
+
+# Search by title substring
+existing = search_nodes("Sample", title_contains="Sample")
+```
+
+When you find an existing node that should be updated:
+- Set `"intent": "update"` on the SeedNode
+- Set `"existing_node_id"` to the existing node's ID
+
 ## Output Format
 Return a SeedData object with:
-- nodes: List of SeedNode objects to create
+- nodes: List of SeedNode objects to create or update
 - edges: List of SeedEdge objects to connect nodes
 
 For SeedNode:
@@ -97,6 +120,8 @@ For SeedNode:
 - title: Display title for the node
 - status: Optional status value (if the node type has states)
 - properties: Field values matching the node type's field definitions
+- intent: "create" (default) or "update" - use "update" when modifying existing nodes
+- existing_node_id: Required when intent="update" - the ID of the node to update
 
 For SeedEdge:
 - edge_type: Must match a type from the workflow schema
@@ -105,6 +130,8 @@ For SeedEdge:
 - properties: Optional edge properties
 
 ## Important Guidelines
+- Use graph_api.py to check for existing nodes BEFORE deciding to create
+- When input has a unique identifier (like result_id), search for existing nodes with that ID
 - Use consistent temp_id prefixes by node type
 - Ensure all edge references use valid temp_ids from the nodes list
 - Match field keys exactly as defined in the schema
@@ -322,6 +349,8 @@ class EndpointExecutor:
                             max_iterations=80,
                             work_dir=str(work_dir),
                             learn=should_learn,
+                            workflow_id=workflow_id,
+                            db_path=os.environ.get("DATABASE_PATH", "./data/workflow.db"),
                         ),
                         on_event=on_event,
                         custom_validator=custom_validator,
