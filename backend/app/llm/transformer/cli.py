@@ -310,6 +310,11 @@ async def main():
         action="store_true",
         help="Generate a SKILL.md documenting how to repeat this transformation",
     )
+    parser.add_argument(
+        "--enable-rlm",
+        action="store_true",
+        help="Enable RLM mode: load input into persistent REPL, use repl tool for analysis",
+    )
 
     args = parser.parse_args()
 
@@ -345,6 +350,7 @@ async def main():
         max_iterations=args.max_turns,
         work_dir=args.work_dir,
         learn=args.learn,
+        enable_rlm=args.enable_rlm,
     )
 
     # Print header
@@ -352,7 +358,10 @@ async def main():
     out(colorize(f"Input: {input_path}", Colors.DIM))
     out(colorize(f"Instruction: {args.instruction}", Colors.DIM))
     out(colorize(f"Model: {model_display}", Colors.DIM))
-    out(colorize(f"Mode: {args.mode}, Format: {args.format}", Colors.DIM))
+    mode_str = f"Mode: {args.mode}, Format: {args.format}"
+    if args.enable_rlm:
+        mode_str += ", RLM: enabled"
+    out(colorize(mode_str, Colors.DIM))
     out()
 
     # Determine input paths - convert to strings for API compatibility

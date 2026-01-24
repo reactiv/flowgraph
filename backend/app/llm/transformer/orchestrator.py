@@ -42,6 +42,9 @@ from app.llm.transformer.validator import (
     validate_artifact_with_custom,
 )
 
+# RLM imports (lazy to avoid startup cost when not using RLM)
+# These are imported inside _run_agent when enable_rlm is True
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
@@ -170,6 +173,35 @@ What gets produced and key fields.
 - Important patterns or mappings discovered
 - Edge cases handled
 - Any non-obvious decisions made
+"""
+
+RLM_MODE_PROMPT = """
+## RLM Mode (Recursive Language Model)
+
+You are operating with access to a persistent Python REPL that has massive context
+loaded into memory. The context is NOT in your context window - it's in the kernel.
+
+### Pre-loaded Variables and Functions
+
+- `context`: The full input data (potentially millions of tokens - NEVER print it all)
+- `llm(query, ctx)`: Call an LLM on a subset of context
+- `chunk(data, size)`: Split into ~size character chunks
+- `chunk_lines(data, n)`: Split into n-line chunks
+
+### Recommended Strategy
+
+1. **PEEK**: First examine structure with `context[:2000]` or `context.splitlines()[:10]`
+2. **MEASURE**: Check size with `len(context)`, `len(context.splitlines())`
+3. **FILTER**: Use Python (grep, regex, list comprehensions) to narrow down
+4. **RECURSE**: Use `llm(query, subset)` on manageable chunks when you need semantic understanding
+5. **AGGREGATE**: Combine results programmatically
+
+### Critical Rules
+
+- NEVER load the full context into your response - always work through the REPL
+- Variables persist between REPL calls - build up your analysis iteratively
+- When done, write your output to the expected output file using standard Python file I/O
+- The `llm()` function calls a fast model for sub-queries - use it for semantic analysis
 """
 
 
@@ -621,6 +653,44 @@ class DataTransformer:
         if config.mode == "code":
             allowed_tools.append("mcp__transformer-tools__run_transformer")
 
+        # Build MCP servers dict
+        mcp_servers: dict[str, Any] = {"transformer-tools": mcp_server}
+
+        # Initialize RLM kernel if enabled
+        rlm_kernel = None
+        if config.enable_rlm:
+            from app.llm.transformer.rlm_kernel import RLMKernel
+            from app.llm.transformer.rlm_tools import create_rlm_tools
+
+            logger.info("Initializing RLM kernel...")
+            rlm_kernel = RLMKernel()
+
+            # Load all input files into kernel as context
+            # For single file: use "context", for multiple: use "input_0", "input_1", etc.
+            for i, input_path in enumerate(input_paths):
+                var_name = "context" if len(input_paths) == 1 else f"input_{i}"
+                input_file = work_dir / Path(input_path).name
+                if input_file.exists():
+                    result = rlm_kernel.load_context_from_file(str(input_file), var_name)
+                    if result.get("error"):
+                        logger.error(f"Failed to load {input_file} into kernel: {result['error']}")
+                    else:
+                        logger.info(f"Loaded {input_file} into kernel as '{var_name}'")
+                        emit("rlm_context_loaded", {
+                            "var_name": var_name,
+                            "file": str(input_file),
+                            "message": f"Loaded {input_file.name} as '{var_name}'",
+                        })
+
+            # Create RLM MCP server and add to servers
+            rlm_server = create_rlm_tools(rlm_kernel)
+            mcp_servers["rlm"] = rlm_server
+            allowed_tools.append("mcp__rlm__repl")
+
+            # Append RLM system prompt
+            system_prompt += RLM_MODE_PROMPT
+            logger.info("RLM mode enabled with repl tool")
+
         debug: dict[str, Any] = {
             "iterations": 0,
             "tool_calls": [],
@@ -738,7 +808,7 @@ class DataTransformer:
             max_turns=config.max_iterations,
             allowed_tools=allowed_tools,
             permission_mode="acceptEdits",
-            mcp_servers={"transformer-tools": mcp_server},
+            mcp_servers=mcp_servers,
             hooks=hooks,
             setting_sources=["project"],  # Load skills from .claude/skills/
         )
@@ -748,24 +818,30 @@ class DataTransformer:
         emit("user_instruction", {"instruction": instruction})
         emit("iteration_start", {"iteration": 1, "max": config.max_iterations})
 
-        async with ClaudeSDKClient(options=options) as client:
-            await client.query(instruction)
+        try:
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(instruction)
 
-            async for message in client.receive_response():
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            emit("text", {"text": block.text})
-                        elif isinstance(block, ToolUseBlock):
-                            # Tool call info is handled by PreToolUse hook
-                            debug["iterations"] = tool_call_count
-                        elif isinstance(block, ToolResultBlock):
-                            # Tool result info is handled by PostToolUse hook
-                            pass
+                async for message in client.receive_response():
+                    if isinstance(message, AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, TextBlock):
+                                emit("text", {"text": block.text})
+                            elif isinstance(block, ToolUseBlock):
+                                # Tool call info is handled by PreToolUse hook
+                                debug["iterations"] = tool_call_count
+                            elif isinstance(block, ToolResultBlock):
+                                # Tool result info is handled by PostToolUse hook
+                                pass
 
-                elif isinstance(message, ResultMessage):
-                    # Agent completed
-                    pass
+                    elif isinstance(message, ResultMessage):
+                        # Agent completed
+                        pass
+        finally:
+            # Ensure RLM kernel is cleaned up
+            if rlm_kernel is not None:
+                logger.info("Shutting down RLM kernel...")
+                rlm_kernel.shutdown()
 
         # Final validation check
         output_path = work_dir / output_file.lstrip("./")

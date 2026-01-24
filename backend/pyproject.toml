@@ -32,6 +32,9 @@ dependencies = [
     "pandas>=2.0.0",
     "python-docx>=1.1.0",
     "httpx>=0.28.1",
+    # IPython kernel for RLM mode
+    "jupyter_client>=8.0.0",
+    "ipykernel>=6.0.0",
 ]
 
 [project.optional-dependencies]

@@ -106,6 +106,16 @@ class TransformConfig(BaseModel):
     db_path: str | None = None
     """Database path for graph_api.py to connect to. Defaults to DATABASE_PATH env var."""
 
+    enable_rlm: bool = False
+    """Enable RLM (Recursive Language Model) mode with persistent REPL.
+
+    When enabled, input files are loaded into a persistent IPython kernel as the
+    `context` variable. The agent uses a `repl` tool to execute Python code
+    that processes this context, rather than having it in the LLM context window.
+
+    This is useful for processing massive inputs that exceed context limits.
+    """
+
 
 def compute_schema_hash(model: type[BaseModel]) -> str:
     """Compute a hash of a Pydantic model's schema.
