@@ -39,8 +39,8 @@ export default function Home() {
           Turn workflow templates into working apps with realistic data and polished UI
         </p>
 
-        {/* Create from Description CTA */}
-        <section className="mb-12">
+        {/* Action CTAs */}
+        <section className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
             href="/create"
             className="group block border border-primary/30 rounded-lg p-6 bg-primary/5 hover:border-primary hover:bg-primary/10 transition-all duration-200"
@@ -75,6 +75,50 @@ export default function Home() {
                 strokeWidth={1.5}
                 stroke="currentColor"
                 className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                />
+              </svg>
+            </div>
+          </Link>
+
+          <Link
+            href="/connectors"
+            className="block border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 hover:border-muted-foreground/50 hover:bg-muted/30 transition-all"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6 text-muted-foreground"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">Manage Connectors</h3>
+                <p className="text-muted-foreground text-sm">
+                  Configure integrations with Notion, Google Drive, and other external systems
+                </p>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-5 h-5 text-muted-foreground"
               >
                 <path
                   strokeLinecap="round"
