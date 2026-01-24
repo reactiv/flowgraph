@@ -23,20 +23,20 @@ export function NodeDetailHeader({
   const author = node.properties?.author as string | undefined;
 
   return (
-    <div className="border-b p-4">
+    <div className="border-b border-border p-4">
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-md transition-colors"
+        className="absolute top-4 right-4 p-2 hover:bg-muted rounded-md transition-colors"
         aria-label="Close"
       >
-        <X className="h-5 w-5 text-gray-500" />
+        <X className="h-5 w-5 text-muted-foreground" />
       </button>
 
       {/* Title */}
       <h2
         id="node-detail-title"
-        className="text-xl font-semibold text-gray-900 pr-12"
+        className="text-xl font-semibold text-foreground pr-12"
       >
         {node.title}
       </h2>
@@ -44,7 +44,7 @@ export function NodeDetailHeader({
       {/* Type badge and status */}
       <div className="flex items-center gap-3 mt-2">
         {/* Type badge */}
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
           {nodeType.displayName}
         </span>
 

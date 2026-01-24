@@ -200,7 +200,7 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
   if (nodes.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">No items to display</div>
+        <div className="text-muted-foreground">No items to display</div>
       </div>
     );
   }
@@ -208,7 +208,7 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
   if (groups.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">No items with valid dates</div>
+        <div className="text-muted-foreground">No items with valid dates</div>
       </div>
     );
   }
@@ -218,7 +218,7 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
       <div className="relative mx-auto max-w-3xl">
         {/* Timeline vertical line */}
         {showConnectors && (
-          <div className="absolute bottom-0 left-4 top-0 w-0.5 bg-gray-200" aria-hidden="true" />
+          <div className="absolute bottom-0 left-4 top-0 w-0.5 bg-border" aria-hidden="true" />
         )}
 
         {/* Timeline groups */}
@@ -229,23 +229,23 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
             return (
               <div key={group.key} className="relative">
                 {/* Date header */}
-                <div className="sticky top-0 z-10 flex items-center gap-3 bg-white pb-3">
+                <div className="sticky top-0 z-10 flex items-center gap-3 bg-background pb-3">
                   {showConnectors && (
                     <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-white"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-border bg-card"
                       aria-hidden="true"
                     >
-                      <div className="h-2 w-2 rounded-full bg-gray-400" />
+                      <div className="h-2 w-2 rounded-full bg-primary" />
                     </div>
                   )}
                   <div className={showConnectors ? '' : 'ml-0'}>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-foreground">
                       {relativeLabel || group.label}
                     </h3>
                     {relativeLabel && (
-                      <p className="text-sm text-gray-500">{group.label}</p>
+                      <p className="text-sm text-muted-foreground">{group.label}</p>
                     )}
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-muted-foreground">
                       {group.nodes.length} {group.nodes.length === 1 ? 'item' : 'items'}
                     </p>
                   </div>
@@ -259,7 +259,7 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
                         {/* Connector dot for each node */}
                         {showConnectors && (
                           <div
-                            className="absolute -left-7 top-4 h-2 w-2 rounded-full bg-gray-300"
+                            className="absolute -left-7 top-4 h-2 w-2 rounded-full bg-muted-foreground/50"
                             aria-hidden="true"
                           />
                         )}
@@ -288,11 +288,11 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
         {showConnectors && (
           <div className="relative mt-4 flex items-center gap-3">
             <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-border bg-muted"
               aria-hidden="true"
             >
               <svg
-                className="h-4 w-4 text-gray-400"
+                className="h-4 w-4 text-muted-foreground"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -305,7 +305,7 @@ export function TimelineView({ nodes, config, onNodeClick, onStatusChange: _onSt
                 />
               </svg>
             </div>
-            <span className="text-sm text-gray-400">End of timeline</span>
+            <span className="text-sm text-muted-foreground">End of timeline</span>
           </div>
         )}
       </div>
@@ -329,6 +329,6 @@ function TimeLabel({ node, dateField }: { node: Node; dateField: string }) {
   });
 
   return (
-    <p className="mt-1 text-xs text-gray-400">{timeStr}</p>
+    <p className="mt-1 text-xs text-muted-foreground">{timeStr}</p>
   );
 }

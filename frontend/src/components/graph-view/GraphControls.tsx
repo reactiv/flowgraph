@@ -19,17 +19,17 @@ export function GraphControls({
   edgeCount,
 }: GraphControlsProps) {
   return (
-    <div className="absolute top-4 left-4 z-10 flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-md px-4 py-2 border">
+    <div className="absolute top-4 left-4 z-10 flex items-center gap-4 bg-card/95 backdrop-blur-sm rounded-lg shadow-md px-4 py-2 border border-border">
       {/* Layout Toggle */}
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-700">Layout:</span>
-        <div className="flex rounded-md border overflow-hidden">
+        <span className="text-sm font-medium text-foreground">Layout:</span>
+        <div className="flex rounded-md border border-border overflow-hidden">
           <button
             onClick={() => onLayoutChange('force')}
             className={`px-3 py-1 text-xs font-medium transition-colors ${
               layout === 'force'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-muted-foreground hover:bg-muted'
             }`}
             title="Cluster by node type"
           >
@@ -37,10 +37,10 @@ export function GraphControls({
           </button>
           <button
             onClick={() => onLayoutChange('dagre')}
-            className={`px-3 py-1 text-xs font-medium border-l transition-colors ${
+            className={`px-3 py-1 text-xs font-medium border-l border-border transition-colors ${
               layout === 'dagre'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-muted-foreground hover:bg-muted'
             }`}
             title="Hierarchical top-to-bottom layout"
           >
@@ -50,10 +50,10 @@ export function GraphControls({
       </div>
 
       {/* Divider */}
-      <div className="h-4 w-px bg-gray-300" />
+      <div className="h-4 w-px bg-border" />
 
       {/* Stats */}
-      <div className="flex items-center gap-3 text-sm text-gray-500">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <span>{nodeCount} nodes</span>
         <span>{edgeCount} edges</span>
       </div>

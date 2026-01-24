@@ -160,7 +160,7 @@ export default function WorkflowPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b bg-white p-4">
+      <div className="border-b border-border bg-card p-4">
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <Link href="/" className="text-sm text-muted-foreground hover:text-primary inline-block">
@@ -168,7 +168,7 @@ export default function WorkflowPage() {
             </Link>
             <Link
               href={`/workflows/${workflowId}/endpoints`}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -197,7 +197,7 @@ export default function WorkflowPage() {
         <div className="flex-1 overflow-hidden p-4">
           <SchemaGraphPreview
             definition={workflow}
-            className="rounded-lg border bg-white"
+            className="rounded-lg border border-border bg-card"
             height="100%"
           />
         </div>
@@ -354,24 +354,32 @@ export default function WorkflowPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    Draft: 'bg-gray-100 text-gray-700',
-    'In Progress': 'bg-blue-100 text-blue-700',
-    Complete: 'bg-green-100 text-green-700',
-    Archived: 'bg-purple-100 text-purple-700',
-    Failed: 'bg-red-100 text-red-700',
-    Pending: 'bg-yellow-100 text-yellow-700',
-    Active: 'bg-blue-100 text-blue-700',
-    Validated: 'bg-green-100 text-green-700',
-    Rejected: 'bg-red-100 text-red-700',
-    Dismissed: 'bg-gray-100 text-gray-700',
-    Proposed: 'bg-yellow-100 text-yellow-700',
-    Deprecated: 'bg-orange-100 text-orange-700',
+    Draft: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+    Queued: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+    Dismissed: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+    'In Progress': 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    Active: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    Running: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    Complete: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    Completed: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    Validated: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    Pass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    Pending: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    Proposed: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    'On Hold': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    Scheduled: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    Failed: 'bg-red-500/15 text-red-400 border-red-500/30',
+    Rejected: 'bg-red-500/15 text-red-400 border-red-500/30',
+    Cancelled: 'bg-red-500/15 text-red-400 border-red-500/30',
+    Overdue: 'bg-red-500/15 text-red-400 border-red-500/30',
+    Archived: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    Deprecated: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   };
 
-  const colorClass = colors[status] || 'bg-gray-100 text-gray-700';
+  const colorClass = colors[status] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
 
   return (
-    <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${colorClass}`}>
+    <span className={`inline-block px-2 py-1 text-xs font-medium rounded border ${colorClass}`}>
       {status}
     </span>
   );

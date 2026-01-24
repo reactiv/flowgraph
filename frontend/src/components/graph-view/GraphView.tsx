@@ -193,10 +193,10 @@ export function GraphView({
 
   if (nodesLoading || edgesLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-gray-50">
+      <div className="flex h-full items-center justify-center bg-muted/50">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600 mb-3" />
-          <p className="text-gray-600">Loading graph...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-muted-foreground/30 border-t-primary mb-3" />
+          <p className="text-muted-foreground">Loading graph...</p>
         </div>
       </div>
     );
@@ -206,11 +206,11 @@ export function GraphView({
 
   if (totalNodes === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-gray-50">
+      <div className="flex h-full items-center justify-center bg-muted/50">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-200 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-gray-400"
+              className="w-8 h-8 text-muted-foreground"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -223,8 +223,8 @@ export function GraphView({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-1">No data yet</h3>
-          <p className="text-gray-500 text-sm">
+          <h3 className="text-lg font-medium text-foreground mb-1">No data yet</h3>
+          <p className="text-muted-foreground text-sm">
             Seed this workflow with demo data to see the graph visualization.
           </p>
         </div>
@@ -238,7 +238,7 @@ export function GraphView({
   return (
     <div className="flex h-full">
       {/* Sidebar with filters */}
-      <div className="w-56 border-r bg-gray-50 p-4 overflow-auto flex-shrink-0">
+      <div className="w-56 border-r border-border bg-card p-4 overflow-auto flex-shrink-0">
         {/* Focal Node Filter */}
         <div className="mb-6">
           <GraphFocalFilter
@@ -251,10 +251,10 @@ export function GraphView({
         </div>
 
         {/* Divider */}
-        <hr className="mb-4 border-gray-200" />
+        <hr className="mb-4 border-border" />
 
         {/* Type Filters */}
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Type Filters</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-4">Type Filters</h2>
         <GraphFilters
           nodeTypes={workflowDefinition.nodeTypes}
           edgeTypes={workflowDefinition.edgeTypes}

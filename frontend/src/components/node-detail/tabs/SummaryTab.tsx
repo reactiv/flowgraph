@@ -24,15 +24,15 @@ export function SummaryTab({ node, nodeType }: SummaryTabProps) {
       {/* Summary section */}
       {summary && (
         <div>
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Summary</h3>
-          <p className="text-sm text-gray-900 whitespace-pre-wrap">{summary}</p>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Summary</h3>
+          <p className="text-sm text-foreground whitespace-pre-wrap">{summary}</p>
         </div>
       )}
 
       {/* Key fields */}
       {keyFields.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Details</h3>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Details</h3>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
             {keyFields.map((field) => {
               const value = node.properties?.[field.key];
@@ -42,8 +42,8 @@ export function SummaryTab({ node, nodeType }: SummaryTabProps) {
 
               return (
                 <div key={field.key}>
-                  <dt className="text-xs text-gray-500">{field.label}</dt>
-                  <dd className="text-sm text-gray-900 mt-0.5">
+                  <dt className="text-xs text-muted-foreground">{field.label}</dt>
+                  <dd className="text-sm text-foreground mt-0.5">
                     <FieldValue value={value} kind={field.kind} />
                   </dd>
                 </div>
@@ -54,16 +54,16 @@ export function SummaryTab({ node, nodeType }: SummaryTabProps) {
       )}
 
       {/* Timestamps */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Activity</h3>
+      <div className="border-t border-border pt-4">
+        <h3 className="text-sm font-medium text-muted-foreground mb-3">Activity</h3>
         <dl className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <dt className="text-gray-500">Created</dt>
-            <dd className="text-gray-900">{formatDateTime(node.created_at)}</dd>
+            <dt className="text-muted-foreground">Created</dt>
+            <dd className="text-foreground">{formatDateTime(node.created_at)}</dd>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <dt className="text-gray-500">Last updated</dt>
-            <dd className="text-gray-900">{formatDateTime(node.updated_at)}</dd>
+            <dt className="text-muted-foreground">Last updated</dt>
+            <dd className="text-foreground">{formatDateTime(node.updated_at)}</dd>
           </div>
         </dl>
       </div>
@@ -85,7 +85,7 @@ function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
   const displayValue = extractDisplayValue(value);
 
   if (displayValue === null || displayValue === undefined) {
-    return <span className="text-gray-400">-</span>;
+    return <span className="text-muted-foreground">-</span>;
   }
 
   switch (kind) {
@@ -99,7 +99,7 @@ function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
             {displayValue.map((tag, i) => (
               <span
                 key={i}
-                className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700"
+                className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-foreground"
               >
                 {toDisplayString(tag)}
               </span>
@@ -107,12 +107,12 @@ function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
           </div>
         );
       }
-      return <span className="text-gray-400">-</span>;
+      return <span className="text-muted-foreground">-</span>;
 
     case 'json':
       if (typeof displayValue === 'object') {
         return (
-          <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-32">
+          <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32 text-foreground">
             {JSON.stringify(displayValue, null, 2)}
           </pre>
         );
@@ -121,7 +121,7 @@ function FieldValue({ value, kind }: { value: unknown; kind: FieldKind }) {
 
     case 'enum':
       return (
-        <span className="inline-block px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-700">
+        <span className="inline-block px-2 py-0.5 text-xs rounded bg-muted text-foreground">
           {toDisplayString(displayValue)}
         </span>
       );

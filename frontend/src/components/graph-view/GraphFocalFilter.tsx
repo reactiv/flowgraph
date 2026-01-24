@@ -59,24 +59,24 @@ export function GraphFocalFilter({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Target className="w-4 h-4 text-gray-500" />
-        <h3 className="text-sm font-semibold text-gray-700">Focus View</h3>
+        <Target className="w-4 h-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-foreground">Focus View</h3>
       </div>
 
       {/* Node Search/Selection */}
       <div className="relative">
         {focalNode ? (
           // Show selected node
-          <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/30 rounded-lg">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-foreground truncate">
                 {focalNode.title}
               </p>
-              <p className="text-xs text-gray-500 truncate">{focalNode.type}</p>
+              <p className="text-xs text-muted-foreground truncate">{focalNode.type}</p>
             </div>
             <button
               onClick={handleClear}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              className="p-1 text-muted-foreground hover:text-foreground rounded"
               title="Clear focus"
             >
               <X className="w-4 h-4" />
@@ -85,7 +85,7 @@ export function GraphFocalFilter({
         ) : (
           // Show search input
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search nodes..."
@@ -95,16 +95,16 @@ export function GraphFocalFilter({
                 setIsDropdownOpen(true);
               }}
               onFocus={() => setIsDropdownOpen(true)}
-              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-8 pr-3 py-2 text-sm border border-border bg-input text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
         )}
 
         {/* Dropdown */}
         {isDropdownOpen && !focalNode && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+          <div className="absolute z-10 mt-1 w-full bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-auto">
             {filteredNodes.length === 0 ? (
-              <div className="p-3 text-sm text-gray-500 text-center">
+              <div className="p-3 text-sm text-muted-foreground text-center">
                 No nodes found
               </div>
             ) : (
@@ -112,12 +112,12 @@ export function GraphFocalFilter({
                 <button
                   key={node.id}
                   onClick={() => handleNodeSelect(node.id)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                  className="w-full text-left px-3 py-2 hover:bg-muted border-b border-border last:border-b-0"
                 >
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-foreground truncate">
                     {node.title}
                   </p>
-                  <p className="text-xs text-gray-500">{node.type}</p>
+                  <p className="text-xs text-muted-foreground">{node.type}</p>
                 </button>
               ))
             )}
@@ -129,8 +129,8 @@ export function GraphFocalFilter({
       {focalNode && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-600">Neighborhood depth</label>
-            <span className="text-sm font-medium text-gray-900">
+            <label className="text-sm text-muted-foreground">Neighborhood depth</label>
+            <span className="text-sm font-medium text-foreground">
               {hopCount} {hopCount === 1 ? 'hop' : 'hops'}
             </span>
           </div>
@@ -140,9 +140,9 @@ export function GraphFocalFilter({
             max={5}
             value={hopCount}
             onChange={(e) => onHopCountChange(parseInt(e.target.value, 10))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
           />
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>1</span>
             <span>2</span>
             <span>3</span>

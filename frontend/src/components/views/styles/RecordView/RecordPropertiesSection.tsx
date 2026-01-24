@@ -59,23 +59,23 @@ export function RecordPropertiesSection({
 
   if (fields.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">No properties to display</p>
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="mb-3 font-medium text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">No properties to display</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="mb-3 font-medium text-gray-900">{title}</h3>
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="mb-3 font-medium text-foreground">{title}</h3>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {fields.map(({ key, label, value, fieldDef }) => (
           <div key={key} className="overflow-hidden">
-            <dt className="text-sm font-medium text-gray-500">{label}</dt>
-            <dd className="mt-1 text-sm text-gray-900">
+            <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+            <dd className="mt-1 text-sm text-foreground">
               {fieldDef?.kind === 'json' ? (
-                <pre className="max-h-32 overflow-auto rounded bg-gray-50 p-2 text-xs">
+                <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs text-foreground">
                   {formatValue(value, fieldDef)}
                 </pre>
               ) : (

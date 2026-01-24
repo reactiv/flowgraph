@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Node } from '@/types/workflow';
 import type { TableConfig } from '@/types/view-templates';
 import { getNodeFieldValue, extractDisplayValue, toDisplayString } from '@/lib/node-utils';
+import { getStatusColorParts } from '@/lib/theme';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -23,77 +24,12 @@ interface TableViewProps {
   onSortChange?: (field: string | null, order: 'asc' | 'desc') => void;
 }
 
-// Status badge color mapping
-const statusColors: Record<string, { bg: string; text: string }> = {
-  // Positive states (green)
-  'complete': { bg: 'bg-green-100', text: 'text-green-700' },
-  'completed': { bg: 'bg-green-100', text: 'text-green-700' },
-  'done': { bg: 'bg-green-100', text: 'text-green-700' },
-  'validated': { bg: 'bg-green-100', text: 'text-green-700' },
-  'approved': { bg: 'bg-green-100', text: 'text-green-700' },
-  'operational': { bg: 'bg-green-100', text: 'text-green-700' },
-  'in_stock': { bg: 'bg-green-100', text: 'text-green-700' },
-  'pass': { bg: 'bg-green-100', text: 'text-green-700' },
-
-  // Active/in-progress states (blue/violet)
-  'active': { bg: 'bg-violet-100', text: 'text-violet-700' },
-  'in_progress': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'in-progress': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'running': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'scheduled': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
-  'on_order': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
-
-  // Warning states (amber/yellow)
-  'degraded': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  'low_stock': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  'on_hold': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  'pending': { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  'pass_with_observations': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  'pending_review': { bg: 'bg-amber-100', text: 'text-amber-700' },
-
-  // Negative/error states (red)
-  'failed': { bg: 'bg-red-100', text: 'text-red-700' },
-  'fail': { bg: 'bg-red-100', text: 'text-red-700' },
-  'rejected': { bg: 'bg-red-100', text: 'text-red-700' },
-  'blocked': { bg: 'bg-red-100', text: 'text-red-700' },
-  'down': { bg: 'bg-red-100', text: 'text-red-700' },
-  'out_of_stock': { bg: 'bg-red-100', text: 'text-red-700' },
-  'overdue': { bg: 'bg-red-100', text: 'text-red-700' },
-  'cancelled': { bg: 'bg-red-100', text: 'text-red-700' },
-
-  // Neutral/pending states (slate/gray)
-  'draft': { bg: 'bg-slate-100', text: 'text-slate-700' },
-  'planned': { bg: 'bg-slate-100', text: 'text-slate-700' },
-  'proposed': { bg: 'bg-slate-100', text: 'text-slate-700' },
-  'todo': { bg: 'bg-slate-100', text: 'text-slate-700' },
-
-  // Review states (indigo/teal/purple)
-  'submitted': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
-  'reviewed': { bg: 'bg-teal-100', text: 'text-teal-700' },
-  'review': { bg: 'bg-purple-100', text: 'text-purple-700' },
-
-  // Archived/inactive states (gray)
-  'archived': { bg: 'bg-slate-100', text: 'text-slate-600' },
-  'dismissed': { bg: 'bg-slate-100', text: 'text-slate-600' },
-  'decommissioned': { bg: 'bg-slate-100', text: 'text-slate-600' },
-  'obsolete': { bg: 'bg-slate-100', text: 'text-slate-600' },
-  'inactive': { bg: 'bg-slate-100', text: 'text-slate-500' },
-
-  // Equipment-specific
-  'under_maintenance': { bg: 'bg-orange-100', text: 'text-orange-700' },
-};
-
 // Convert hex to rgba for background (with alpha for lighter background)
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function getStatusColors(status: string): { bg: string; text: string } {
-  const normalized = status.toLowerCase().replace(/\s+/g, '_');
-  return statusColors[normalized] || { bg: 'bg-gray-100', text: 'text-gray-700' };
 }
 
 function formatCellValue(value: unknown): string {
@@ -152,7 +88,7 @@ function compareValues(a: unknown, b: unknown, direction: SortDirection): number
 function SortIcon({ direction }: { direction: SortDirection | null }) {
   if (direction === null) {
     return (
-      <svg className="ml-1 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="ml-1 h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
       </svg>
     );
@@ -160,14 +96,14 @@ function SortIcon({ direction }: { direction: SortDirection | null }) {
 
   if (direction === 'asc') {
     return (
-      <svg className="ml-1 h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="ml-1 h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
       </svg>
     );
   }
 
   return (
-    <svg className="ml-1 h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="ml-1 h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
     </svg>
   );
@@ -282,14 +218,14 @@ export function TableView({
 
   return (
     <div className="h-full overflow-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50 sticky top-0">
+      <table className="min-w-full divide-y divide-border">
+        <thead className="bg-card sticky top-0 z-10">
           <tr>
             {selectable && (
               <th scope="col" className="w-12 px-4 py-3">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-primary focus:ring-offset-background"
                   checked={allSelected}
                   ref={(el) => {
                     if (el) el.indeterminate = someSelected;
@@ -302,8 +238,8 @@ export function TableView({
               <th
                 key={column}
                 scope="col"
-                className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 ${
-                  sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''
+                className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${
+                  sortable ? 'cursor-pointer select-none hover:bg-muted transition-colors' : ''
                 }`}
                 onClick={() => handleHeaderClick(column)}
               >
@@ -319,12 +255,12 @@ export function TableView({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 bg-white">
+        <tbody className="divide-y divide-border bg-background">
           {sortedNodes.map((node) => (
             <tr
               key={node.id}
-              className={`transition-colors hover:bg-gray-50 ${
-                selectedIds.has(node.id) ? 'bg-blue-50' : ''
+              className={`transition-colors hover:bg-muted/50 ${
+                selectedIds.has(node.id) ? 'bg-primary/10' : ''
               } ${onNodeClick ? 'cursor-pointer' : ''}`}
               onClick={() => onNodeClick?.(node)}
             >
@@ -335,7 +271,7 @@ export function TableView({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-primary focus:ring-offset-background"
                     checked={selectedIds.has(node.id)}
                     onChange={(e) => handleRowSelect(node.id, e.target.checked)}
                   />
@@ -355,11 +291,11 @@ export function TableView({
                   : undefined;
 
                 return (
-                  <td key={column} className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
+                  <td key={column} className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
                     {isStatus ? (
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                          configColor ? '' : `${getStatusColors(value as string).bg} ${getStatusColors(value as string).text}`
+                          configColor ? '' : `${getStatusColorParts(value as string).bg} ${getStatusColorParts(value as string).text}`
                         }`}
                         style={statusStyle}
                       >
@@ -377,7 +313,7 @@ export function TableView({
             <tr>
               <td
                 colSpan={columns.length + (selectable ? 1 : 0)}
-                className="px-4 py-8 text-center text-sm text-gray-500"
+                className="px-4 py-8 text-center text-sm text-muted-foreground"
               >
                 No items to display
               </td>

@@ -73,8 +73,8 @@ export function RelationshipsTab({
       <div className="p-4 space-y-6">
         {/* Suggest new relationships section */}
         {hasPossibleEdges && (
-          <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-            <h3 className="text-sm font-medium text-purple-800 mb-3 flex items-center gap-2">
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+            <h3 className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               Suggest New Relationships
             </h3>
@@ -85,7 +85,7 @@ export function RelationshipsTab({
                   <button
                     key={`out-${et.type}`}
                     onClick={() => handleSuggestClick(et, 'outgoing')}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm ring-1 ring-inset ring-purple-300 hover:bg-purple-100"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     {targetType?.displayName || et.to}
@@ -98,7 +98,7 @@ export function RelationshipsTab({
                   <button
                     key={`in-${et.type}`}
                     onClick={() => handleSuggestClick(et, 'incoming')}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm ring-1 ring-inset ring-purple-300 hover:bg-purple-100"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     {sourceType?.displayName || et.from}
@@ -112,7 +112,7 @@ export function RelationshipsTab({
         {/* Empty state */}
         {!hasRelationships && !hasPossibleEdges && (
           <div className="text-center py-8">
-            <Link2 className="h-8 w-8 mx-auto text-gray-300 mb-2" />
+            <Link2 className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
             <p className="text-sm text-muted-foreground">
               This node has no relationships yet.
             </p>
@@ -122,7 +122,7 @@ export function RelationshipsTab({
         {/* Outgoing relationships */}
         {Object.keys(outgoingByType).length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
               <ChevronRight className="h-4 w-4" />
               Outgoing
             </h3>
@@ -133,7 +133,7 @@ export function RelationshipsTab({
 
                 return (
                   <div key={edgeType}>
-                    <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                       {displayName} ({items.length})
                     </h4>
                     <div className="space-y-2">
@@ -155,7 +155,7 @@ export function RelationshipsTab({
         {/* Incoming relationships */}
         {Object.keys(incomingByType).length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
               <ChevronRight className="h-4 w-4 rotate-180" />
               Incoming
             </h3>
@@ -166,7 +166,7 @@ export function RelationshipsTab({
 
                 return (
                   <div key={edgeType}>
-                    <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                       {displayName} ({items.length})
                     </h4>
                     <div className="space-y-2">

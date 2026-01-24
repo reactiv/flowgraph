@@ -14,10 +14,10 @@ interface EndpointListProps {
 }
 
 const methodColors: Record<HttpMethod, string> = {
-  GET: 'bg-green-100 text-green-700 border-green-200',
-  POST: 'bg-blue-100 text-blue-700 border-blue-200',
-  PUT: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  DELETE: 'bg-red-100 text-red-700 border-red-200',
+  GET: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  POST: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  PUT: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  DELETE: 'bg-red-500/15 text-red-400 border-red-500/30',
 };
 
 export function EndpointList({
@@ -35,10 +35,10 @@ export function EndpointList({
           key={endpoint.id}
           onClick={() => onSelect(endpoint.id)}
           className={cn(
-            'p-3 rounded-lg cursor-pointer transition-colors border',
+            'p-3 rounded-lg cursor-pointer transition-all duration-200 border',
             selectedId === endpoint.id
               ? 'bg-primary/10 border-primary/30'
-              : 'bg-white hover:bg-muted/50 border-transparent'
+              : 'bg-card hover:bg-muted/50 border-border hover:border-primary/30'
           )}
         >
           <div className="flex items-start gap-2">
@@ -66,7 +66,7 @@ export function EndpointList({
 
           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
             {endpoint.isLearned ? (
-              <span className="flex items-center gap-1 text-green-600">
+              <span className="flex items-center gap-1 text-emerald-400">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path
                     fillRule="evenodd"
@@ -77,7 +77,7 @@ export function EndpointList({
                 Learned
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-amber-600">
+              <span className="flex items-center gap-1 text-amber-400">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path
                     strokeLinecap="round"

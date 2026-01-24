@@ -143,8 +143,8 @@ export function FilterBar({ workflowId, viewId, onFiltersChange, initialFilters 
   // Don't render if schema is loading or unavailable
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b animate-pulse">
-        <div className="h-4 w-20 bg-gray-200 rounded" />
+      <div className="flex items-center gap-2 px-4 py-2 bg-card border-b border-border animate-pulse">
+        <div className="h-4 w-20 bg-muted rounded" />
       </div>
     );
   }
@@ -154,9 +154,9 @@ export function FilterBar({ workflowId, viewId, onFiltersChange, initialFilters 
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b flex-wrap">
+    <div className="flex items-center gap-2 px-4 py-2 bg-card border-b border-border flex-wrap">
       {/* Filter icon and label */}
-      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Filter className="h-4 w-4" />
         <span>Filter</span>
       </div>
@@ -177,7 +177,7 @@ export function FilterBar({ workflowId, viewId, onFiltersChange, initialFilters 
       {/* Add filter button */}
       <button
         onClick={() => setIsBuilderOpen(true)}
-        className="px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+        className="px-2 py-1 text-sm text-primary hover:bg-primary/10 rounded transition-colors"
       >
         + Add filter
       </button>
@@ -186,7 +186,7 @@ export function FilterBar({ workflowId, viewId, onFiltersChange, initialFilters 
       {activeFilters.length > 0 && (
         <button
           onClick={handleClearAll}
-          className="px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1"
+          className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors flex items-center gap-1"
         >
           <X className="h-3 w-3" />
           Clear all

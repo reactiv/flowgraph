@@ -97,13 +97,13 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-start justify-center pt-20 z-50">
-      <div className="bg-white rounded-lg shadow-xl p-4 w-96 max-w-[calc(100vw-2rem)]">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 z-50">
+      <div className="bg-card border border-border rounded-lg shadow-xl p-4 w-96 max-w-[calc(100vw-2rem)]">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold text-gray-900">Add Filter</h3>
+          <h3 className="font-semibold text-foreground">Add Filter</h3>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -112,7 +112,7 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
 
         {/* Field selection */}
         <div className="mb-3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Field</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Field</label>
           <FieldSelector
             schema={schema}
             selectedField={selectedField}
@@ -123,7 +123,7 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
         {/* Operator selection (only show after field selected) */}
         {selectedField && (
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Condition
             </label>
             <OperatorSelector
@@ -139,7 +139,7 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
           selectedOperator &&
           operatorNeedsValue(selectedOperator) && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Value
               </label>
               <ValueInput
@@ -154,17 +154,17 @@ export function FilterBuilder({ workflowId, viewId, schema, onAddFilter, onClose
           )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-2 pt-2 border-t">
+        <div className="flex justify-end gap-2 pt-2 border-t border-border">
           <button
             onClick={onClose}
-            className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            className="px-3 py-2 text-sm text-foreground hover:bg-muted rounded transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleAddFilter}
             disabled={!isComplete}
-            className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Add Filter
           </button>

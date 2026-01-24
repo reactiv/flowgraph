@@ -24,29 +24,31 @@ export const InstanceNode = memo(function InstanceNode({
   return (
     <div
       className={`
-        min-w-[180px] max-w-[220px] rounded-lg border-2 bg-white shadow-md
+        min-w-[180px] max-w-[220px] rounded-lg border-2 bg-card shadow-lg
         transition-all duration-200 cursor-pointer
-        ${selected ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:shadow-lg'}
+        ${selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : 'hover:shadow-xl hover:border-primary/50'}
       `}
-      style={{ borderColor: typeColor }}
+      style={{ borderColor: selected ? undefined : typeColor }}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-gray-400 !w-2 !h-2 !border-white !border-2"
+        className="!bg-muted-foreground !w-2 !h-2 !border-card !border-2"
       />
 
       {/* Type badge header */}
       <div
-        className="px-3 py-1.5 text-xs font-medium text-white rounded-t-[6px]"
-        style={{ backgroundColor: typeColor }}
+        className="px-3 py-1.5 text-xs font-medium rounded-t-[6px] text-background"
+        style={{
+          backgroundColor: typeColor,
+        }}
       >
         {nodeType.displayName}
       </div>
 
       {/* Content */}
       <div className="p-3">
-        <div className="font-semibold text-sm text-gray-900 truncate" title={workflowNode.title}>
+        <div className="font-semibold text-sm text-foreground truncate" title={workflowNode.title}>
           {workflowNode.title}
         </div>
 
@@ -68,7 +70,7 @@ export const InstanceNode = memo(function InstanceNode({
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-gray-400 !w-2 !h-2 !border-white !border-2"
+        className="!bg-muted-foreground !w-2 !h-2 !border-card !border-2"
       />
     </div>
   );

@@ -171,8 +171,8 @@ export function ViewCard({
     <div
       className={`relative flex shrink-0 w-[160px] cursor-pointer flex-col rounded-lg border-2 p-3 transition-all ${
         isSelected
-          ? 'border-blue-500 bg-blue-50 shadow-md'
-          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+          ? 'border-primary bg-primary/10 shadow-md'
+          : 'border-border bg-card hover:border-primary/50 hover:shadow-sm'
       }`}
       onClick={onSelect}
       onMouseEnter={() => !isBuiltIn && setShowMenu(true)}
@@ -180,17 +180,17 @@ export function ViewCard({
     >
       {/* Icon and name */}
       <div className="flex items-center gap-2">
-        <span className={isSelected ? 'text-blue-600' : 'text-gray-500'}>
+        <span className={isSelected ? 'text-primary' : 'text-muted-foreground'}>
           {getIcon()}
         </span>
-        <span className={`truncate text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+        <span className={`truncate text-sm font-medium ${isSelected ? 'text-primary' : 'text-foreground'}`}>
           {view.name}
         </span>
       </div>
 
       {/* Description */}
       {view.description && (
-        <p className={`mt-1.5 line-clamp-2 text-xs leading-tight ${isSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+        <p className={`mt-1.5 line-clamp-2 text-xs leading-tight ${isSelected ? 'text-primary/80' : 'text-muted-foreground'}`}>
           {view.description}
         </p>
       )}
@@ -201,7 +201,7 @@ export function ViewCard({
           {onEdit && (
             <button
               onClick={onEdit}
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               title="Edit view"
             >
               <PencilIcon className="h-3.5 w-3.5" />
@@ -210,7 +210,7 @@ export function ViewCard({
           {onDelete && (
             <button
               onClick={onDelete}
-              className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+              className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               title="Delete view"
             >
               <TrashIcon className="h-3.5 w-3.5" />
@@ -229,12 +229,12 @@ interface CreateViewCardProps {
 export function CreateViewCard({ onClick }: CreateViewCardProps) {
   return (
     <div
-      className="flex shrink-0 w-[160px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3 transition-all hover:border-blue-400 hover:bg-blue-50"
+      className="flex shrink-0 w-[160px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-3 transition-all hover:border-primary/50 hover:bg-primary/5"
       onClick={onClick}
     >
-      <SparklesIcon className="h-6 w-6 text-gray-400" />
-      <span className="mt-1.5 text-sm font-medium text-gray-600">New View</span>
-      <p className="mt-0.5 text-xs text-gray-500">Create with AI</p>
+      <SparklesIcon className="h-6 w-6 text-muted-foreground" />
+      <span className="mt-1.5 text-sm font-medium text-foreground">New View</span>
+      <p className="mt-0.5 text-xs text-muted-foreground">Create with AI</p>
     </div>
   );
 }

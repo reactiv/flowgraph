@@ -98,13 +98,19 @@ export function GraphCanvas({
       maxZoom={2}
       defaultEdgeOptions={{
         type: 'smoothstep',
+        style: { stroke: '#4b5563', strokeWidth: 2 },
       }}
+      className="bg-background"
     >
-      <Background color="#e2e8f0" gap={20} />
-      <Controls position="bottom-right" />
+      <Background color="#282937" gap={24} size={1} />
+      <Controls position="bottom-right" className="!bg-card !border-border !shadow-lg" />
       <MiniMap
         nodeColor={miniMapNodeColor}
-        maskColor="rgba(0, 0, 0, 0.1)"
+        maskColor="rgba(0, 0, 0, 0.6)"
+        style={{
+          backgroundColor: 'hsl(235 15% 9%)',
+          border: '1px solid hsl(235 12% 18%)',
+        }}
         pannable
         zoomable
         position="bottom-left"

@@ -33,13 +33,13 @@ export function GraphFilters({
       <div className="flex gap-2">
         <button
           onClick={onSelectAll}
-          className="flex-1 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+          className="flex-1 px-2 py-1 text-xs font-medium text-foreground bg-muted rounded hover:bg-muted/80 transition-colors"
         >
           Select All
         </button>
         <button
           onClick={onClearAll}
-          className="flex-1 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+          className="flex-1 px-2 py-1 text-xs font-medium text-foreground bg-muted rounded hover:bg-muted/80 transition-colors"
         >
           Clear All
         </button>
@@ -47,7 +47,7 @@ export function GraphFilters({
 
       {/* Node Types */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Node Types</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-2">Node Types</h3>
         <div className="space-y-1">
           {nodeTypes.map((nodeType) => {
             const isVisible = visibleNodeTypes.has(nodeType.type);
@@ -62,14 +62,14 @@ export function GraphFilters({
                   type="checkbox"
                   checked={isVisible}
                   onChange={() => onNodeTypeToggle(nodeType.type)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-border text-primary focus:ring-primary"
                 />
                 <span
                   className="w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: color }}
                 />
                 <span
-                  className={`text-sm ${isVisible ? 'text-gray-900' : 'text-gray-400'} group-hover:text-gray-900`}
+                  className={`text-sm ${isVisible ? 'text-foreground' : 'text-muted-foreground'} group-hover:text-foreground`}
                 >
                   {nodeType.displayName}
                 </span>
@@ -81,7 +81,7 @@ export function GraphFilters({
 
       {/* Edge Types */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Edge Types</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-2">Edge Types</h3>
         <div className="space-y-1">
           {edgeTypes.map((edgeType) => {
             const isVisible = visibleEdgeTypes.has(edgeType.type);
@@ -96,14 +96,14 @@ export function GraphFilters({
                   type="checkbox"
                   checked={isVisible}
                   onChange={() => onEdgeTypeToggle(edgeType.type)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-border text-primary focus:ring-primary"
                 />
                 <span
                   className="w-3 h-0.5 flex-shrink-0"
                   style={{ backgroundColor: color }}
                 />
                 <span
-                  className={`text-sm ${isVisible ? 'text-gray-900' : 'text-gray-400'} group-hover:text-gray-900 truncate`}
+                  className={`text-sm ${isVisible ? 'text-foreground' : 'text-muted-foreground'} group-hover:text-foreground truncate`}
                   title={edgeType.displayName}
                 >
                   {edgeType.displayName}
@@ -115,7 +115,7 @@ export function GraphFilters({
       </div>
 
       {/* Stats */}
-      <div className="pt-4 border-t text-xs text-gray-500">
+      <div className="pt-4 border-t border-border text-xs text-muted-foreground">
         <p>{visibleNodeTypes.size} of {nodeTypes.length} node types</p>
         <p>{visibleEdgeTypes.size} of {edgeTypes.length} edge types</p>
       </div>

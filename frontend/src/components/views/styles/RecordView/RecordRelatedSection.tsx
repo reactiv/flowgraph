@@ -86,7 +86,7 @@ export function RecordRelatedSection({
   const renderContent = () => {
     if (nodes.length === 0) {
       return (
-        <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
           {emptyMessage || `No ${title.toLowerCase()} yet`}
         </div>
       );
@@ -104,8 +104,8 @@ export function RecordRelatedSection({
                 : `Parent: ${parentId.slice(0, 8)}...`;
 
             return (
-              <div key={parentId} className="rounded-lg bg-gray-50 p-3">
-                <h4 className="mb-2 text-sm font-medium text-gray-700">{parentTitle}</h4>
+              <div key={parentId} className="rounded-lg bg-muted p-3">
+                <h4 className="mb-2 text-sm font-medium text-foreground">{parentTitle}</h4>
                 {renderViewStyle(groupNodes)}
               </div>
             );
@@ -127,11 +127,11 @@ export function RecordRelatedSection({
             <button
               key={node.id}
               onClick={() => onNodeClick?.(node)}
-              className="rounded-lg border border-gray-200 bg-white p-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50"
+              className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-muted-foreground hover:bg-muted"
             >
-              <div className="font-medium text-gray-900 truncate">{node.title}</div>
+              <div className="font-medium text-foreground truncate">{node.title}</div>
               {node.status && (
-                <div className="mt-1 text-xs text-gray-500">{node.status}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{node.status}</div>
               )}
             </button>
           ))}
@@ -172,16 +172,16 @@ export function RecordRelatedSection({
       default:
         // Fallback to simple list
         return (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-border">
             {nodesToRender.map((node) => (
               <button
                 key={node.id}
                 onClick={() => onNodeClick?.(node)}
-                className="flex w-full items-center justify-between px-2 py-2 text-left transition-colors hover:bg-gray-50"
+                className="flex w-full items-center justify-between px-2 py-2 text-left transition-colors hover:bg-muted"
               >
-                <span className="font-medium text-gray-900">{node.title}</span>
+                <span className="font-medium text-foreground">{node.title}</span>
                 {node.status && (
-                  <span className="text-xs text-gray-500">{node.status}</span>
+                  <span className="text-xs text-muted-foreground">{node.status}</span>
                 )}
               </button>
             ))}
@@ -191,20 +191,20 @@ export function RecordRelatedSection({
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-border bg-card">
       {/* Section Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted"
       >
         <div className="flex items-center gap-2">
           {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-gray-500" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
-          <h3 className="font-medium text-gray-900">{title}</h3>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          <h3 className="font-medium text-foreground">{title}</h3>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {count}
           </span>
         </div>
@@ -214,7 +214,7 @@ export function RecordRelatedSection({
               e.stopPropagation();
               onCreateNode(targetNodeType?.type || '', parentNode.id);
             }}
-            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -223,17 +223,17 @@ export function RecordRelatedSection({
 
       {/* Section Description */}
       {description && isExpanded && (
-        <div className="border-t border-gray-100 px-4 py-2">
-          <p className="text-sm text-gray-500">{description}</p>
+        <div className="border-t border-border px-4 py-2">
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
       )}
 
       {/* Section Content */}
       {isExpanded && (
-        <div className="border-t border-gray-100 p-4">
+        <div className="border-t border-border p-4">
           {renderContent()}
           {hasMore && (
-            <div className="mt-3 text-center text-sm text-gray-500">
+            <div className="mt-3 text-center text-sm text-muted-foreground">
               Showing {maxItems} of {nodes.length} items
             </div>
           )}

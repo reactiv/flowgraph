@@ -58,7 +58,7 @@ function getEdgeColor(edgeType: string): string {
     hash = edgeType.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = hash % 360;
-  return `hsl(${hue}, 50%, 50%)`;
+  return `hsl(${hue}, 60%, 60%)`;
 }
 
 /**
@@ -82,14 +82,14 @@ export function SchemaGraphPreview({
       data: { nodeType },
     }));
 
-    // Create edges from edgeTypes
+    // Create edges from edgeTypes - use dark mode compatible colors
     const edges: Edge[] = (definition.edgeTypes ?? []).map((edgeType) => ({
       id: edgeType.type,
       source: edgeType.from,
       target: edgeType.to,
       label: edgeType.displayName,
-      labelStyle: { fill: '#64748b', fontWeight: 500, fontSize: 12 },
-      labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.9 },
+      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 12 },
+      labelBgStyle: { fill: 'hsl(var(--card))', fillOpacity: 0.95 },
       labelBgPadding: [4, 8] as [number, number],
       labelBgBorderRadius: 4,
       style: {
@@ -128,11 +128,11 @@ export function SchemaGraphPreview({
         minZoom={0.2}
         maxZoom={2}
       >
-        <Background color="#e2e8f0" gap={16} />
+        <Background color="hsl(var(--border))" gap={16} />
         <Controls />
         <MiniMap
-          nodeColor={() => '#64748b'}
-          maskColor="rgba(0, 0, 0, 0.1)"
+          nodeColor={() => 'hsl(var(--muted-foreground))'}
+          maskColor="rgba(0, 0, 0, 0.2)"
           pannable
           zoomable
         />
