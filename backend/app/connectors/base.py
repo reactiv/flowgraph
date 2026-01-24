@@ -82,9 +82,52 @@ class BaseConnector(ABC):
     # URL patterns for automatic identification
     url_patterns: ClassVar[list[str]] = []  # Regex patterns to match URLs
 
-    def __init__(self) -> None:
-        """Initialize the connector."""
+    def __init__(self, connector_id: str | None = None) -> None:
+        """Initialize the connector.
+
+        Args:
+            connector_id: Optional database connector ID for loading secrets from DB
+        """
         self._authenticated = False
+        self._connector_id = connector_id
+        self._secrets_cache: dict[str, str] = {}
+
+    async def _get_secret(self, key: str, env_fallback: str | None = None) -> str | None:
+        """Get a secret value, checking DB first, then environment.
+
+        Args:
+            key: The secret key name
+            env_fallback: Optional environment variable to check as fallback
+
+        Returns:
+            The secret value or None if not found
+        """
+        # Check cache first
+        if key in self._secrets_cache:
+            return self._secrets_cache[key]
+
+        # Try database if we have a connector ID
+        if self._connector_id:
+            try:
+                from app.db import connector_store
+
+                value = await connector_store.get_secret(self._connector_id, key)
+                if value:
+                    self._secrets_cache[key] = value
+                    return value
+            except Exception:
+                pass  # Fall through to env var
+
+        # Try environment variable
+        if env_fallback:
+            import os
+
+            value = os.environ.get(env_fallback)
+            if value:
+                self._secrets_cache[key] = value
+                return value
+
+        return None
 
     # =========================================================================
     # Abstract Methods (must implement)
@@ -319,6 +362,30 @@ class ConnectorRegistry:
         return cls._connectors.get(system)
 
     @classmethod
+    async def get_instance(cls, system: str) -> BaseConnector | None:
+        """Get a connector instance with database secrets support.
+
+        This method looks up the connector's database ID and passes it
+        to the connector so it can load secrets from the database.
+        """
+        connector_class = cls._connectors.get(system)
+        if not connector_class:
+            return None
+
+        # Try to get the connector ID from the database
+        connector_id = None
+        try:
+            from app.db import connector_store
+
+            db_connector = await connector_store.get_connector_by_system(system)
+            if db_connector:
+                connector_id = db_connector.id
+        except Exception:
+            pass  # Database not available, proceed without ID
+
+        return connector_class(connector_id=connector_id)
+
+    @classmethod
     def get_for_url(cls, url: str) -> type[BaseConnector] | None:
         """Get connector class that can handle the given URL."""
         for connector_class in cls._connectors.values():
@@ -326,6 +393,15 @@ class ConnectorRegistry:
             if any(re.match(p, url) for p in connector_class.url_patterns):
                 return connector_class
         return None
+
+    @classmethod
+    async def get_instance_for_url(cls, url: str) -> BaseConnector | None:
+        """Get a connector instance for a URL with database secrets support."""
+        connector_class = cls.get_for_url(url)
+        if not connector_class:
+            return None
+
+        return await cls.get_instance(connector_class.system)
 
     @classmethod
     def list_systems(cls) -> list[str]:

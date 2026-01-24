@@ -51,6 +51,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db_path = os.getenv("DATABASE_PATH", "./data/workflow.db")
     await init_database(db_path)
 
+    # Register builtin connectors in the database
+    from app.db.connector_store import ensure_builtin_connectors
+
+    await ensure_builtin_connectors()
+    logger.info("Ensured builtin connectors are registered")
+
     # Start background cleanup task
     _cleanup_task = asyncio.create_task(cleanup_uploads_periodically())
     logger.info("Started upload cleanup background task")
@@ -93,11 +99,12 @@ async def health_check() -> dict[str, str]:
 
 
 # Import and include routers after app is created to avoid circular imports
-from app.api import endpoints, execute, files, references, templates, workflows  # noqa: E402
+from app.api import connectors, endpoints, execute, files, references, templates, workflows  # noqa: E402
 
 app.include_router(files.router, prefix="/api/v1", tags=["files"])
 app.include_router(references.router, prefix="/api/v1", tags=["references"])
 app.include_router(templates.router, prefix="/api/v1", tags=["templates"])
 app.include_router(workflows.router, prefix="/api/v1", tags=["workflows"])
 app.include_router(endpoints.router, prefix="/api/v1", tags=["endpoints"])
+app.include_router(connectors.router, prefix="/api/v1", tags=["connectors"])
 app.include_router(execute.router, tags=["execute"])
