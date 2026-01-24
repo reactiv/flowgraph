@@ -18,6 +18,7 @@ import { DeleteViewDialog } from '@/components/views/DeleteViewDialog';
 import { NodeDetailPanel } from '@/components/node-detail';
 import { SchemaGraphPreview } from '@/components/schema-graph/SchemaGraphPreview';
 import { GraphView } from '@/components/graph-view';
+import { ChatModal } from '@/components/chat';
 
 export default function WorkflowPage() {
   const params = useParams();
@@ -348,6 +349,9 @@ export default function WorkflowPage() {
           onNodeSelect={handleNodeSelect}
         />
       )}
+
+      {/* Chat Modal */}
+      <ChatModal workflowId={workflowId} workflowName={workflow.name} />
     </div>
   );
 }
