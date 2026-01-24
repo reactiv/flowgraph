@@ -38,14 +38,14 @@ export function RecordDetail({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">{node.title}</h2>
-            <p className="text-sm text-gray-500">{nodeType.displayName}</p>
+            <h2 className="text-xl font-semibold text-foreground">{node.title}</h2>
+            <p className="text-sm text-muted-foreground">{nodeType.displayName}</p>
           </div>
           {node.status && (
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">
+            <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium text-foreground">
               {node.status}
             </span>
           )}
@@ -64,8 +64,8 @@ export function RecordDetail({
 
       {/* Related Sections */}
       {isLoading ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8">
-          <div className="flex items-center justify-center text-gray-500">
+        <div className="rounded-lg border border-border bg-card p-8">
+          <div className="flex items-center justify-center text-muted-foreground">
             Loading related items...
           </div>
         </div>

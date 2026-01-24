@@ -76,19 +76,19 @@ export function PropertiesTab({ workflowId, workflowDefinition, node, nodeType, 
 
         {/* Save/Reset buttons */}
         {isDirty && (
-          <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+          <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border">
             <button
               type="button"
               onClick={handleReset}
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-foreground hover:bg-muted rounded-md disabled:opacity-50"
             >
               Reset
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:bg-blue-300"
+              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50"
             >
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
@@ -125,7 +125,7 @@ function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldI
   // Can suggest for all field types except file[]
   const canSuggest = field.kind !== 'file[]';
   const inputClasses =
-    'w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500';
+    'w-full rounded-md border border-border bg-input text-foreground px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground placeholder:text-muted-foreground';
 
   const renderInput = () => {
     switch (field.kind) {
@@ -198,7 +198,7 @@ function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldI
               {tags.map((tag, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-muted text-foreground"
                 >
                   {String(tag)}
                   {!disabled && (
@@ -209,7 +209,7 @@ function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldI
                         newTags.splice(i, 1);
                         onChange(newTags);
                       }}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       &times;
                     </button>
@@ -264,7 +264,7 @@ function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldI
         // File arrays are read-only in properties view
         const files = Array.isArray(value) ? value : [];
         return (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             {files.length > 0 ? (
               <ul className="list-disc list-inside">
                 {files.map((file, i) => (
@@ -298,16 +298,16 @@ function FieldInput({ field, value, onChange, disabled, onSuggestClick }: FieldI
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label htmlFor={field.key} className="block text-sm font-medium text-gray-700">
+        <label htmlFor={field.key} className="block text-sm font-medium text-foreground">
           {field.label}
-          {field.required && <span className="text-red-500 ml-0.5">*</span>}
+          {field.required && <span className="text-destructive ml-0.5">*</span>}
         </label>
         {canSuggest && onSuggestClick && (
           <button
             type="button"
             onClick={onSuggestClick}
             disabled={disabled}
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-md disabled:opacity-50 disabled:hover:bg-transparent"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:text-primary/80 hover:bg-primary/10 rounded-md disabled:opacity-50 disabled:hover:bg-transparent"
             title={`Suggest ${field.label}`}
           >
             <Sparkles className="h-3 w-3" />

@@ -78,7 +78,7 @@ export default function EndpointsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b bg-white p-4">
+      <div className="border-b border-border bg-card p-4">
         <div className="mb-2">
           <Link
             href={`/workflows/${workflowId}`}
@@ -106,8 +106,8 @@ export default function EndpointsPage() {
       {/* Main content - two column layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left column: Endpoint list */}
-        <div className="w-80 border-r flex flex-col bg-muted/30 overflow-hidden">
-          <div className="p-4 border-b bg-white">
+        <div className="w-80 border-r border-border flex flex-col bg-muted/30 overflow-hidden">
+          <div className="p-4 border-b border-border bg-card">
             <h2 className="font-medium text-sm text-muted-foreground">
               {endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''}
             </h2>

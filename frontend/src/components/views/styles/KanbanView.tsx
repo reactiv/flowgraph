@@ -318,8 +318,8 @@ export function KanbanView({
   const renderColumn = (column: KanbanColumn, swimlaneId?: string) => (
     <div
       key={`${swimlaneId || 'default'}-${column.id}`}
-      className={`flex w-72 shrink-0 flex-col rounded-lg bg-gray-50 ${
-        isDragOver(column.id, swimlaneId) ? 'ring-2 ring-blue-400' : ''
+      className={`flex w-72 shrink-0 flex-col rounded-lg bg-muted transition-all duration-200 ${
+        isDragOver(column.id, swimlaneId) ? 'ring-2 ring-primary' : ''
       }`}
       onDragOver={(e) => handleDragOver(e, column.id, swimlaneId)}
       onDragLeave={handleDragLeave}
@@ -329,17 +329,17 @@ export function KanbanView({
       <div
         className="flex items-center justify-between rounded-t-lg px-3 py-2"
         style={{
-          backgroundColor: column.color ? `${column.color}20` : '#f1f5f9',
-          borderBottom: column.color ? `2px solid ${column.color}` : '2px solid #e2e8f0',
+          backgroundColor: column.color ? `${column.color}15` : 'hsl(var(--card))',
+          borderBottom: column.color ? `2px solid ${column.color}` : '2px solid hsl(var(--border))',
         }}
       >
-        <h3 className="font-semibold text-gray-900">{column.label}</h3>
+        <h3 className="font-semibold text-foreground">{column.label}</h3>
         {config.showCounts !== false && (
           <span
             className="rounded-full px-2 py-0.5 text-xs font-medium"
             style={{
-              backgroundColor: column.color || '#64748b',
-              color: 'white',
+              backgroundColor: column.color || 'hsl(var(--muted-foreground))',
+              color: column.color ? 'hsl(var(--background))' : 'hsl(var(--foreground))',
             }}
           >
             {column.nodes.length}
@@ -352,7 +352,7 @@ export function KanbanView({
         {column.nodes.map((node) => (
           <div
             key={node.id}
-            className={`transition-opacity ${
+            className={`transition-opacity duration-200 ${
               draggedNodeId === node.id ? 'opacity-50' : 'opacity-100'
             }`}
             onDragEnd={handleDragEnd}
@@ -368,7 +368,7 @@ export function KanbanView({
         ))}
 
         {column.nodes.length === 0 && (
-          <div className="flex h-24 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-400">
+          <div className="flex h-24 items-center justify-center rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground">
             No items
           </div>
         )}
@@ -392,27 +392,27 @@ export function KanbanView({
         const isCollapsed = collapsedSwimlanes.has(swimlane.id);
 
         return (
-          <div key={swimlane.id} className="border-b border-gray-200 last:border-b-0">
+          <div key={swimlane.id} className="border-b border-border last:border-b-0">
             {/* Swimlane Header */}
             <button
               onClick={() => toggleSwimlane(swimlane.id)}
-              className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-gray-50"
+              className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-muted transition-colors duration-200"
               style={{
-                backgroundColor: swimlane.color ? `${swimlane.color}10` : undefined,
+                backgroundColor: swimlane.color ? `${swimlane.color}08` : undefined,
               }}
             >
               {isCollapsed ? (
-                <ChevronRight className="h-5 w-5 text-gray-500" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               ) : (
-                <ChevronDown className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
               )}
               <span
                 className="font-semibold"
-                style={{ color: swimlane.color || '#1f2937' }}
+                style={{ color: swimlane.color || 'hsl(var(--foreground))' }}
               >
                 {swimlane.label}
               </span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 ({swimlane.totalCount} {swimlane.totalCount === 1 ? 'item' : 'items'})
               </span>
             </button>

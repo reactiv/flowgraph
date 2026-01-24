@@ -100,13 +100,13 @@ export function ValueInput({
           }}
           onFocus={() => setShowSuggestions(true)}
           placeholder="Enter value..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-border bg-input text-foreground rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
         />
         {/* Suggestions dropdown */}
         {showSuggestions && filteredSuggestions.length > 0 && (
           <div
             ref={suggestionsRef}
-            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+            className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
           >
             {filteredSuggestions.map((suggestion, index) => (
               <button
@@ -117,7 +117,7 @@ export function ValueInput({
                   onChange(suggestion);
                   setShowSuggestions(false);
                 }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted focus:bg-muted focus:outline-none"
               >
                 {suggestion}
               </button>
@@ -139,7 +139,7 @@ export function ValueInput({
           onChange(val === '' ? null : Number(val));
         }}
         placeholder="Enter number..."
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full px-3 py-2 border border-border bg-input text-foreground rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
       />
     );
   }
@@ -151,7 +151,7 @@ export function ValueInput({
         type="datetime-local"
         value={(value as string) || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full px-3 py-2 border border-border bg-input text-foreground rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
       />
     );
   }
@@ -169,17 +169,17 @@ export function ValueInput({
       };
 
       return (
-        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
+        <div className="space-y-1 max-h-40 overflow-y-auto border border-border bg-input rounded-md p-2">
           {field.values.map((v) => (
             <label
               key={v}
-              className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded"
+              className="flex items-center gap-2 text-sm text-foreground cursor-pointer hover:bg-muted px-1 py-0.5 rounded"
             >
               <input
                 type="checkbox"
                 checked={selectedValues.includes(v)}
                 onChange={() => toggleValue(v)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-border text-primary focus:ring-primary"
               />
               <span>{v}</span>
             </label>
@@ -193,7 +193,7 @@ export function ValueInput({
       <select
         value={(value as string) || ''}
         onChange={(e) => onChange(e.target.value || null)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full px-3 py-2 border border-border bg-input text-foreground rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
       >
         <option value="">Select value...</option>
         {field.values.map((v) => (
@@ -212,7 +212,7 @@ export function ValueInput({
       value={(value as string) || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder="Enter value..."
-      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      className="w-full px-3 py-2 border border-border bg-input text-foreground rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
     />
   );
 }

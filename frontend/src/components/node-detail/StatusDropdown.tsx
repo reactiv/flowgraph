@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getStatusColorPartsWithBorder } from '@/lib/theme';
 import type { NodeState } from '@/types/workflow';
 
 interface StatusDropdownProps {
@@ -11,26 +12,6 @@ interface StatusDropdownProps {
   onChange: (status: string) => void;
   disabled?: boolean;
 }
-
-const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  Draft: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
-  'In Progress': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-  Complete: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
-  Archived: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
-  Failed: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
-  Pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
-  Active: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-  Validated: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
-  Rejected: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
-  Dismissed: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
-  Proposed: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
-  Deprecated: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
-  Running: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-  Open: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
-  Closed: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
-};
-
-const DEFAULT_COLOR = { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
 
 export function StatusDropdown({
   currentStatus,
@@ -58,7 +39,7 @@ export function StatusDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentColor = STATUS_COLORS[currentStatus] || DEFAULT_COLOR;
+  const currentColor = getStatusColorPartsWithBorder(currentStatus);
 
   // If no valid transitions, just show the status badge
   if (validTransitions.length === 0) {
@@ -96,7 +77,7 @@ export function StatusDropdown({
 
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-1 w-40 rounded-md bg-white shadow-lg border py-1 z-10"
+          className="absolute top-full left-0 mt-1 w-40 rounded-md bg-card shadow-lg border border-border py-1 z-10"
           role="listbox"
         >
           {/* Current status */}
@@ -115,12 +96,12 @@ export function StatusDropdown({
 
           {/* Divider if there are transitions */}
           {validTransitions.length > 0 && (
-            <div className="border-t my-1" />
+            <div className="border-t border-border my-1" />
           )}
 
           {/* Valid transitions */}
           {validTransitions.map((status) => {
-            const color = STATUS_COLORS[status] || DEFAULT_COLOR;
+            const color = getStatusColorPartsWithBorder(status);
             return (
               <button
                 key={status}
@@ -129,7 +110,7 @@ export function StatusDropdown({
                   setIsOpen(false);
                 }}
                 className={cn(
-                  'w-full flex items-center px-3 py-2 text-sm hover:bg-gray-50 transition-colors',
+                  'w-full flex items-center px-3 py-2 text-sm hover:bg-muted transition-colors',
                   color.text
                 )}
                 role="option"

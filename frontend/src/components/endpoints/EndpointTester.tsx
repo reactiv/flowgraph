@@ -18,9 +18,9 @@ interface EndpointTesterProps {
 type Tab = 'body' | 'headers' | 'params' | 'instruction';
 
 const methodColors: Record<HttpMethod, string> = {
-  GET: 'bg-green-500',
+  GET: 'bg-emerald-500',
   POST: 'bg-blue-500',
-  PUT: 'bg-yellow-500',
+  PUT: 'bg-amber-500',
   DELETE: 'bg-red-500',
 };
 
@@ -40,11 +40,11 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Instruction editing
+  // Instruction editing (prepared for future instruction tab UI)
   const [instruction, setInstruction] = useState(endpoint.instruction);
-  const [isSavingInstruction, setIsSavingInstruction] = useState(false);
-  const [isResettingLearning, setIsResettingLearning] = useState(false);
-  const instructionModified = instruction !== endpoint.instruction;
+  const [_isSavingInstruction, setIsSavingInstruction] = useState(false);
+  const [_isResettingLearning, setIsResettingLearning] = useState(false);
+  const _instructionModified = instruction !== endpoint.instruction;
 
   // Sync instruction when endpoint changes
   useEffect(() => {
@@ -282,7 +282,8 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
 
   const endpointHistory = history.filter((h) => h.endpointId === endpoint.id);
 
-  const handleSaveInstruction = async () => {
+  // Instruction editing handlers (prepared for future instruction tab UI)
+  const _handleSaveInstruction = async () => {
     setIsSavingInstruction(true);
     try {
       await api.updateEndpoint(workflowId, endpoint.id, { instruction });
@@ -294,7 +295,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
     }
   };
 
-  const handleResetLearning = async () => {
+  const _handleResetLearning = async () => {
     if (!confirm('This will clear the learned SKILL.md and transformer code. Continue?')) {
       return;
     }
@@ -359,7 +360,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b bg-white">
+      <div className="p-4 border-b border-border bg-card">
         <div className="flex items-center gap-3 mb-3">
           <span
             className={cn(
@@ -485,7 +486,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder='{"key": "value"}'
-                className="w-full h-full font-mono text-sm p-3 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full h-full font-mono text-sm p-3 border border-border bg-input text-foreground rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                 spellCheck={false}
               />
             )}
@@ -499,14 +500,14 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
                       value={header.key}
                       onChange={(e) => updateHeader(index, 'key', e.target.value)}
                       placeholder="Header name"
-                      className="flex-1 px-3 py-1.5 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="flex-1 px-3 py-1.5 border border-border bg-input text-foreground rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     />
                     <input
                       type="text"
                       value={header.value}
                       onChange={(e) => updateHeader(index, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-3 py-1.5 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="flex-1 px-3 py-1.5 border border-border bg-input text-foreground rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     />
                     <button
                       onClick={() => removeHeader(index)}
@@ -536,14 +537,14 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
                       value={param.key}
                       onChange={(e) => updateParam(index, 'key', e.target.value)}
                       placeholder="Parameter name"
-                      className="flex-1 px-3 py-1.5 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="flex-1 px-3 py-1.5 border border-border bg-input text-foreground rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     />
                     <input
                       type="text"
                       value={param.value}
                       onChange={(e) => updateParam(index, 'value', e.target.value)}
                       placeholder="Value"
-                      className="flex-1 px-3 py-1.5 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="flex-1 px-3 py-1.5 border border-border bg-input text-foreground rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     />
                     <button
                       onClick={() => removeParam(index)}
@@ -576,10 +577,10 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
                   className={cn(
                     'font-medium',
                     response.status >= 200 && response.status < 300
-                      ? 'text-green-600'
+                      ? 'text-emerald-400'
                       : response.status >= 400
-                        ? 'text-red-600'
-                        : 'text-yellow-600'
+                        ? 'text-red-400'
+                        : 'text-amber-400'
                   )}
                 >
                   {response.status}
@@ -599,7 +600,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
                 />
               </div>
             ) : stream.error ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-md text-red-400 text-sm">
                 {stream.error}
               </div>
             ) : response ? (
@@ -627,7 +628,7 @@ export function EndpointTester({ endpoint, workflowId, onEndpointUpdated }: Endp
 
       {/* History panel */}
       {showHistory && (
-        <div className="absolute top-0 right-0 w-80 h-full bg-white border-l shadow-lg z-10 flex flex-col">
+        <div className="absolute top-0 right-0 w-80 h-full bg-card border-l border-border shadow-lg z-10 flex flex-col">
           <div className="p-4 border-b flex items-center justify-between">
             <h3 className="font-medium">Request History</h3>
             <button

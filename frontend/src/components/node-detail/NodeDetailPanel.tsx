@@ -168,13 +168,13 @@ export function NodeDetailPanel({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/30"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[480px] bg-white shadow-xl flex flex-col"
+        className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[480px] bg-card border-l border-border shadow-2xl flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="node-detail-title"
@@ -191,10 +191,10 @@ export function NodeDetailPanel({
           <div className="p-4">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-md"
+              className="absolute top-4 right-4 p-2 hover:bg-muted rounded-md transition-colors"
               aria-label="Close"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 text-muted-foreground" />
             </button>
             <p className="text-destructive">Failed to load node</p>
           </div>
@@ -213,17 +213,17 @@ export function NodeDetailPanel({
             />
 
             {/* Tabs */}
-            <div className="border-b px-4">
+            <div className="border-b border-border px-4 bg-card">
               <div className="flex gap-1 -mb-px">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                      'px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200',
                       activeTab === tab.id
                         ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                     )}
                   >
                     {tab.label}
@@ -233,7 +233,7 @@ export function NodeDetailPanel({
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto bg-background">
               {activeTab === 'summary' && (
                 <SummaryTab node={node} nodeType={nodeType} />
               )}

@@ -124,7 +124,7 @@ function PathEditor({
               <option value="">Source node</option>
               {availableFromPaths.map((p) => (
                 <option key={p} value={p}>
-                  Results of "{p}"
+                  Results of &quot;{p}&quot;
                 </option>
               ))}
             </select>

@@ -137,7 +137,7 @@ export function RecordView({
   if (isLoadingRoots) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
@@ -173,8 +173,8 @@ export function RecordView({
             onCreateNode={handleCreateNode}
           />
         ) : (
-          <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-gray-200">
-            <div className="text-center text-gray-500">
+          <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-border">
+            <div className="text-center text-muted-foreground">
               <p className="text-lg font-medium">Select a {viewTemplate.rootType}</p>
               <p className="text-sm">Choose from the list on the left to view details</p>
             </div>

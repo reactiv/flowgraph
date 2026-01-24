@@ -400,13 +400,13 @@ export default function CreateWorkflowPage() {
         <div className="mb-8">
           <a
             href="/"
-            className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block"
+            className="text-sm text-muted-foreground hover:text-primary mb-4 inline-block transition-colors"
           >
             &larr; Back to Home
           </a>
           {templateId ? (
             <>
-              <h1 className="text-3xl font-bold mb-2">
+              <h1 className="text-3xl font-heading font-bold mb-2 text-foreground">
                 {isLoadingTemplate ? 'Loading Template...' : `Create from ${templateName || 'Template'}`}
               </h1>
               <p className="text-muted-foreground">
@@ -415,7 +415,7 @@ export default function CreateWorkflowPage() {
             </>
           ) : (
             <>
-              <h1 className="text-3xl font-bold mb-2">Create Workflow from Description</h1>
+              <h1 className="text-3xl font-heading font-bold mb-2 text-foreground">Create Workflow from Description</h1>
               <p className="text-muted-foreground">
                 Describe your workflow in natural language and we&apos;ll generate a schema for you.
                 Optionally upload files to help inform the schema or seed with real data.
@@ -441,7 +441,7 @@ export default function CreateWorkflowPage() {
             <div>
               <label
                 htmlFor="description"
-                className="block text-sm font-medium mb-2"
+                className="block text-sm font-medium mb-2 text-foreground"
               >
                 Workflow Description
               </label>
@@ -450,7 +450,7 @@ export default function CreateWorkflowPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe your workflow... For example: A project management system with projects, tasks, and team members. Tasks have priorities and due dates, and can be assigned to team members."
-                className="w-full h-32 px-4 py-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-32 px-4 py-3 border border-border rounded-lg resize-none bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
                 disabled={isProcessing}
               />
             </div>
@@ -465,7 +465,7 @@ export default function CreateWorkflowPage() {
                   <button
                     key={example.label}
                     onClick={() => setDescription(example.description)}
-                    className="px-3 py-1.5 text-sm border rounded-full hover:bg-muted transition-colors"
+                    className="px-3 py-1.5 text-sm border border-border rounded-full hover:bg-muted hover:border-primary/50 transition-all duration-200 text-foreground"
                     disabled={isProcessing}
                   >
                     {example.label}
@@ -475,8 +475,8 @@ export default function CreateWorkflowPage() {
             </div>
 
             {/* File Upload */}
-            <div className="border rounded-lg p-4">
-              <p className="text-sm font-medium mb-2">Reference Files (optional)</p>
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <p className="text-sm font-medium mb-2 text-foreground">Reference Files (optional)</p>
               <p className="text-sm text-muted-foreground mb-3">
                 Upload files to help generate a more accurate schema and optionally seed with real data.
               </p>
@@ -506,10 +506,10 @@ export default function CreateWorkflowPage() {
             </div>
 
             {/* Options */}
-            <div className="border rounded-lg p-4">
-              <p className="text-sm font-medium mb-3">Options</p>
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <p className="text-sm font-medium mb-3 text-foreground">Options</p>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={options.includeStates}
@@ -517,11 +517,11 @@ export default function CreateWorkflowPage() {
                       setOptions({ ...options, includeStates: e.target.checked })
                     }
                     disabled={isProcessing}
-                    className="rounded"
+                    className="rounded border-border bg-input text-primary focus:ring-primary"
                   />
                   Include state machines (status progressions)
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={options.includeTags}
@@ -529,11 +529,11 @@ export default function CreateWorkflowPage() {
                       setOptions({ ...options, includeTags: e.target.checked })
                     }
                     disabled={isProcessing}
-                    className="rounded"
+                    className="rounded border-border bg-input text-primary focus:ring-primary"
                   />
                   Include tagging system
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={options.scientificTerminology}
@@ -541,7 +541,7 @@ export default function CreateWorkflowPage() {
                       setOptions({ ...options, scientificTerminology: e.target.checked })
                     }
                     disabled={isProcessing}
-                    className="rounded"
+                    className="rounded border-border bg-input text-primary focus:ring-primary"
                   />
                   Use scientific terminology
                 </label>
@@ -615,9 +615,9 @@ export default function CreateWorkflowPage() {
               <div className="space-y-3">
                 {/* Errors */}
                 {validation.errors && validation.errors.length > 0 && (
-                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
-                    <p className="font-medium text-destructive mb-2">Errors</p>
-                    <ul className="list-disc list-inside text-sm text-destructive space-y-1">
+                  <div className="p-4 border border-red-500/50 rounded-lg bg-red-500/10">
+                    <p className="font-medium text-red-400 mb-2">Errors</p>
+                    <ul className="list-disc list-inside text-sm text-red-400 space-y-1">
                       {validation.errors.map((err, i) => (
                         <li key={i}>{err}</li>
                       ))}
@@ -627,9 +627,9 @@ export default function CreateWorkflowPage() {
 
                 {/* Warnings */}
                 {validation.warnings && validation.warnings.length > 0 && (
-                  <div className="p-4 border border-yellow-500 rounded-lg bg-yellow-50">
-                    <p className="font-medium text-yellow-700 mb-2">Warnings</p>
-                    <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+                  <div className="p-4 border border-amber-500/50 rounded-lg bg-amber-500/10">
+                    <p className="font-medium text-amber-400 mb-2">Warnings</p>
+                    <ul className="list-disc list-inside text-sm text-amber-400 space-y-1">
                       {validation.warnings.map((warn, i) => (
                         <li key={i}>{warn}</li>
                       ))}
@@ -639,9 +639,9 @@ export default function CreateWorkflowPage() {
 
                 {/* Fixes Applied */}
                 {validation.fixesApplied && validation.fixesApplied.length > 0 && (
-                  <div className="p-4 border border-blue-500 rounded-lg bg-blue-50">
-                    <p className="font-medium text-blue-700 mb-2">Auto-fixes Applied</p>
-                    <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                  <div className="p-4 border border-cyan-500/50 rounded-lg bg-cyan-500/10">
+                    <p className="font-medium text-cyan-400 mb-2">Auto-fixes Applied</p>
+                    <ul className="list-disc list-inside text-sm text-cyan-400 space-y-1">
                       {validation.fixesApplied.map((fix, i) => (
                         <li key={i}>{fix}</li>
                       ))}
@@ -652,15 +652,15 @@ export default function CreateWorkflowPage() {
             )}
 
             {/* Node Types List */}
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium mb-3">Node Types</h3>
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <h3 className="font-medium mb-3 text-foreground">Node Types</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {generatedDefinition.nodeTypes?.map((nodeType) => (
                   <div
                     key={nodeType.type}
-                    className="border rounded-lg p-3 bg-muted/30"
+                    className="border border-border rounded-lg p-3 bg-muted/30"
                   >
-                    <div className="font-medium">{nodeType.displayName}</div>
+                    <div className="font-medium text-foreground">{nodeType.displayName}</div>
                     <div className="text-sm text-muted-foreground">
                       {nodeType.fields?.length ?? 0} fields
                       {nodeType.states?.enabled && ` \u2022 ${nodeType.states.values.length} states`}
@@ -672,8 +672,8 @@ export default function CreateWorkflowPage() {
 
             {/* Generated View Templates */}
             {generatedViews.length > 0 && (
-              <div className="border rounded-lg p-4">
-                <h3 className="font-medium mb-3">Generated Views</h3>
+              <div className="border border-border rounded-lg p-4 bg-card">
+                <h3 className="font-medium mb-3 text-foreground">Generated Views</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   These views will be created automatically with your workflow.
                 </p>
@@ -695,12 +695,12 @@ export default function CreateWorkflowPage() {
                     return (
                       <div
                         key={index}
-                        className="border rounded-lg p-3 bg-muted/30"
+                        className="border border-border rounded-lg p-3 bg-muted/30"
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{styleIcon}</span>
                           <div>
-                            <div className="font-medium">{view.name}</div>
+                            <div className="font-medium text-foreground">{view.name}</div>
                             <div className="text-sm text-muted-foreground">
                               {view.rootType} \u2022 {style}
                             </div>
@@ -719,8 +719,8 @@ export default function CreateWorkflowPage() {
             )}
 
             {/* Demo Data Settings */}
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium mb-3">Demo Data</h3>
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <h3 className="font-medium mb-3 text-foreground">Demo Data</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 Choose how to populate your workflow with data.
               </p>
@@ -730,10 +730,10 @@ export default function CreateWorkflowPage() {
                 <button
                   onClick={() => setSeedSource('synthetic')}
                   disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
                     seedSource === 'synthetic'
                       ? 'bg-primary text-primary-foreground'
-                      : 'border hover:bg-muted'
+                      : 'border border-border text-foreground hover:bg-muted hover:border-primary/50'
                   }`}
                 >
                   Synthetic Data
@@ -741,10 +741,10 @@ export default function CreateWorkflowPage() {
                 <button
                   onClick={() => setSeedSource('files')}
                   disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
                     seedSource === 'files'
                       ? 'bg-primary text-primary-foreground'
-                      : 'border hover:bg-muted'
+                      : 'border border-border text-foreground hover:bg-muted hover:border-primary/50'
                   }`}
                 >
                   Import from Files
@@ -754,7 +754,7 @@ export default function CreateWorkflowPage() {
               {/* Scale selector (only for synthetic data) */}
               {seedSource === 'synthetic' && (
                 <div className="flex items-center gap-3">
-                  <label htmlFor="data-scale" className="text-sm font-medium">
+                  <label htmlFor="data-scale" className="text-sm font-medium text-foreground">
                     Amount:
                   </label>
                   <select
@@ -762,7 +762,7 @@ export default function CreateWorkflowPage() {
                     value={dataScale}
                     onChange={(e) => setDataScale(e.target.value as 'small' | 'medium' | 'large')}
                     disabled={isCreating || isSeeding || isSeedingFromFiles}
-                    className="px-3 py-2 border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="px-3 py-2 border border-border rounded-lg bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   >
                     <option value="small">Small (3-8 items per type)</option>
                     <option value="medium">Medium (10-25 items per type)</option>
@@ -775,7 +775,7 @@ export default function CreateWorkflowPage() {
               {seedSource === 'files' && (
                 <div className="space-y-4">
                   {hasUploadedFiles ? (
-                    <p className="text-sm text-green-600">
+                    <p className="text-sm text-emerald-400">
                       Files uploaded. Data will be extracted and imported into the workflow.
                     </p>
                   ) : (
@@ -794,13 +794,13 @@ export default function CreateWorkflowPage() {
                   )}
 
                   {/* External sources toggle */}
-                  <label className="flex items-center gap-2 text-sm border rounded-lg p-3 bg-muted/30 cursor-pointer">
+                  <label className="flex items-center gap-2 text-sm border border-border rounded-lg p-3 bg-muted/30 cursor-pointer text-foreground">
                     <input
                       type="checkbox"
                       checked={useExternalSources}
                       onChange={(e) => setUseExternalSources(e.target.checked)}
                       disabled={isCreating || isUploading || isPreviewingTransform}
-                      className="rounded"
+                      className="rounded border-border bg-input text-primary focus:ring-primary"
                     />
                     <div>
                       <span className="font-medium">Use external sources</span>
@@ -815,7 +815,7 @@ export default function CreateWorkflowPage() {
                     <div>
                       <label
                         htmlFor="seed-instruction"
-                        className="block text-sm font-medium mb-2"
+                        className="block text-sm font-medium mb-2 text-foreground"
                       >
                         {useExternalSources && !hasUploadedFiles && selectedFiles.length === 0
                           ? 'Instructions (required for external sources)'
@@ -828,7 +828,7 @@ export default function CreateWorkflowPage() {
                         placeholder={useExternalSources && !hasUploadedFiles && selectedFiles.length === 0
                           ? "Describe how to fetch and transform data from external sources... For example: 'Read from the curie-data DynamoDB table and extract workflow definitions'"
                           : "Provide any specific instructions for how to transform your data... For example: 'Only include messages from the core-ml channel' or 'Skip any messages without links'"}
-                        className="w-full h-24 px-3 py-2 border rounded-lg resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full h-24 px-3 py-2 border border-border rounded-lg resize-none text-sm bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         disabled={isCreating || isUploading || isPreviewingTransform}
                       />
                     </div>
@@ -881,7 +881,7 @@ export default function CreateWorkflowPage() {
               <button
                 onClick={handleReset}
                 disabled={isCreating || isSeeding || isSeedingFromFiles || isPreviewingTransform || isConfirmingTransform}
-                className="flex-1 py-3 px-4 border rounded-lg font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                className="flex-1 py-3 px-4 border border-border rounded-lg font-medium text-foreground hover:bg-muted hover:border-primary/50 transition-all duration-200 disabled:opacity-50"
               >
                 Start Over
               </button>

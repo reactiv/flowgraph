@@ -1,37 +1,55 @@
 /**
  * Color utilities for graph visualization.
+ * Optimized for dark mode with 400-level colors for visibility.
  */
 
-// Predefined color palette for node types
+// Predefined color palette for node types (400-level for dark mode visibility)
 const NODE_TYPE_COLORS = [
-  '#8b5cf6', // purple
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-  '#6366f1', // indigo
-  '#f97316', // orange
+  '#a78bfa', // purple-400
+  '#60a5fa', // blue-400
+  '#34d399', // emerald-400
+  '#fbbf24', // amber-400
+  '#f87171', // red-400
+  '#f472b6', // pink-400
+  '#22d3ee', // cyan-400
+  '#a3e635', // lime-400
+  '#818cf8', // indigo-400
+  '#fb923c', // orange-400
 ];
 
-// Status colors (matching existing patterns in the codebase)
+// Status colors optimized for dark mode (brighter for visibility)
 export const STATUS_COLORS: Record<string, string> = {
-  Draft: '#6b7280',
-  'In Progress': '#3b82f6',
-  Complete: '#22c55e',
-  Archived: '#8b5cf6',
-  Failed: '#ef4444',
-  Pending: '#f59e0b',
-  Active: '#3b82f6',
-  Validated: '#22c55e',
-  Rejected: '#ef4444',
-  Dismissed: '#6b7280',
-  Proposed: '#f59e0b',
-  Deprecated: '#f97316',
-  Running: '#3b82f6',
-  Queued: '#6b7280',
+  // Neutral/Draft states (slate-400)
+  Draft: '#94a3b8',
+  Queued: '#94a3b8',
+  Dismissed: '#94a3b8',
+
+  // Active/In-Progress states (blue-400)
+  'In Progress': '#60a5fa',
+  Active: '#60a5fa',
+  Running: '#60a5fa',
+
+  // Positive states (emerald-400)
+  Complete: '#34d399',
+  Completed: '#34d399',
+  Validated: '#34d399',
+  Pass: '#34d399',
+
+  // Warning states (amber-400)
+  Pending: '#fbbf24',
+  Proposed: '#fbbf24',
+  'On Hold': '#fbbf24',
+  Scheduled: '#fbbf24',
+
+  // Negative states (red-400)
+  Failed: '#f87171',
+  Rejected: '#f87171',
+  Cancelled: '#f87171',
+  Overdue: '#f87171',
+
+  // Archive states (purple-400)
+  Archived: '#a78bfa',
+  Deprecated: '#fb923c',
 };
 
 /**
@@ -43,11 +61,12 @@ export function getNodeTypeColor(nodeType: string): string {
     hash = nodeType.charCodeAt(i) + ((hash << 5) - hash);
   }
   const index = Math.abs(hash) % NODE_TYPE_COLORS.length;
-  return NODE_TYPE_COLORS[index] ?? '#6b7280';
+  return NODE_TYPE_COLORS[index] ?? '#94a3b8';
 }
 
 /**
  * Generate a consistent color for an edge type based on its name.
+ * Uses higher lightness for dark mode visibility.
  */
 export function getEdgeColor(edgeType: string): string {
   let hash = 0;
@@ -55,15 +74,15 @@ export function getEdgeColor(edgeType: string): string {
     hash = edgeType.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 50%, 50%)`;
+  return `hsl(${hue}, 60%, 60%)`; // Higher lightness for dark mode
 }
 
 /**
- * Get the color for a status, with fallback to gray.
+ * Get the color for a status, with fallback to slate.
  */
 export function getStatusColor(status: string | undefined): string {
-  if (!status) return '#6b7280';
-  return STATUS_COLORS[status] || '#6b7280';
+  if (!status) return '#94a3b8';
+  return STATUS_COLORS[status] || '#94a3b8';
 }
 
 /**

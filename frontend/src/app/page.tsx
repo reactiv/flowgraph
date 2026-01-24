@@ -34,7 +34,7 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Workflow Graph Studio</h1>
+        <h1 className="text-3xl font-heading font-bold mb-2 text-foreground">Workflow Graph Studio</h1>
         <p className="text-muted-foreground mb-8">
           Turn workflow templates into working apps with realistic data and polished UI
         </p>
@@ -43,10 +43,10 @@ export default function Home() {
         <section className="mb-12">
           <Link
             href="/create"
-            className="block border-2 border-dashed border-primary/50 rounded-lg p-6 hover:border-primary hover:bg-primary/5 transition-all"
+            className="group block border border-primary/30 rounded-lg p-6 bg-primary/5 hover:border-primary hover:bg-primary/10 transition-all duration-200"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -63,7 +63,7 @@ export default function Home() {
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg">Create from Description</h3>
+                <h3 className="font-heading font-semibold text-lg text-foreground">Create from Description</h3>
                 <p className="text-muted-foreground text-sm">
                   Describe your workflow in natural language and AI will generate a schema for you
                 </p>
@@ -74,7 +74,7 @@ export default function Home() {
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
                 stroke="currentColor"
-                className="w-5 h-5 text-muted-foreground"
+                className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors"
               >
                 <path
                   strokeLinecap="round"
@@ -88,7 +88,7 @@ export default function Home() {
 
         {/* Templates Section */}
         <section className="mb-12">
-          <h2 className="text-xl font-semibold mb-4">Templates</h2>
+          <h2 className="text-xl font-heading font-semibold mb-4 text-foreground">Templates</h2>
           {templatesLoading ? (
             <p className="text-muted-foreground">Loading templates...</p>
           ) : templatesError ? (
@@ -99,11 +99,11 @@ export default function Home() {
                 <button
                   key={template.id}
                   onClick={() => handleCreateFromTemplate(template.id)}
-                  className="border rounded-lg p-4 hover:border-primary transition-colors text-left"
+                  className="border border-border rounded-lg p-4 bg-card hover:border-primary/50 hover:bg-card/80 transition-all duration-200 text-left"
                 >
-                  <h3 className="font-medium">{template.name}</h3>
+                  <h3 className="font-medium text-foreground">{template.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
-                  <div className="flex gap-2 mt-3 text-xs text-muted-foreground">
+                  <div className="flex gap-2 mt-3 text-xs text-muted-foreground font-mono">
                     <span>{template.node_type_count} node types</span>
                     <span>&middot;</span>
                     <span>{template.edge_type_count} edge types</span>
@@ -112,7 +112,7 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="border rounded-lg p-8 text-center">
+            <div className="border border-border rounded-lg p-8 text-center bg-card">
               <p className="text-muted-foreground">No templates available yet.</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Templates will appear here once added to the backend.
@@ -123,7 +123,7 @@ export default function Home() {
 
         {/* Workflows Section */}
         <section>
-          <h2 className="text-xl font-semibold mb-4">Your Workflows</h2>
+          <h2 className="text-xl font-heading font-semibold mb-4 text-foreground">Your Workflows</h2>
           {workflowsLoading ? (
             <p className="text-muted-foreground">Loading workflows...</p>
           ) : workflowsError ? (
@@ -134,11 +134,11 @@ export default function Home() {
                 <Link
                   key={workflow.id}
                   href={`/workflows/${workflow.id}`}
-                  className="block border rounded-lg p-4 hover:border-primary transition-colors"
+                  className="block border border-border rounded-lg p-4 bg-card hover:border-primary/50 hover:bg-card/80 transition-all duration-200"
                 >
-                  <h3 className="font-medium">{workflow.name}</h3>
+                  <h3 className="font-medium text-foreground">{workflow.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{workflow.description}</p>
-                  <div className="flex gap-2 mt-3 text-xs text-muted-foreground">
+                  <div className="flex gap-2 mt-3 text-xs text-muted-foreground font-mono">
                     <span>v{workflow.version}</span>
                     <span>&middot;</span>
                     <span>{workflow.node_type_count} node types</span>
@@ -147,7 +147,7 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="border rounded-lg p-8 text-center">
+            <div className="border border-border rounded-lg p-8 text-center bg-card">
               <p className="text-muted-foreground">No workflows yet.</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Create a workflow from a template to get started.
