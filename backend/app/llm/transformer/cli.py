@@ -24,6 +24,14 @@ Examples:
         --input /app/test_data \
         --instruction "Transform all records" \
         --mode code
+
+    # Chunked mode for very large outputs (RLM pattern)
+    ./scripts/dc exec -T backend uv run python -m app.llm.transformer.cli \
+        --input /app/test_data \
+        --instruction "Generate 1000 records" \
+        --mode chunked \
+        --chunk-size 100 \
+        --max-chunks 20
 """
 
 import argparse
@@ -36,7 +44,12 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from app.llm.transformer import DataTransformer, TransformConfig
+from app.llm.transformer import (
+    ChunkConfig,
+    ChunkedTransformer,
+    DataTransformer,
+    TransformConfig,
+)
 
 
 # ANSI color codes
@@ -250,6 +263,60 @@ def print_event(event_type: str, data: dict[str, Any]) -> None:
         out(colorize(f"[{timestamp}] ", Colors.DIM) +
             colorize(f"Error: {error}", Colors.RED))
 
+    # Chunked mode events
+    elif event_type == "chunked_start":
+        chunk_size = data.get("chunk_size", 50)
+        max_chunks = data.get("max_chunks", 100)
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("=== Chunked Generation Mode ===", Colors.MAGENTA + Colors.BOLD))
+        out(colorize(f"         Chunk size: {chunk_size}, Max chunks: {max_chunks}",
+                    Colors.MAGENTA))
+
+    elif event_type == "chunk_start":
+        chunk_num = data.get("chunk_num", 0)
+        items_so_far = data.get("items_so_far", 0)
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"--- Chunk {chunk_num} ---", Colors.MAGENTA) +
+            colorize(f" (items so far: {items_so_far})", Colors.DIM))
+
+    elif event_type == "chunk_complete":
+        chunk_num = data.get("chunk_num", 0)
+        items_in_chunk = data.get("items_in_chunk", 0)
+        total_so_far = data.get("total_so_far", 0)
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"Chunk {chunk_num} complete: +{items_in_chunk} items",
+                    Colors.GREEN) +
+            colorize(f" (total: {total_so_far})", Colors.DIM))
+
+    elif event_type == "chunk_empty":
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("Empty chunk received, stopping generation", Colors.YELLOW))
+
+    elif event_type == "chunk_underflow":
+        expected = data.get("expected", 0)
+        got = data.get("got", 0)
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"Underflow: expected ~{expected} items, got {got}",
+                    Colors.YELLOW))
+
+    elif event_type == "chunk_error":
+        chunk_num = data.get("chunk_num", 0)
+        error = data.get("error", "Unknown error")
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize(f"Chunk {chunk_num} error: {error}", Colors.RED))
+
+    elif event_type == "chunked_complete":
+        total_chunks = data.get("total_chunks", 0)
+        total_items = data.get("total_items", 0)
+        out()
+        out(colorize(f"[{timestamp}] ", Colors.DIM) +
+            colorize("=== Chunked Generation Complete ===",
+                    Colors.MAGENTA + Colors.BOLD))
+        out(colorize(f"         Total chunks: {total_chunks}", Colors.MAGENTA))
+        out(colorize(f"         Total items: {total_items}", Colors.MAGENTA))
+
 
 async def main():
     """Main entry point."""
@@ -280,9 +347,9 @@ async def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["direct", "code"],
+        choices=["direct", "code", "chunked"],
         default="direct",
-        help="Transformation mode (default: direct)",
+        help="Transformation mode: direct, code, or chunked (default: direct)",
     )
     parser.add_argument(
         "--format", "-f",
@@ -295,6 +362,19 @@ async def main():
         type=int,
         default=80,
         help="Maximum agent turns (default: 80)",
+    )
+    # Chunked mode options
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=50,
+        help="For chunked mode: items per chunk (default: 50)",
+    )
+    parser.add_argument(
+        "--max-chunks",
+        type=int,
+        default=100,
+        help="For chunked mode: maximum chunks to generate (default: 100)",
     )
     parser.add_argument(
         "--work-dir", "-w",
@@ -338,13 +418,14 @@ async def main():
         out(colorize("Error: Must specify either --model or --model-import", Colors.RED))
         sys.exit(1)
 
-    # Create config
+    # Create config - use "direct" for base config even in chunked mode
+    base_mode = "direct" if args.mode == "chunked" else args.mode
     config = TransformConfig(
-        mode=args.mode,
+        mode=base_mode,
         output_format=args.format,
         max_iterations=args.max_turns,
         work_dir=args.work_dir,
-        learn=args.learn,
+        learn=args.learn if args.mode != "chunked" else False,  # No learning in chunked
     )
 
     # Print header
@@ -352,7 +433,11 @@ async def main():
     out(colorize(f"Input: {input_path}", Colors.DIM))
     out(colorize(f"Instruction: {args.instruction}", Colors.DIM))
     out(colorize(f"Model: {model_display}", Colors.DIM))
-    out(colorize(f"Mode: {args.mode}, Format: {args.format}", Colors.DIM))
+    if args.mode == "chunked":
+        out(colorize(f"Mode: chunked (chunk_size={args.chunk_size}, "
+                    f"max_chunks={args.max_chunks})", Colors.DIM))
+    else:
+        out(colorize(f"Mode: {args.mode}, Format: {args.format}", Colors.DIM))
     out()
 
     # Determine input paths - convert to strings for API compatibility
@@ -364,14 +449,31 @@ async def main():
 
     # Run transformation
     try:
-        transformer = DataTransformer()
-        result = await transformer.transform(
-            input_paths=input_paths,
-            instruction=args.instruction,
-            output_model=output_model,
-            config=config,
-            on_event=None if args.quiet else print_event,
-        )
+        if args.mode == "chunked":
+            # Use ChunkedTransformer for chunked mode
+            chunk_config = ChunkConfig(
+                chunk_size=args.chunk_size,
+                max_chunks=args.max_chunks,
+            )
+            chunked_transformer = ChunkedTransformer()
+            result = await chunked_transformer.transform_chunked(
+                input_paths=input_paths,
+                instruction=args.instruction,
+                output_model=output_model,
+                chunk_config=chunk_config,
+                transform_config=config,
+                on_event=None if args.quiet else print_event,
+            )
+        else:
+            # Use regular DataTransformer
+            transformer = DataTransformer()
+            result = await transformer.transform(
+                input_paths=input_paths,
+                instruction=args.instruction,
+                output_model=output_model,
+                config=config,
+                on_event=None if args.quiet else print_event,
+            )
 
         # Print final summary
         if args.quiet:

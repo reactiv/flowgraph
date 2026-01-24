@@ -4,6 +4,7 @@ Transforms input files into validated Pydantic-schema-compliant artifacts
 using Claude as an intelligent agent.
 """
 
+from app.llm.transformer.chunked import ChunkConfig, ChunkedTransformer
 from app.llm.transformer.models import (
     LearnedAssets,
     TransformConfig,
@@ -21,9 +22,12 @@ from app.llm.transformer.validator import (
 )
 
 __all__ = [
-    # Main class
+    # Main transformers
     "DataTransformer",
     "EventCallback",
+    # Chunked generation (RLM pattern)
+    "ChunkedTransformer",
+    "ChunkConfig",
     # Models
     "TransformConfig",
     "TransformManifest",

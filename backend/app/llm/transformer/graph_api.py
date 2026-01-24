@@ -328,6 +328,269 @@ class GraphAPI:
         row = cursor.fetchone()
         return row["count"] if row else 0
 
+    # =========================================================================
+    # RLM-style exploration methods for large graphs
+    # =========================================================================
+
+    def get_graph_overview(self) -> dict[str, Any]:
+        """Get a summary overview of the graph structure.
+
+        Returns metadata about the graph without loading all nodes.
+        Use this first to understand the graph before diving deeper.
+
+        Returns:
+            Dict with:
+            - total_nodes: Total node count
+            - total_edges: Total edge count
+            - node_types: Dict mapping type -> count
+            - edge_types: Dict mapping type -> count
+            - sample_titles: Dict mapping type -> list of 3 sample titles
+        """
+        conn = self._get_connection()
+
+        # Total node count
+        total_nodes = self.count_nodes()
+
+        # Total edge count
+        cursor = conn.execute(
+            "SELECT COUNT(*) as count FROM edges WHERE workflow_id = ?",
+            (self.workflow_id,),
+        )
+        row = cursor.fetchone()
+        total_edges = row["count"] if row else 0
+
+        # Node type breakdown
+        node_types: dict[str, int] = {}
+        cursor = conn.execute(
+            """
+            SELECT type, COUNT(*) as count
+            FROM nodes
+            WHERE workflow_id = ?
+            GROUP BY type
+            ORDER BY count DESC
+            """,
+            (self.workflow_id,),
+        )
+        for row in cursor.fetchall():
+            node_types[row["type"]] = row["count"]
+
+        # Edge type breakdown
+        edge_types: dict[str, int] = {}
+        cursor = conn.execute(
+            """
+            SELECT type, COUNT(*) as count
+            FROM edges
+            WHERE workflow_id = ?
+            GROUP BY type
+            ORDER BY count DESC
+            """,
+            (self.workflow_id,),
+        )
+        for row in cursor.fetchall():
+            edge_types[row["type"]] = row["count"]
+
+        # Sample titles per node type (first 3, limit to 10 types)
+        sample_titles: dict[str, list[str]] = {}
+        for node_type in list(node_types.keys())[:10]:
+            cursor = conn.execute(
+                """
+                SELECT title FROM nodes
+                WHERE workflow_id = ? AND type = ?
+                ORDER BY created_at DESC
+                LIMIT 3
+                """,
+                (self.workflow_id, node_type),
+            )
+            sample_titles[node_type] = [row["title"] for row in cursor.fetchall()]
+
+        return {
+            "total_nodes": total_nodes,
+            "total_edges": total_edges,
+            "node_types": node_types,
+            "edge_types": edge_types,
+            "sample_titles": sample_titles,
+        }
+
+    def explore_subgraph(
+        self,
+        root_id: str,
+        depth: int = 2,
+        max_per_level: int = 10,
+        direction: str = "both",
+    ) -> dict[str, Any]:
+        """Recursively explore a subgraph rooted at a node.
+
+        Use this to explore around a specific node without loading
+        the entire graph. Limits breadth and depth to avoid explosion.
+
+        Args:
+            root_id: The starting node ID.
+            depth: Maximum depth to explore (default 2, max 5).
+            max_per_level: Maximum neighbors per direction per level (default 10).
+            direction: "outgoing", "incoming", or "both" (default).
+
+        Returns:
+            Dict with node data and nested neighbors structure:
+            - node: The root node data
+            - depth: Current depth level
+            - outgoing: List of outgoing connections (if direction allows)
+            - incoming: List of incoming connections (if direction allows)
+            - *_truncated: Boolean indicating if results were truncated
+        """
+        # Safety limits
+        depth = min(depth, 5)
+        max_per_level = min(max_per_level, 50)
+
+        node = self.get_node(root_id)
+        if not node:
+            return {}
+
+        if depth <= 0:
+            return {"node": node, "depth": 0}
+
+        result: dict[str, Any] = {
+            "node": node,
+            "depth": depth,
+        }
+
+        neighbors = self.get_neighbors(root_id)
+
+        if direction in ("outgoing", "both"):
+            outgoing_list = []
+            for n in neighbors["outgoing"][:max_per_level]:
+                if depth > 1:
+                    sub = self.explore_subgraph(
+                        n["node"]["id"],
+                        depth - 1,
+                        max_per_level,
+                        direction,
+                    )
+                    outgoing_list.append({"edge": n["edge"], "subgraph": sub})
+                else:
+                    outgoing_list.append({"edge": n["edge"], "node": n["node"]})
+            result["outgoing"] = outgoing_list
+            result["outgoing_truncated"] = len(neighbors["outgoing"]) > max_per_level
+
+        if direction in ("incoming", "both"):
+            incoming_list = []
+            for n in neighbors["incoming"][:max_per_level]:
+                if depth > 1:
+                    sub = self.explore_subgraph(
+                        n["node"]["id"],
+                        depth - 1,
+                        max_per_level,
+                        direction,
+                    )
+                    incoming_list.append({"edge": n["edge"], "subgraph": sub})
+                else:
+                    incoming_list.append({"edge": n["edge"], "node": n["node"]})
+            result["incoming"] = incoming_list
+            result["incoming_truncated"] = len(neighbors["incoming"]) > max_per_level
+
+        return result
+
+    def search_nodes_paginated(
+        self,
+        node_type: str,
+        offset: int = 0,
+        limit: int = 50,
+        properties: dict[str, Any] | None = None,
+        title_contains: str | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        """Search nodes with pagination support.
+
+        Use this for large result sets to avoid loading everything at once.
+
+        Args:
+            node_type: The node type to search for.
+            offset: Number of results to skip (for pagination).
+            limit: Maximum results to return (default 50, max 500).
+            properties: Optional property filters.
+            title_contains: Optional title substring filter.
+            status: Optional status filter.
+
+        Returns:
+            Dict with:
+            - nodes: List of matching nodes for this page
+            - total: Total count matching the query (without pagination)
+            - offset: Current offset
+            - limit: Current limit
+            - has_more: Whether there are more results after this page
+        """
+        # Safety limits
+        limit = min(limit, 500)
+        offset = max(offset, 0)
+
+        conn = self._get_connection()
+
+        # Build WHERE clause
+        where_clauses = ["workflow_id = ?", "type = ?"]
+        params: list[Any] = [self.workflow_id, node_type]
+
+        if title_contains:
+            where_clauses.append("title LIKE ?")
+            params.append(f"%{title_contains}%")
+
+        if status:
+            where_clauses.append("status = ?")
+            params.append(status)
+
+        if properties:
+            for key, value in properties.items():
+                where_clauses.append("json_extract(properties_json, ?) = ?")
+                params.append(f"$.{key}")
+                if isinstance(value, bool):
+                    params.append(1 if value else 0)
+                elif isinstance(value, (int, float)):
+                    params.append(value)
+                else:
+                    params.append(str(value))
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Get total count
+        cursor = conn.execute(
+            f"SELECT COUNT(*) as count FROM nodes WHERE {where_sql}",
+            params,
+        )
+        row = cursor.fetchone()
+        total = row["count"] if row else 0
+
+        # Get paginated results
+        cursor = conn.execute(
+            f"""
+            SELECT id, workflow_id, type, title, status, properties_json,
+                   created_at, updated_at
+            FROM nodes
+            WHERE {where_sql}
+            ORDER BY updated_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit, offset],
+        )
+
+        nodes = []
+        for row in cursor.fetchall():
+            nodes.append({
+                "id": row["id"],
+                "workflow_id": row["workflow_id"],
+                "type": row["type"],
+                "title": row["title"],
+                "status": row["status"],
+                "properties": json.loads(row["properties_json"]) if row["properties_json"] else {},
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            })
+
+        return {
+            "nodes": nodes,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + len(nodes) < total,
+        }
+
 
 # Global instance initialized from environment variables
 graph = GraphAPI(DB_PATH, WORKFLOW_ID)
@@ -381,3 +644,54 @@ def count_nodes(node_type: str | None = None) -> int:
     See GraphAPI.count_nodes for full documentation.
     """
     return graph.count_nodes(node_type)
+
+
+# =========================================================================
+# RLM-style exploration functions
+# =========================================================================
+
+
+def get_graph_overview() -> dict[str, Any]:
+    """Get a summary overview of the graph structure.
+
+    Returns metadata about the graph without loading all nodes.
+    Use this first to understand the graph before diving deeper.
+
+    See GraphAPI.get_graph_overview for full documentation.
+    """
+    return graph.get_graph_overview()
+
+
+def explore_subgraph(
+    root_id: str,
+    depth: int = 2,
+    max_per_level: int = 10,
+    direction: str = "both",
+) -> dict[str, Any]:
+    """Recursively explore a subgraph rooted at a node.
+
+    Use this to explore around a specific node without loading
+    the entire graph. Limits breadth and depth to avoid explosion.
+
+    See GraphAPI.explore_subgraph for full documentation.
+    """
+    return graph.explore_subgraph(root_id, depth, max_per_level, direction)
+
+
+def search_nodes_paginated(
+    node_type: str,
+    offset: int = 0,
+    limit: int = 50,
+    properties: dict[str, Any] | None = None,
+    title_contains: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """Search nodes with pagination support.
+
+    Use this for large result sets to avoid loading everything at once.
+
+    See GraphAPI.search_nodes_paginated for full documentation.
+    """
+    return graph.search_nodes_paginated(
+        node_type, offset, limit, properties, title_contains, status
+    )

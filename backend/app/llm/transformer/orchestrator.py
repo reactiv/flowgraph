@@ -116,7 +116,19 @@ Use this when your input data may correspond to existing nodes that should be UP
 rather than creating duplicates.
 
 ```python
-from graph_api import search_nodes, get_node
+from graph_api import (
+    # Basic queries
+    search_nodes, get_node, get_neighbors, count_nodes,
+    # RLM-style exploration (for large graphs)
+    get_graph_overview,       # Get graph summary without loading all data
+    explore_subgraph,         # Recursively explore around a node
+    search_nodes_paginated,   # Paginated search for large result sets
+)
+
+# Start with an overview to understand the graph structure
+overview = get_graph_overview()
+print(f"Graph: {{overview['total_nodes']}} nodes, {{overview['total_edges']}} edges")
+print(f"Types: {{overview['node_types']}}")
 
 # Search for existing nodes by type and properties
 existing = search_nodes("Analysis", properties={{"result_id": "abc123"}})
@@ -127,6 +139,14 @@ existing = search_nodes("Sample", title_contains="Sample")
 
 # Get a specific node by ID
 node = get_node("node-uuid-here")
+
+# Explore around a node (depth=2, max 10 neighbors per level)
+subgraph = explore_subgraph("node-id", depth=2, max_per_level=10)
+
+# Paginated search for large result sets
+page1 = search_nodes_paginated("Sample", offset=0, limit=50)
+if page1["has_more"]:
+    page2 = search_nodes_paginated("Sample", offset=50, limit=50)
 ```
 
 ## Important
@@ -170,6 +190,78 @@ What gets produced and key fields.
 - Important patterns or mappings discovered
 - Edge cases handled
 - Any non-obvious decisions made
+"""
+
+# RLM-inspired guidance for handling large inputs in code mode
+CHUNKED_PROCESSING_GUIDANCE = """
+## Working with Large Inputs (RLM Pattern)
+
+For files > 1MB or > 10,000 rows, use chunked processing to avoid context overflow:
+
+### Pattern 1: CSV/TSV Chunked Processing
+```python
+import csv
+from typing import Generator
+
+def process_csv_chunks(path: str, chunk_size: int = 1000) -> Generator[list[dict], None, None]:
+    \"\"\"Process CSV in memory-efficient chunks.\"\"\"
+    with open(path, encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        chunk = []
+        for row in reader:
+            chunk.append(row)
+            if len(chunk) >= chunk_size:
+                yield chunk
+                chunk = []
+        if chunk:
+            yield chunk
+
+# Usage - process without loading entire file:
+all_nodes = []
+for i, chunk in enumerate(process_csv_chunks("input.csv", chunk_size=500)):
+    print(f"Processing chunk {{i+1}} with {{len(chunk)}} rows...")
+    transformed = [transform_row(row) for row in chunk]
+    all_nodes.extend(transformed)
+```
+
+### Pattern 2: JSON Lines Streaming
+```python
+import json
+from typing import Generator
+
+def process_jsonl_chunks(path: str, chunk_size: int = 100) -> Generator[list[dict], None, None]:
+    \"\"\"Process JSONL file in chunks without loading all into memory.\"\"\"
+    with open(path) as f:
+        chunk = []
+        for line in f:
+            if line.strip():
+                chunk.append(json.loads(line))
+                if len(chunk) >= chunk_size:
+                    yield chunk
+                    chunk = []
+        if chunk:
+            yield chunk
+```
+
+### Pattern 3: Peek at Large JSON Structure
+```python
+import json
+
+def peek_json_structure(path: str, preview_bytes: int = 10240) -> str:
+    \"\"\"Preview structure of large JSON without loading everything.\"\"\"
+    with open(path) as f:
+        preview = f.read(preview_bytes)
+    return preview  # Examine structure before deciding how to parse
+
+# For large JSON arrays, consider converting to JSONL first or using streaming
+```
+
+### Key Principles
+1. **Never load entire large files into memory** - use generators/iterators
+2. **Process in chunks** - transform batch by batch
+3. **Validate incrementally** - check output as you build it
+4. **Track progress** - print chunk counts for debugging
+5. **Build output incrementally** - append to output file as you go
 """
 
 
@@ -593,6 +685,10 @@ class DataTransformer:
         # Add learning prompt if learn mode is enabled
         if config.learn:
             system_prompt += LEARNING_PROMPT
+
+        # Add chunked processing guidance for code mode (RLM pattern)
+        if config.mode == "code":
+            system_prompt += CHUNKED_PROCESSING_GUIDANCE
 
         # Remind agent about skills
         system_prompt += "\n\nRemember to check your available skills."
