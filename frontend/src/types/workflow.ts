@@ -40,11 +40,26 @@ export interface NodeState {
   transitions: StateTransition[];
 }
 
+// ==================== Quick Actions ====================
+
+export type QuickActionType = 'suggest' | 'link' | 'create' | 'add_field';
+
+export interface QuickAction {
+  type: QuickActionType;
+  label: string;
+  // For node actions (suggest, link, create)
+  targetNodeType?: string;
+  edgeType?: string;
+  direction?: 'outgoing' | 'incoming';
+  // For field actions (add_field)
+  field?: string;
+}
+
 export interface UIHints {
   defaultViews: string[];
   primarySections: string[];
   listColumns: string[];
-  quickActions: string[];
+  quickActions: QuickAction[];
 }
 
 export interface NodeType {

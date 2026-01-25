@@ -38,7 +38,10 @@
         "defaultViews": ["list", "detail", "graph"],
         "primarySections": ["summary", "schema", "relationships", "events"],
         "listColumns": ["dataset_id", "name", "owner", "row_count", "created_date"],
-        "quickActions": ["Create Feature Set", "Add Tag"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Feature Set", "targetNodeType": "FeatureSet", "edgeType": "DERIVED_FROM", "direction": "incoming"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"}
+        ]
       }
     },
     {
@@ -72,7 +75,9 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "features", "relationships", "events"],
         "listColumns": ["feature_set_id", "name", "author", "feature_count", "created_date"],
-        "quickActions": ["Start Training Run"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Training Run", "targetNodeType": "TrainingRun", "edgeType": "USES_FEATURES", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -108,7 +113,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "hyperparameters", "relationships", "files", "events"],
         "listColumns": ["run_id", "run_name", "algorithm", "author", "started_at"],
-        "quickActions": ["View Logs", "Create Model Artifact"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Model Artifact", "targetNodeType": "ModelArtifact", "edgeType": "PRODUCES_MODEL", "direction": "outgoing"}
+        ]
       }
     },
     {
@@ -145,7 +152,10 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "relationships", "files", "events"],
         "listColumns": ["artifact_id", "model_name", "version", "framework", "created_date"],
-        "quickActions": ["Run Evaluation", "Deploy"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Evaluation", "targetNodeType": "Evaluation", "edgeType": "EVALUATES", "direction": "incoming"},
+          {"type": "suggest", "label": "Suggest Deployment", "targetNodeType": "Deployment", "edgeType": "DEPLOYS_MODEL", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -181,7 +191,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "metrics", "relationships", "files", "events"],
         "listColumns": ["evaluation_id", "name", "accuracy", "f1_score", "evaluation_date"],
-        "quickActions": ["View Report"]
+        "quickActions": []
       }
     },
     {
@@ -215,7 +225,7 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "config", "relationships", "events"],
         "listColumns": ["deployment_id", "deployment_name", "environment", "deployed_by", "deployed_at"],
-        "quickActions": ["View Metrics", "Rollback"]
+        "quickActions": []
       }
     },
     {

@@ -38,7 +38,9 @@
         "defaultViews": ["list", "detail", "graph", "board"],
         "primarySections": ["summary", "progress", "relationships", "events"],
         "listColumns": ["goal_id", "title", "owner", "target_metric", "current_best"],
-        "quickActions": ["Create Hypothesis", "View Progress"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Hypothesis", "targetNodeType": "Hypothesis", "edgeType": "DRIVES", "direction": "outgoing"}
+        ]
       }
     },
     {
@@ -74,7 +76,9 @@
         "defaultViews": ["list", "detail", "graph", "board"],
         "primarySections": ["summary", "relationships", "events"],
         "listColumns": ["hypothesis_id", "title", "author", "confidence_level", "source"],
-        "quickActions": ["Create Experiment Plan", "Add Evidence"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Experiment Plan", "targetNodeType": "ExperimentPlan", "edgeType": "TESTS", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -110,7 +114,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "parameters", "relationships", "events"],
         "listColumns": ["plan_id", "plan_name", "design_type", "planner", "num_experiments"],
-        "quickActions": ["Approve", "Create Sample"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Sample", "targetNodeType": "Sample", "edgeType": "PRODUCES_SAMPLE", "direction": "outgoing"}
+        ]
       }
     },
     {
@@ -144,7 +150,10 @@
         "defaultViews": ["list", "detail", "graph"],
         "primarySections": ["summary", "parameters", "relationships", "events"],
         "listColumns": ["sample_id", "sample_name", "creator", "batch_number", "created_date"],
-        "quickActions": ["Add Measurement", "Add Tag"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Measurement", "targetNodeType": "Measurement", "edgeType": "MEASURES", "direction": "incoming"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"}
+        ]
       }
     },
     {
@@ -181,7 +190,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "data", "relationships", "files", "events"],
         "listColumns": ["measurement_id", "measurement_name", "measurement_type", "metric_value", "metric_unit"],
-        "quickActions": ["Validate", "Flag Issue"]
+        "quickActions": []
       }
     },
     {
@@ -218,7 +227,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "performance", "relationships", "files", "events"],
         "listColumns": ["model_id", "model_name", "model_type", "r2_score", "training_data_count"],
-        "quickActions": ["Generate Recommendations", "Retrain"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Recommendation", "targetNodeType": "Recommendation", "edgeType": "GENERATED_BY", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -253,7 +264,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "parameters", "relationships", "events"],
         "listColumns": ["recommendation_id", "title", "recommendation_type", "predicted_outcome", "uncertainty"],
-        "quickActions": ["Accept", "Reject", "Create Experiment"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Experiment Plan", "targetNodeType": "ExperimentPlan", "edgeType": "RESULTED_IN", "direction": "outgoing"}
+        ]
       }
     },
     {

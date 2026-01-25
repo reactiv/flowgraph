@@ -161,10 +161,7 @@
           "timestamp",
           "has_links"
         ],
-        "quickActions": [
-          "view_thread",
-          "view_channel"
-        ]
+        "quickActions": []
       }
     },
     {
@@ -283,9 +280,7 @@
           "reply_count",
           "started_at"
         ],
-        "quickActions": [
-          "view_messages"
-        ]
+        "quickActions": []
       }
     },
     {
@@ -428,10 +423,7 @@
           "message_count",
           "links_shared_count"
         ],
-        "quickActions": [
-          "view_messages",
-          "view_links"
-        ]
+        "quickActions": []
       }
     },
     {
@@ -587,10 +579,7 @@
           "times_shared",
           "first_shared_at"
         ],
-        "quickActions": [
-          "open_link",
-          "view_context"
-        ]
+        "quickActions": []
       }
     },
     {
@@ -738,10 +727,7 @@
           "link_count",
           "member_count"
         ],
-        "quickActions": [
-          "view_messages",
-          "view_links"
-        ]
+        "quickActions": []
       }
     }
   ],

@@ -39,7 +39,7 @@
         "defaultViews": ["board", "list", "detail"],
         "primarySections": ["summary", "relationships", "events"],
         "listColumns": ["document_id", "title", "author", "document_type", "department"],
-        "quickActions": ["Submit for Review", "Request Approval"]
+        "quickActions": []
       }
     },
     {
@@ -68,7 +68,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "relationships"],
         "listColumns": ["review_id", "reviewer", "recommendation", "review_date"],
-        "quickActions": ["Complete Review"]
+        "quickActions": []
       }
     },
     {
@@ -95,7 +95,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "relationships"],
         "listColumns": ["approval_id", "approver", "decision", "approval_date"],
-        "quickActions": ["Record Decision"]
+        "quickActions": []
       }
     }
   ],

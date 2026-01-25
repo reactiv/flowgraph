@@ -162,6 +162,7 @@ export function RecordView({
       <div className="flex-1 overflow-auto">
         {selectedNode && selectedNodeType ? (
           <RecordDetail
+            workflowId={workflowId}
             node={selectedNode}
             nodeType={selectedNodeType}
             levelData={scopedData?.levels || {}}

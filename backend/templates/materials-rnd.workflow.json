@@ -35,7 +35,11 @@
         "defaultViews": ["list", "detail", "graph", "board", "tree", "timeline"],
         "primarySections": ["summary", "relationships", "files", "events"],
         "listColumns": ["sample_id", "nickname", "author", "sample_type", "date"],
-        "quickActions": ["Create Analysis", "Link Hypothesis", "Add Tag"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Analysis", "targetNodeType": "Analysis", "edgeType": "HAS_ANALYSIS", "direction": "outgoing"},
+          {"type": "link", "label": "Link Hypothesis", "targetNodeType": "Hypothesis", "edgeType": "LINKED_TO_HYPOTHESIS", "direction": "outgoing"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"}
+        ]
       }
     },
     {
@@ -70,7 +74,11 @@
         "defaultViews": ["list", "detail", "graph", "table", "timeline"],
         "primarySections": ["summary", "parameters", "results", "relationships", "files", "events"],
         "listColumns": ["result_id", "analysis_type", "author", "date"],
-        "quickActions": ["Link Hypothesis", "Add Tag", "Upload File"]
+        "quickActions": [
+          {"type": "link", "label": "Link Hypothesis", "targetNodeType": "Hypothesis", "edgeType": "ANALYSIS_LINKED_TO_HYPOTHESIS", "direction": "outgoing"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"},
+          {"type": "add_field", "label": "Upload File", "field": "files"}
+        ]
       }
     },
     {
@@ -101,7 +109,11 @@
         "defaultViews": ["list", "detail", "graph", "board", "cards"],
         "primarySections": ["summary", "statements", "relationships", "events"],
         "listColumns": ["nickname", "author", "created_date"],
-        "quickActions": ["Link Sample", "Link Analysis", "Add Statement"]
+        "quickActions": [
+          {"type": "link", "label": "Link Sample", "targetNodeType": "Sample", "edgeType": "LINKED_TO_HYPOTHESIS", "direction": "incoming"},
+          {"type": "link", "label": "Link Analysis", "targetNodeType": "Analysis", "edgeType": "ANALYSIS_LINKED_TO_HYPOTHESIS", "direction": "incoming"},
+          {"type": "add_field", "label": "Add Statement", "field": "statements"}
+        ]
       }
     },
     {

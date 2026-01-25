@@ -50,6 +50,30 @@ class NodeState(BaseModel):
     transitions: list[StateTransition] = []
 
 
+class QuickActionType(str, Enum):
+    """Types of quick actions available on nodes."""
+
+    SUGGEST = "suggest"  # LLM-powered node suggestion
+    LINK = "link"  # Link to existing node
+    CREATE = "create"  # Create new node with blank form
+    ADD_FIELD = "add_field"  # Edit/add to a specific field
+
+
+class QuickAction(BaseModel):
+    """A quick action available on a node type."""
+
+    type: QuickActionType
+    label: str
+    # For node actions (suggest, link, create)
+    target_node_type: str | None = PydanticField(default=None, alias="targetNodeType")
+    edge_type: str | None = PydanticField(default=None, alias="edgeType")
+    direction: Literal["outgoing", "incoming"] | None = None
+    # For field actions (add_field)
+    field: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
 class UIHints(BaseModel):
     """UI configuration hints for a node type."""
 
@@ -60,7 +84,7 @@ class UIHints(BaseModel):
         default=["summary", "relationships", "events"], alias="primarySections"
     )
     list_columns: list[str] = PydanticField(default=[], alias="listColumns")
-    quick_actions: list[str] = PydanticField(default=[], alias="quickActions")
+    quick_actions: list[QuickAction] = PydanticField(default=[], alias="quickActions")
 
     model_config = {"populate_by_name": True}
 
