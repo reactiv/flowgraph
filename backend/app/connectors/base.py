@@ -387,7 +387,11 @@ class ConnectorRegistry:
 
     @classmethod
     def get_for_url(cls, url: str) -> type[BaseConnector] | None:
-        """Get connector class that can handle the given URL."""
+        """Get connector class that can handle the given URL.
+
+        NOTE: This only checks hardcoded connectors. For database connectors,
+        use get_instance_for_url() which also checks the database.
+        """
         for connector_class in cls._connectors.values():
             # Create temporary instance to check URL
             if any(re.match(p, url) for p in connector_class.url_patterns):
@@ -396,12 +400,27 @@ class ConnectorRegistry:
 
     @classmethod
     async def get_instance_for_url(cls, url: str) -> BaseConnector | None:
-        """Get a connector instance for a URL with database secrets support."""
-        connector_class = cls.get_for_url(url)
-        if not connector_class:
-            return None
+        """Get a connector instance for a URL with database secrets support.
 
-        return await cls.get_instance(connector_class.system)
+        Checks both hardcoded connectors and database-stored custom connectors.
+        """
+        # First check hardcoded connectors
+        connector_class = cls.get_for_url(url)
+        if connector_class:
+            return await cls.get_instance(connector_class.system)
+
+        # Check database for custom connectors with matching URL patterns
+        try:
+            from app.db import connector_store
+
+            db_connector = await connector_store.get_connector_for_url(url)
+            if db_connector and db_connector.has_learned:
+                # Return a DynamicConnector that uses the learned transformer
+                return DynamicConnector(db_connector)
+        except Exception:
+            pass
+
+        return None
 
     @classmethod
     def list_systems(cls) -> list[str]:
@@ -412,3 +431,177 @@ class ConnectorRegistry:
     def list_connectors(cls) -> list[type[BaseConnector]]:
         """List all registered connector classes."""
         return list(cls._connectors.values())
+
+
+class DynamicConnector(BaseConnector):
+    """Connector that executes learned transformer code.
+
+    This class wraps a database-stored connector and executes its
+    learned transform.py code to perform identify/read operations.
+    """
+
+    def __init__(self, db_connector: Any) -> None:
+        """Initialize with a database connector record.
+
+        Args:
+            db_connector: A Connector model from the database
+        """
+        super().__init__(connector_id=db_connector.id)
+        self._db_connector = db_connector
+
+    @property
+    def system(self) -> str:
+        """Return the system identifier."""
+        return self._db_connector.system
+
+    @property
+    def supported_types(self) -> list[str]:
+        """Return supported object types."""
+        return self._db_connector.supported_types
+
+    @property
+    def url_patterns(self) -> list[str]:
+        """Return URL patterns."""
+        return self._db_connector.url_patterns
+
+    async def identify(self, url_or_id: str) -> ExternalReferenceCreate:
+        """Identify an external object by running the learned transform.py.
+
+        Args:
+            url_or_id: URL to identify
+
+        Returns:
+            ExternalReferenceCreate with parsed metadata
+        """
+        output = await self._run_transform(url_or_id)
+
+        return ExternalReferenceCreate(
+            system=output.get("system", self._db_connector.system),
+            object_type=output.get("object_type", "document"),
+            external_id=output.get("external_id", url_or_id),
+            canonical_url=output.get("canonical_url", url_or_id),
+            display_name=output.get("display_name"),
+        )
+
+    async def read(
+        self,
+        reference: ExternalReference,
+        include_content: bool = False,
+        if_none_match: str | None = None,
+    ) -> tuple[ProjectionCreate | None, bytes | None]:
+        """Read external object data by running the learned transform.py.
+
+        Args:
+            reference: The reference to read
+            include_content: Whether to include raw content
+            if_none_match: ETag for conditional fetch
+
+        Returns:
+            Tuple of (ProjectionCreate, content bytes)
+        """
+        output = await self._run_transform(reference.canonical_url or reference.external_id)
+
+        projection = self.create_projection(
+            reference_id=reference.id,
+            title=output.get("title") or output.get("display_name"),
+            status=output.get("status"),
+            owner=output.get("owner"),
+            summary=None,  # Could generate from properties
+            properties=output.get("properties", {}),
+        )
+
+        # No raw content available from transformer
+        return projection, None
+
+    async def list_changes(
+        self,
+        since: datetime | str | None = None,
+        object_types: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[ExternalReferenceCreate]:
+        """List changes - not supported for dynamic connectors."""
+        return []
+
+    async def _run_transform(self, url: str) -> dict[str, Any]:
+        """Execute the learned transform.py code with the given URL.
+
+        Args:
+            url: The URL to pass to the transform
+
+        Returns:
+            The parsed output from the transform
+        """
+        import json
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        transformer_code = self._db_connector.learned_connector_code
+        if not transformer_code:
+            raise ConnectorError(
+                f"Connector '{self._db_connector.system}' has no learned code",
+                system=self._db_connector.system,
+            )
+
+        # Get secrets for this connector
+        from app.db import connector_store
+
+        secrets = await connector_store.get_all_secrets(self._db_connector.id)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+
+            # Write input.json
+            input_path = work_dir / "input.json"
+            input_path.write_text(json.dumps({"url": url}))
+
+            # Write transform.py
+            transform_path = work_dir / "transform.py"
+            transform_path.write_text(transformer_code)
+
+            # Build environment with secrets
+            import os
+
+            env = os.environ.copy()
+            if secrets:
+                env.update(secrets)
+
+            # Execute transform.py
+            try:
+                result = subprocess.run(
+                    ["python", str(transform_path)],
+                    cwd=str(work_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=env,
+                )
+            except subprocess.TimeoutExpired:
+                raise ConnectorError(
+                    f"Transform timed out for {self._db_connector.system}",
+                    system=self._db_connector.system,
+                    retriable=True,
+                )
+
+            if result.returncode != 0:
+                raise ConnectorError(
+                    f"Transform failed: {result.stderr}",
+                    system=self._db_connector.system,
+                )
+
+            # Read output.json
+            output_path = work_dir / "output.json"
+            if not output_path.exists():
+                raise ConnectorError(
+                    "Transform did not produce output.json",
+                    system=self._db_connector.system,
+                )
+
+            try:
+                output = json.loads(output_path.read_text())
+                return output
+            except json.JSONDecodeError as e:
+                raise ConnectorError(
+                    f"Invalid JSON in output.json: {e}",
+                    system=self._db_connector.system,
+                )

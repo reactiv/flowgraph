@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Link2, Loader2, AlertCircle, CheckCircle, FileText, Folder, Database } from 'lucide-react';
 import { api } from '@/lib/api';
+import { modal, input, button, card } from '@/lib/theme';
 import type { ReferenceRelationship, ResolveUrlResponse } from '@/types/external-reference';
 
 interface LinkReferenceModalProps {
@@ -137,31 +138,31 @@ export function LinkReferenceModal({
   const SystemIcon = systemConfig?.icon || FileText;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
+    <div className={modal.backdrop}>
+      {/* Backdrop click to close */}
+      <div className="absolute inset-0" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl">
+      <div className={`relative ${modal.container}`}>
         {/* Header */}
-        <div className="flex items-center gap-3 border-b px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-            <Link2 className="h-5 w-5 text-blue-600" />
+        <div className={`flex items-center gap-3 ${modal.header}`}>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+            <Link2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               Link External Reference
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Connect this node to external content from Notion, Google Drive, etc.
             </p>
           </div>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        <div className={`${modal.content} space-y-4`}>
           {/* URL Input */}
           <div>
-            <label htmlFor="reference-url" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="reference-url" className="block text-sm font-medium text-foreground mb-1">
               URL
             </label>
             <div className="flex gap-2">
@@ -176,13 +177,13 @@ export function LinkReferenceModal({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="https://notion.so/... or https://drive.google.com/..."
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className={`flex-1 ${input.base} ${input.md}`}
                 disabled={isResolving || isLinking}
               />
               <button
                 onClick={handleResolve}
                 disabled={isResolving || !url.trim()}
-                className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                className={button.secondary}
               >
                 {isResolving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -195,10 +196,10 @@ export function LinkReferenceModal({
 
           {/* Resolved Preview */}
           {resolved && systemConfig && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <CheckCircle className="h-5 w-5 text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
@@ -207,11 +208,11 @@ export function LinkReferenceModal({
                     >
                       <SystemIcon className={`h-3.5 w-3.5 ${systemConfig.textColor}`} />
                     </div>
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-foreground">
                       {systemConfig.label} {resolved.reference.object_type}
                     </span>
                     {resolved.is_new && (
-                      <span className="inline-block px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                      <span className="inline-block px-1.5 py-0.5 text-xs font-medium rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
                         New
                       </span>
                     )}
@@ -220,22 +221,22 @@ export function LinkReferenceModal({
                   {/* Reference details */}
                   <div className="space-y-1 text-sm">
                     <div>
-                      <span className="font-medium text-gray-700">
+                      <span className="font-medium text-foreground">
                         {resolved.projection?.title || resolved.reference.display_name || 'Untitled'}
                       </span>
                     </div>
                     {resolved.projection?.summary && (
-                      <p className="text-gray-600 line-clamp-2">{resolved.projection.summary}</p>
+                      <p className="text-muted-foreground line-clamp-2">{resolved.projection.summary}</p>
                     )}
                     {resolved.projection?.owner && (
-                      <div className="text-gray-500">
+                      <div className="text-muted-foreground">
                         Owner: {resolved.projection.owner}
                       </div>
                     )}
                     {resolved.projection?.status && (
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Status:</span>
-                        <span className="inline-block px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                        <span className="text-muted-foreground">Status:</span>
+                        <span className="inline-block px-1.5 py-0.5 text-xs font-medium rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
                           {resolved.projection.status}
                         </span>
                       </div>
@@ -249,7 +250,7 @@ export function LinkReferenceModal({
           {/* Relationship Selection */}
           {resolved && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Relationship Type
               </label>
               <div className="space-y-2">
@@ -258,8 +259,8 @@ export function LinkReferenceModal({
                     key={option.value}
                     className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                       relationship === option.value
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-primary bg-primary/10'
+                        : `${card.base} hover:border-primary/30`
                     }`}
                   >
                     <input
@@ -268,11 +269,11 @@ export function LinkReferenceModal({
                       value={option.value}
                       checked={relationship === option.value}
                       onChange={(e) => setRelationship(e.target.value as ReferenceRelationship)}
-                      className="mt-0.5"
+                      className="mt-0.5 accent-primary"
                     />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{option.label}</div>
-                      <div className="text-xs text-gray-500">{option.description}</div>
+                      <div className="text-sm font-medium text-foreground">{option.label}</div>
+                      <div className="text-xs text-muted-foreground">{option.description}</div>
                     </div>
                   </label>
                 ))}
@@ -282,7 +283,7 @@ export function LinkReferenceModal({
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+            <div className="flex items-center gap-2 rounded-md bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-400">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -290,10 +291,10 @@ export function LinkReferenceModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t px-6 py-4">
+        <div className={modal.footer}>
           <button
             onClick={handleClose}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className={button.ghost}
             disabled={isResolving || isLinking}
           >
             Cancel
@@ -302,7 +303,7 @@ export function LinkReferenceModal({
             <button
               onClick={handleLink}
               disabled={isLinking}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
+              className={`${button.primary} disabled:opacity-50`}
             >
               {isLinking ? (
                 <>

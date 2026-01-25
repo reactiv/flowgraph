@@ -3,8 +3,20 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Connector, ConnectorTestResponse, SecretInfo } from '@/types/connector';
+import { useTransformerStream } from '@/lib/use-transformer-stream';
+import { TransformerProgress } from '@/components/transformer-progress';
+import type { Connector, ConnectorTestResponse } from '@/types/connector';
 import { getStatusColor, getTypeLabel } from '@/types/connector';
+
+interface ConnectorLearnResult {
+  event: string;
+  connector?: Connector;
+  skill_md?: string;
+  status?: string;
+  message?: string;
+  connection_verified?: boolean;
+  test_results?: Record<string, unknown>;
+}
 
 interface ConnectorDetailProps {
   connector: Connector;
@@ -18,7 +30,7 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
   const [showSecretForm, setShowSecretForm] = useState(false);
 
   // Fetch configured secrets
-  const { data: secrets = [], isLoading: secretsLoading } = useQuery({
+  const { data: secrets = [] } = useQuery({
     queryKey: ['connector-secrets', connector.id],
     queryFn: () => api.listConnectorSecrets(connector.id),
   });
@@ -54,9 +66,43 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
     },
   });
 
-  // Learn mutation
-  const learnMutation = useMutation({
-    mutationFn: () => api.learnConnector(connector.id, {}),
+  // Learning stream
+  const {
+    start: startLearning,
+    events: learningEvents,
+    result: learningResult,
+    isRunning: isLearning,
+    error: learningError,
+    cancel: cancelLearning,
+    reset: resetLearning,
+  } = useTransformerStream<ConnectorLearnResult>();
+
+  const handleStartLearning = async () => {
+    if (!testUrl) {
+      alert('Please enter a test URL first');
+      return;
+    }
+    resetLearning();
+    try {
+      await startLearning(
+        `/api/v1/connectors/${connector.id}/learn/stream`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ test_url: testUrl }),
+        }
+      );
+      // On success, refresh connector data
+      queryClient.invalidateQueries({ queryKey: ['connectors'] });
+      queryClient.invalidateQueries({ queryKey: ['connector', connector.id] });
+      onUpdate();
+    } catch {
+      // Error is captured in learningError
+    }
+  };
+
+  // Unlearn mutation
+  const unlearnMutation = useMutation({
+    mutationFn: () => api.unlearnConnector(connector.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });
       queryClient.invalidateQueries({ queryKey: ['connector', connector.id] });
@@ -69,7 +115,7 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b bg-white">
+      <div className="p-4 border-b border-border bg-card">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -96,21 +142,21 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
         {/* Configuration Status */}
         <section>
           <h3 className="text-sm font-medium mb-2">Configuration Status</h3>
-          <div className={`p-3 rounded-lg ${connector.is_configured ? 'bg-green-50' : 'bg-amber-50'}`}>
+          <div className={`p-3 rounded-lg border ${connector.is_configured ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
             <div className="flex items-center gap-2">
               {connector.is_configured ? (
                 <>
-                  <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-sm text-green-700 font-medium">Fully configured</span>
+                  <span className="text-sm text-emerald-400 font-medium">Fully configured</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  <span className="text-sm text-amber-700 font-medium">Missing required secrets</span>
+                  <span className="text-sm text-amber-400 font-medium">Missing required secrets</span>
                 </>
               )}
             </div>
@@ -151,16 +197,16 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
                     <div className="flex items-center gap-2">
                       {isSet ? (
                         <>
-                          <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Set</span>
+                          <span className="text-xs text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">Set</span>
                           <button
                             onClick={() => deleteSecretMutation.mutate(secretDef.key)}
-                            className="text-xs text-red-600 hover:underline"
+                            className="text-xs text-red-400 hover:underline"
                           >
                             Remove
                           </button>
                         </>
                       ) : (
-                        <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">Not Set</span>
+                        <span className="text-xs text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded">Not Set</span>
                       )}
                     </div>
                   </div>
@@ -191,14 +237,14 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
 
           {/* Add secret form */}
           {showSecretForm && (
-            <div className="p-3 border rounded-lg space-y-3">
+            <div className="p-3 border border-border rounded-lg space-y-3 bg-card">
               <div>
                 <label className="block text-xs font-medium mb-1">Key</label>
                 <input
                   type="text"
                   value={secretInputs.key || ''}
                   onChange={(e) => setSecretInputs({ ...secretInputs, key: e.target.value })}
-                  className="w-full px-2 py-1 text-sm border rounded"
+                  className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
                   placeholder="api_token"
                 />
               </div>
@@ -208,7 +254,7 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
                   type="password"
                   value={secretInputs.value || ''}
                   onChange={(e) => setSecretInputs({ ...secretInputs, value: e.target.value })}
-                  className="w-full px-2 py-1 text-sm border rounded"
+                  className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
                   placeholder="Enter secret value..."
                 />
               </div>
@@ -235,7 +281,7 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
               type="text"
               value={testUrl}
               onChange={(e) => setTestUrl(e.target.value)}
-              className="w-full px-3 py-2 text-sm border rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background"
               placeholder="Optional: Enter a URL to test identification..."
             />
             <button
@@ -246,13 +292,13 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
               {testMutation.isPending ? 'Testing...' : 'Test Connector'}
             </button>
             {testResult && (
-              <div className={`p-3 rounded-lg ${testResult.success ? 'bg-green-50' : 'bg-red-50'}`}>
-                <p className={`text-sm font-medium ${testResult.success ? 'text-green-700' : 'text-red-700'}`}>
+              <div className={`p-3 rounded-lg border ${testResult.success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <p className={`text-sm font-medium ${testResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
                   {testResult.success ? 'Success' : 'Failed'}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{testResult.message}</p>
                 {testResult.details && (
-                  <pre className="text-xs mt-2 p-2 bg-white/50 rounded overflow-auto">
+                  <pre className="text-xs mt-2 p-2 bg-muted rounded overflow-auto">
                     {JSON.stringify(testResult.details, null, 2)}
                   </pre>
                 )}
@@ -265,24 +311,81 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
         {connector.connector_type === 'custom' && (
           <section>
             <h3 className="text-sm font-medium mb-2">Learning</h3>
+
+            {/* Show progress when learning */}
+            {(isLearning || learningEvents.length > 0) && (
+              <div className="mb-4 p-3 bg-card border border-border rounded-lg">
+                <TransformerProgress
+                  events={learningEvents}
+                  isRunning={isLearning}
+                  error={learningError}
+                />
+                {isLearning && (
+                  <button
+                    onClick={cancelLearning}
+                    className="mt-3 w-full py-2 text-sm bg-muted text-muted-foreground rounded-lg hover:bg-muted/80"
+                  >
+                    Cancel
+                  </button>
+                )}
+                {!isLearning && learningResult && (
+                  <div className="mt-3 p-2 bg-muted/50 rounded">
+                    <p className="text-sm">
+                      {learningResult.connection_verified ? (
+                        <span className="text-emerald-400">Connection verified successfully</span>
+                      ) : (
+                        <span className="text-amber-400">{learningResult.message || 'Learning completed'}</span>
+                      )}
+                    </p>
+                    <button
+                      onClick={resetLearning}
+                      className="mt-2 text-xs text-muted-foreground hover:underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {connector.has_learned ? (
-              <div className="p-3 bg-purple-50 rounded-lg">
+              <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  <span className="text-sm text-purple-700 font-medium">Connector has learned skills</span>
+                  <span className="text-sm text-purple-400 font-medium">Connector has learned skills</span>
                 </div>
                 {connector.learned_skill_md && (
                   <details className="mt-2">
-                    <summary className="text-xs text-purple-600 cursor-pointer hover:underline">
+                    <summary className="text-xs text-purple-400 cursor-pointer hover:underline">
                       View learned skill
                     </summary>
-                    <pre className="mt-2 p-2 bg-white/50 rounded text-xs overflow-auto whitespace-pre-wrap">
+                    <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto whitespace-pre-wrap">
                       {connector.learned_skill_md}
                     </pre>
                   </details>
                 )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleStartLearning}
+                    disabled={isLearning || unlearnMutation.isPending}
+                    className="flex-1 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {isLearning ? 'Re-learning...' : 'Re-learn'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to clear learned assets?')) {
+                        unlearnMutation.mutate();
+                      }
+                    }}
+                    disabled={isLearning || unlearnMutation.isPending}
+                    className="flex-1 py-2 text-sm bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50"
+                  >
+                    {unlearnMutation.isPending ? 'Clearing...' : 'Unlearn'}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -290,11 +393,11 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
                   Use AI to learn how to use this connector from API documentation.
                 </p>
                 <button
-                  onClick={() => learnMutation.mutate()}
-                  disabled={learnMutation.isPending}
+                  onClick={handleStartLearning}
+                  disabled={isLearning}
                   className="w-full py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {learnMutation.isPending ? 'Learning...' : 'Start Learning'}
+                  {isLearning ? 'Learning...' : 'Start Learning'}
                 </button>
               </div>
             )}
@@ -321,7 +424,7 @@ export function ConnectorDetail({ connector, onUpdate }: ConnectorDetailProps) {
             <h3 className="text-sm font-medium mb-2">Supported Types</h3>
             <div className="flex flex-wrap gap-1">
               {connector.supported_types.map((type) => (
-                <span key={type} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                <span key={type} className="text-xs px-2 py-1 bg-blue-500/15 text-blue-400 border border-blue-500/30 rounded">
                   {type}
                 </span>
               ))}

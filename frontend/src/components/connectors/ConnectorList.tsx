@@ -87,21 +87,21 @@ export function ConnectorList({
               {getTypeLabel(connector.connector_type)}
             </span>
             {connector.is_configured ? (
-              <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded">
                 Configured
               </span>
             ) : (
-              <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded">
                 Needs Setup
               </span>
             )}
             {connector.has_learned && (
-              <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded">
                 Learned
               </span>
             )}
             {connector.supported_types.length > 0 && (
-              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/30 rounded">
                 {connector.supported_types.join(', ')}
               </span>
             )}

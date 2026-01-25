@@ -350,6 +350,22 @@ async def list_secrets(connector_id: str) -> list[SecretInfo]:
     ]
 
 
+async def get_all_secrets(connector_id: str) -> dict[str, str]:
+    """Get all secrets for a connector as a key-value dict.
+
+    Returns decrypted secret values for use in environment variables.
+    """
+    db = await get_db()
+
+    cursor = await db.execute(
+        "SELECT key, encrypted_value FROM connector_secrets WHERE connector_id = ?",
+        [connector_id],
+    )
+    rows = await cursor.fetchall()
+
+    return {row["key"]: decrypt_secret(row["encrypted_value"]) for row in rows}
+
+
 async def delete_secret(connector_id: str, key: str) -> bool:
     """Delete a secret."""
     db = await get_db()
@@ -395,6 +411,37 @@ async def get_connector_raw(connector_id: str) -> aiosqlite.Row | None:
 
 
 # ==================== Builtin Connector Registration ====================
+
+
+async def get_connector_for_url(url: str) -> Connector | None:
+    """Find a connector that can handle the given URL via url_patterns.
+
+    Checks all active connectors in the database for matching URL patterns.
+    Returns the first match found.
+    """
+    import re
+
+    db = await get_db()
+
+    cursor = await db.execute(
+        "SELECT * FROM connectors WHERE status = ?",
+        [ConnectorStatus.ACTIVE.value],
+    )
+    rows = await cursor.fetchall()
+
+    for row in rows:
+        url_patterns = json.loads(row["url_patterns_json"] or "[]")
+        for pattern in url_patterns:
+            try:
+                if re.match(pattern, url):
+                    connector = _row_to_connector(row)
+                    connector.is_configured = await is_connector_configured(connector.id)
+                    return connector
+            except re.error:
+                # Skip invalid regex patterns
+                continue
+
+    return None
 
 
 async def ensure_builtin_connectors() -> None:

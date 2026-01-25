@@ -184,6 +184,10 @@ class ConnectorLearnRequest(BaseModel):
         None,
         description="Natural language description of what to integrate",
     )
+    test_url: str | None = Field(
+        None,
+        description="URL to test the connector against (requires secrets configured)",
+    )
 
 
 class ConnectorLearnResponse(BaseModel):
@@ -194,6 +198,14 @@ class ConnectorLearnResponse(BaseModel):
     suggested_secrets: list[SecretKeySchema] = Field(default_factory=list)
     status: str = "success"
     message: str | None = None
+
+    # Test results (included when test_url was provided)
+    connection_verified: bool = Field(
+        False, description="True if connector was tested and identify() passed"
+    )
+    test_results: dict[str, Any] | None = Field(
+        None, description="Detailed test results for identify, read, list_changes"
+    )
 
 
 # ==================== Test Models ====================

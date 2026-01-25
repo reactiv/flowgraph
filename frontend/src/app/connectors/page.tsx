@@ -70,7 +70,7 @@ export default function ConnectorsPage() {
   return (
     <div className="flex h-screen flex-col">
       {/* Header */}
-      <div className="border-b bg-white p-4">
+      <div className="border-b border-border bg-card p-4">
         <div className="mb-2">
           <Link
             href="/"
@@ -99,7 +99,7 @@ export default function ConnectorsPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left column: Connector list */}
         <div className="w-80 border-r flex flex-col bg-muted/30 overflow-hidden">
-          <div className="p-4 border-b bg-white">
+          <div className="p-4 border-b border-border bg-card">
             <h2 className="font-medium text-sm text-muted-foreground">
               {connectors.length} connector{connectors.length !== 1 ? 's' : ''}
             </h2>

@@ -457,13 +457,17 @@ async def get_context_pack(pack_id: str) -> ContextPack:
 
 
 # =============================================================================
-# Connector Discovery
+# Connector Discovery (lightweight registry lookup)
 # =============================================================================
 
 
-@router.get("/connectors")
-async def list_connectors() -> dict[str, Any]:
-    """List available connectors and their capabilities."""
+@router.get("/connector-registry")
+async def list_connector_registry() -> dict[str, Any]:
+    """List registered connector classes and their capabilities.
+
+    NOTE: For full connector management (CRUD, secrets, etc.), use /api/v1/connectors
+    which returns database-backed connectors with IDs.
+    """
     connectors = []
     for system in ConnectorRegistry.list_systems():
         connector_class = ConnectorRegistry.get(system)

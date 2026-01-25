@@ -117,10 +117,10 @@ export function CreateConnectorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-border">
         <form onSubmit={handleSubmit}>
           {/* Header */}
-          <div className="p-4 border-b flex items-center justify-between">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="text-lg font-semibold">
               {isEditing ? 'Edit Connector' : 'Create Connector'}
             </h2>
@@ -147,7 +147,7 @@ export function CreateConnectorModal({
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background"
                   placeholder="My Connector"
                   required
                 />
@@ -160,7 +160,7 @@ export function CreateConnectorModal({
                   type="text"
                   value={system}
                   onChange={(e) => setSystem(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                  className="w-full px-3 py-2 border rounded-lg font-mono"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background font-mono disabled:opacity-50"
                   placeholder="my-connector"
                   required
                   disabled={isEditing}
@@ -176,7 +176,7 @@ export function CreateConnectorModal({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg resize-none"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background resize-none"
                 rows={2}
                 placeholder="What does this connector integrate with?"
               />
@@ -193,7 +193,7 @@ export function CreateConnectorModal({
                   type="text"
                   value={newUrlPattern}
                   onChange={(e) => setNewUrlPattern(e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-lg font-mono text-sm"
+                  className="flex-1 px-3 py-2 border border-border rounded-lg bg-background font-mono text-sm"
                   placeholder="https?://api\.example\.com/.*"
                 />
                 <button
@@ -232,7 +232,7 @@ export function CreateConnectorModal({
                   type="text"
                   value={newSupportedType}
                   onChange={(e) => setNewSupportedType(e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                  className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-sm"
                   placeholder="page, document, file, etc."
                 />
                 <button
@@ -248,7 +248,7 @@ export function CreateConnectorModal({
                   {supportedTypes.map((type) => (
                     <span
                       key={type}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm"
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/15 text-blue-400 border border-blue-500/30 rounded text-sm"
                     >
                       {type}
                       <button
@@ -272,22 +272,28 @@ export function CreateConnectorModal({
               <p className="text-xs text-muted-foreground mb-2">
                 Define what credentials this connector needs
               </p>
-              <div className="p-3 border rounded-lg space-y-2">
+              <div className="p-3 border border-border rounded-lg space-y-3 bg-muted/30">
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    value={newSecretKey}
-                    onChange={(e) => setNewSecretKey(e.target.value)}
-                    className="px-2 py-1.5 border rounded text-sm font-mono"
-                    placeholder="api_token"
-                  />
-                  <input
-                    type="text"
-                    value={newSecretDescription}
-                    onChange={(e) => setNewSecretDescription(e.target.value)}
-                    className="px-2 py-1.5 border rounded text-sm"
-                    placeholder="Description"
-                  />
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Key name</label>
+                    <input
+                      type="text"
+                      value={newSecretKey}
+                      onChange={(e) => setNewSecretKey(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-border rounded text-sm font-mono bg-background"
+                      placeholder="api_token"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Display label</label>
+                    <input
+                      type="text"
+                      value={newSecretDescription}
+                      onChange={(e) => setNewSecretDescription(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-border rounded text-sm bg-background"
+                      placeholder="API Token"
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 text-sm">
@@ -299,18 +305,21 @@ export function CreateConnectorModal({
                     />
                     Required
                   </label>
-                  <input
-                    type="text"
-                    value={newSecretEnvVar}
-                    onChange={(e) => setNewSecretEnvVar(e.target.value)}
-                    className="flex-1 px-2 py-1.5 border rounded text-sm font-mono"
-                    placeholder="Fallback env var (optional)"
-                  />
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted-foreground mb-1">Fallback env var (optional)</label>
+                    <input
+                      type="text"
+                      value={newSecretEnvVar}
+                      onChange={(e) => setNewSecretEnvVar(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-border rounded text-sm font-mono bg-background"
+                      placeholder="MY_API_TOKEN"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={addSecret}
                     disabled={!newSecretKey}
-                    className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 disabled:opacity-50 self-end"
                   >
                     Add Secret
                   </button>
@@ -345,7 +354,7 @@ export function CreateConnectorModal({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t flex items-center justify-end gap-2">
+          <div className="p-4 border-t border-border flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}

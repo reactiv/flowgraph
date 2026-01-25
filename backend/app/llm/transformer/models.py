@@ -116,6 +116,9 @@ class TransformConfig(BaseModel):
     This is useful for processing massive inputs that exceed context limits.
     """
 
+    env_vars: dict[str, str] | None = None
+    """Extra environment variables to pass when executing transform.py in code mode."""
+
 
 def compute_schema_hash(model: type[BaseModel]) -> str:
     """Compute a hash of a Pydantic model's schema.

@@ -1,12 +1,21 @@
 """API routes for connector management."""
 
+import asyncio
+import json
 import logging
+import tempfile
+from collections.abc import AsyncGenerator
+from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.db import connector_store
+from app.llm.transformer import DataTransformer, TransformConfig
 from app.models.connector import (
     Connector,
+    ConnectorConfigSchema,
     ConnectorCreate,
     ConnectorLearnRequest,
     ConnectorLearnResponse,
@@ -17,8 +26,10 @@ from app.models.connector import (
     ConnectorType,
     ConnectorUpdate,
     SecretInfo,
+    SecretKeySchema,
     SecretSet,
 )
+from app.models.connector_learning import ConnectorReadOutput
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +221,10 @@ def _get_missing_secrets(connector: Connector) -> list[str]:
 
 @router.post("/{connector_id}/learn", response_model=ConnectorLearnResponse)
 async def learn_connector(connector_id: str, data: ConnectorLearnRequest):
-    """Use transformer to learn connector configuration from docs/samples."""
+    """Use transformer to learn connector configuration from docs/samples.
+
+    For streaming progress updates, use POST /{connector_id}/learn/stream instead.
+    """
     connector = await connector_store.get_connector(connector_id)
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
@@ -222,38 +236,64 @@ async def learn_connector(connector_id: str, data: ConnectorLearnRequest):
     )
 
     try:
-        # Run the transformer to analyze docs and generate connector skill
-        skill_md, suggested_secrets = await _run_connector_learning(
+        # Run learning (same function as streaming, just without events)
+        learning_output, transformer_code = await _run_connector_learning_with_events(
             connector=connector,
             api_docs_url=data.api_docs_url,
             sample_data=data.sample_data,
             instruction=data.instruction,
+            test_url=data.test_url,
+            on_event=None,
         )
 
         # Update connector with learned assets
-        updated = await connector_store.update_connector_learning(
+        await connector_store.update_connector_learning(
             connector_id=connector_id,
-            skill_md=skill_md,
+            skill_md=learning_output.skill_md,
+            connector_code=transformer_code,
         )
 
-        # Reset status to active
-        await connector_store.update_connector(
+        # Update connector config with discovered patterns and secrets
+        config_schema = ConnectorConfigSchema(
+            secrets=[
+                SecretKeySchema(
+                    key=s.key,
+                    description=s.description,
+                    required=s.required,
+                    env_var=s.env_var,
+                )
+                for s in learning_output.suggested_secrets
+            ]
+        )
+        updated = await connector_store.update_connector(
             connector_id,
-            ConnectorUpdate(status=ConnectorStatus.ACTIVE),
+            ConnectorUpdate(
+                url_patterns=learning_output.url_patterns or None,
+                supported_types=learning_output.supported_types or None,
+                config_schema=config_schema,
+                status=ConnectorStatus.ACTIVE,
+            ),
         )
 
         return ConnectorLearnResponse(
             connector=updated,  # type: ignore
-            skill_md=skill_md,
-            suggested_secrets=suggested_secrets,
+            skill_md=learning_output.skill_md,
+            suggested_secrets=[
+                SecretKeySchema(
+                    key=s.key,
+                    description=s.description,
+                    required=s.required,
+                    env_var=s.env_var,
+                )
+                for s in learning_output.suggested_secrets
+            ],
             status="success",
-            message="Connector learned successfully",
+            message=_build_learn_message(learning_output),
         )
 
     except Exception as e:
         logger.exception("Connector learning failed")
 
-        # Set error status
         await connector_store.update_connector(
             connector_id,
             ConnectorUpdate(status=ConnectorStatus.ERROR),
@@ -266,74 +306,355 @@ async def learn_connector(connector_id: str, data: ConnectorLearnRequest):
         )
 
 
-async def _run_connector_learning(
+@router.post("/{connector_id}/learn/stream")
+async def learn_connector_stream(
+    connector_id: str, data: ConnectorLearnRequest
+) -> StreamingResponse:
+    """Learn connector configuration with SSE progress updates.
+
+    This endpoint streams progress events as Server-Sent Events (SSE),
+    providing real-time feedback during the connector learning process.
+    """
+    connector = await connector_store.get_connector(connector_id)
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Update status to learning
+    await connector_store.update_connector(
+        connector_id,
+        ConnectorUpdate(status=ConnectorStatus.LEARNING),
+    )
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        """Generate SSE events for connector learning."""
+        events_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        learning_result: tuple[ConnectorReadOutput, str | None] | None = None
+        learning_error: Exception | None = None
+
+        def on_event(event_type: str, event_data: dict[str, Any]) -> None:
+            """Callback to capture transformer events."""
+            events_queue.put_nowait({"event": event_type, **event_data})
+
+        async def run_learning() -> None:
+            nonlocal learning_result, learning_error
+            try:
+                learning_result = await _run_connector_learning_with_events(
+                    connector=connector,
+                    api_docs_url=data.api_docs_url,
+                    sample_data=data.sample_data,
+                    instruction=data.instruction,
+                    test_url=data.test_url,
+                    on_event=on_event,
+                )
+            except Exception as e:
+                learning_error = e
+                logger.exception("Connector learning failed")
+
+        # Run learning in background task
+        task = asyncio.create_task(run_learning())
+
+        # Stream events while task runs
+        while not task.done():
+            try:
+                event = await asyncio.wait_for(events_queue.get(), timeout=1.0)
+                if event.get("event") == "keepalive":
+                    yield ": keepalive\n\n"
+                else:
+                    yield f"data: {json.dumps(event)}\n\n"
+            except TimeoutError:
+                yield ": keepalive\n\n"
+
+        # Drain remaining events
+        while not events_queue.empty():
+            try:
+                event = events_queue.get_nowait()
+                if event.get("event") != "keepalive":
+                    yield f"data: {json.dumps(event)}\n\n"
+            except asyncio.QueueEmpty:
+                break
+
+        # Handle error
+        if learning_error:
+            await connector_store.update_connector(
+                connector_id,
+                ConnectorUpdate(status=ConnectorStatus.ERROR),
+            )
+            yield f"data: {json.dumps({'event': 'error', 'message': str(learning_error)})}\n\n"
+            return
+
+        if learning_result is None:
+            await connector_store.update_connector(
+                connector_id,
+                ConnectorUpdate(status=ConnectorStatus.ERROR),
+            )
+            err = {"event": "error", "message": "Learning did not produce output"}
+            yield f"data: {json.dumps(err)}\n\n"
+            return
+
+        learning_output, transformer_code = learning_result
+
+        # Update connector with learned assets
+        # The transformer_code IS the connector - it was validated by execution
+        await connector_store.update_connector_learning(
+            connector_id=connector_id,
+            skill_md=learning_output.skill_md,
+            connector_code=transformer_code,
+        )
+
+        # Update connector config with discovered patterns and secrets
+        config_schema = ConnectorConfigSchema(
+            secrets=[
+                SecretKeySchema(
+                    key=s.key,
+                    description=s.description,
+                    required=s.required,
+                    env_var=s.env_var,
+                )
+                for s in learning_output.suggested_secrets
+            ]
+        )
+        updated = await connector_store.update_connector(
+            connector_id,
+            ConnectorUpdate(
+                url_patterns=learning_output.url_patterns or None,
+                supported_types=learning_output.supported_types or None,
+                config_schema=config_schema,
+                status=ConnectorStatus.ACTIVE,
+            ),
+        )
+
+        # Build final complete event with actual data fetched
+        # The properties dict proves the connector worked
+        complete_event = {
+            "event": "complete",
+            "connector": updated.model_dump(mode="json") if updated else None,
+            "skill_md": learning_output.skill_md,
+            "suggested_secrets": [
+                {"key": s.key, "description": s.description, "required": s.required}
+                for s in learning_output.suggested_secrets
+            ],
+            "status": "success",
+            "message": f"Read {learning_output.object_type} '{learning_output.display_name}'",
+            # Include actual data so user can verify
+            "read_result": {
+                "system": learning_output.system,
+                "object_type": learning_output.object_type,
+                "external_id": learning_output.external_id,
+                "display_name": learning_output.display_name,
+                "title": learning_output.title,
+                "status": learning_output.status,
+                "owner": learning_output.owner,
+                "properties": learning_output.properties,
+            },
+        }
+        yield f"data: {json.dumps(complete_event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.delete("/{connector_id}/learn")
+async def unlearn_connector(connector_id: str):
+    """Clear learned assets from a connector."""
+    connector = await connector_store.get_connector(connector_id)
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Clear learned assets
+    await connector_store.update_connector_learning(
+        connector_id=connector_id,
+        skill_md=None,
+        connector_code=None,
+    )
+
+    # Refresh connector
+    updated = await connector_store.get_connector(connector_id)
+
+    return {"success": True, "connector": updated}
+
+
+def _build_learn_message(output: ConnectorReadOutput) -> str:
+    """Build a human-readable message from learning output."""
+    if output.display_name:
+        return f"Successfully read {output.object_type} '{output.display_name}'"
+    return f"Successfully read {output.object_type} {output.external_id}"
+
+
+async def _run_connector_learning_with_events(
     connector: Connector,
     api_docs_url: str | None,
     sample_data: str | None,
     instruction: str | None,
-) -> tuple[str | None, list]:
-    """Run the transformer to learn from API docs.
+    test_url: str | None,
+    on_event: Any | None = None,
+) -> tuple[ConnectorReadOutput, str | None]:
+    """Run connector learning with event streaming support.
+
+    Creates input.json with the test URL, runs the transformer in code mode,
+    and saves the generated transform.py as the connector implementation.
+
+    The pattern is:
+    1. input.json contains {"url": test_url}
+    2. transform.py reads input.json, fetches data, writes output.json
+    3. On repeat runs, transform.py is executed directly (no agent needed)
+
+    Args:
+        connector: The connector being learned.
+        api_docs_url: URL to API documentation (optional context).
+        sample_data: Sample API response (optional context).
+        instruction: Additional instructions (optional).
+        test_url: URL to test the connector against (required).
+        on_event: Optional callback for streaming events.
 
     Returns:
-        Tuple of (skill_md, suggested_secrets)
+        Tuple of (ConnectorReadOutput, validated_transformer_code).
     """
-    # Prepare input files
-    input_content = ""
-    if api_docs_url:
-        input_content += f"API Documentation URL: {api_docs_url}\n\n"
-    if sample_data:
-        input_content += f"Sample Data:\n{sample_data}\n"
+    if not test_url:
+        raise ValueError("test_url is required for connector learning")
 
-    supported_types_str = ", ".join(connector.supported_types) or "TBD"
-    url_patterns_list = [f"- `{p}`" for p in connector.url_patterns]
-    url_patterns_str = chr(10).join(url_patterns_list) or "No URL patterns configured"
+    # Fetch configured secrets for this connector
+    secrets = await connector_store.get_all_secrets(connector.id)
 
-    if not input_content:
-        # No input provided, generate basic template
-        skill_md = f"""# {connector.name} Connector
+    # Create input.json with the URL (this is what transform.py will read)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_dir = Path(temp_dir)
 
-## Overview
-Custom connector for {connector.system}.
+        # Write input.json - the standard input format
+        input_path = input_dir / "input.json"
+        input_data = {"url": test_url}
+        input_path.write_text(json.dumps(input_data, indent=2))
 
-## Authentication
-Configure the required API credentials in the connector settings.
+        # Build instruction for the transformer
+        transformer_instruction = _build_connector_learning_instruction(
+            connector=connector,
+            api_docs_url=api_docs_url,
+            sample_data=sample_data,
+            instruction=instruction,
+            configured_secrets=list(secrets.keys()) if secrets else None,
+        )
 
-## Usage
-This connector supports the following object types: {supported_types_str}
+        # Run transformer in code mode with learn=True
+        # The agent writes transform.py, which gets validated by execution
+        transformer = DataTransformer()
+        result = await transformer.transform(
+            input_paths=[str(input_path)],
+            instruction=transformer_instruction,
+            output_model=ConnectorReadOutput,
+            config=TransformConfig(
+                mode="code",
+                output_format="json",
+                max_iterations=100,
+                learn=True,  # Generates SKILL.md automatically
+                env_vars=secrets if secrets else None,
+            ),
+            on_event=on_event,
+        )
 
-## URL Patterns
-{url_patterns_str}
-"""
-        return skill_md, []
+        if not result.items:
+            raise ValueError("Transformer did not produce output")
 
-    # Generate a template skill based on provided input
-    # (Full implementation would use the transformer with proper file input)
-    skill_md = f"""# {connector.name} Connector
+        # Return the output and the validated transform.py code
+        transformer_code = None
+        if result.learned:
+            transformer_code = result.learned.transformer_code
 
-## Overview
-Custom connector for {connector.system}.
+        return result.items[0], transformer_code
 
-## Authentication
-Review the API documentation to determine required credentials.
 
-## Learned from:
-- API Docs: {api_docs_url or 'Not provided'}
-- Sample data provided: {'Yes' if sample_data else 'No'}
+def _build_connector_learning_instruction(
+    connector: Connector,
+    api_docs_url: str | None,
+    sample_data: str | None,
+    instruction: str | None,
+    configured_secrets: list[str] | None = None,
+) -> str:
+    """Build instruction for connector learning.
 
-## Suggested Configuration
-Based on analysis, this connector may need the following secrets:
-- `api_key` - API authentication key
-- `api_secret` - API secret (if using OAuth)
-
-## Usage Notes
-{instruction or 'No specific instructions provided.'}
-"""
-
-    suggested_secrets = [
-        {"key": "api_key", "description": "API Key", "required": True},
+    Simple template that tells the agent to read URL from input.json and
+    write ConnectorReadOutput to output.json.
+    """
+    parts = [
+        f"# {connector.name} Connector",
+        "",
+        f"System: {connector.system}",
+        f"Description: {connector.description or 'API connector'}",
+        "",
+        "## Input",
+        "",
+        'input.json contains: `{"url": "https://..."}`',
+        "",
+        "## Task",
+        "",
+        "Write transform.py that:",
+        "1. Reads URL from input.json",
+        "2. Fetches data from that URL",
+        "3. Writes result to output.json",
+        "",
     ]
 
-    return skill_md, suggested_secrets
+    # Authentication section
+    if configured_secrets:
+        parts.append("## Available Secrets")
+        parts.append("")
+        for key in configured_secrets:
+            parts.append(f"- `{key}`: `os.environ.get('{key}')`")
+        parts.append("")
+    else:
+        parts.append("## Authentication")
+        parts.append("")
+        parts.append("Use `os.environ.get('KEY_NAME')` for API credentials.")
+        parts.append("")
+
+    # Optional context
+    if api_docs_url:
+        parts.append(f"## API Docs: {api_docs_url}")
+        parts.append("")
+
+    if sample_data:
+        parts.append("## Sample Data")
+        parts.append("")
+        parts.append("```")
+        parts.append(sample_data[:500])  # Truncate if too long
+        parts.append("```")
+        parts.append("")
+
+    if instruction:
+        parts.append("## Notes")
+        parts.append("")
+        parts.append(instruction)
+        parts.append("")
+
+    # Output schema
+    parts.extend([
+        "## Output Schema",
+        "",
+        "```json",
+        "{",
+        f'  "system": "{connector.system}",',
+        '  "object_type": "...",',
+        '  "external_id": "...",',
+        '  "display_name": "...",',
+        '  "canonical_url": "...",',
+        '  "title": "...",',
+        '  "status": "...",',
+        '  "owner": "...",',
+        '  "properties": {...},',
+        '  "url_patterns": ["..."],',
+        '  "supported_types": ["..."],',
+        '  "suggested_secrets": [{"key": "...", "description": "...", "required": true}],',
+        '  "skill_md": "# How to use..."',
+        "}",
+        "```",
+    ])
+
+    return "\n".join(parts)
 
 
 # ==================== Lookup by System ====================

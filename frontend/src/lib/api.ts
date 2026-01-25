@@ -831,4 +831,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  /**
+   * Clear learned assets from a connector.
+   */
+  unlearnConnector: (connectorId: string) =>
+    fetchJson<{ success: boolean }>(`/connectors/${connectorId}/learn`, {
+      method: 'DELETE',
+    }),
 };
