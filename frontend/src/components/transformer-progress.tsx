@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface TransformerEvent {
   event: string;
@@ -22,6 +24,12 @@ interface TransformerProgressProps {
   events: TransformerEvent[];
   isRunning: boolean;
   error?: string | null;
+  // Chat mode props
+  onSendMessage?: (message: string) => void;
+  canSendMessage?: boolean;
+  // Display options
+  showProgressBar?: boolean;
+  showAsAccordion?: boolean;
 }
 
 /** Format tool input for collapsed view (brief summary) */
@@ -108,9 +116,30 @@ export function TransformerProgress({
   events,
   isRunning,
   error,
+  onSendMessage,
+  canSendMessage = true,
+  showProgressBar = true,
+  showAsAccordion = true,
 }: TransformerProgressProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
+  const [inputValue, setInputValue] = useState('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new events arrive
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [events]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onSendMessage && inputValue.trim() && canSendMessage && !isRunning) {
+      onSendMessage(inputValue.trim());
+      setInputValue('');
+    }
+  };
 
   const toggleEventExpanded = useCallback((index: number) => {
     setExpandedEvents((prev) => {
@@ -133,6 +162,7 @@ export function TransformerProgress({
       e.event === 'phase' ||
       e.event === 'progress' ||
       e.event === 'text' ||
+      e.event === 'user_message' ||
       e.event === 'system_prompt' ||
       e.event === 'user_instruction' ||
       e.event === 'workspace_files' ||
@@ -174,44 +204,48 @@ export function TransformerProgress({
 
   return (
     <div className="space-y-3">
-      {/* Status and progress */}
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          {isRunning && (
-            <svg
-              className="w-4 h-4 animate-spin text-primary"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-          )}
-          <span className="text-muted-foreground">{statusMessage}</span>
-        </div>
-        <span className="font-medium tabular-nums">{progressPercent}%</span>
-      </div>
+      {/* Status and progress - conditionally shown */}
+      {showProgressBar && (
+        <>
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              {isRunning && (
+                <svg
+                  className="w-4 h-4 animate-spin text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              )}
+              <span className="text-muted-foreground">{statusMessage}</span>
+            </div>
+            <span className="font-medium tabular-nums">{progressPercent}%</span>
+          </div>
 
-      {/* Progress bar */}
-      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`absolute inset-y-0 left-0 transition-all duration-300 ease-out ${
-            error ? 'bg-destructive' : 'bg-primary'
-          }`}
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+          {/* Progress bar */}
+          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`absolute inset-y-0 left-0 transition-all duration-300 ease-out ${
+                error ? 'bg-destructive' : 'bg-primary'
+              }`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </>
+      )}
 
       {/* Error display */}
       {error && (
@@ -235,43 +269,79 @@ export function TransformerProgress({
         </div>
       )}
 
-      {/* Collapsible tool activity log */}
+      {/* Tool activity log - optionally as accordion */}
       {toolEvents.length > 0 && (
-        <div className="border rounded-lg overflow-hidden">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors"
-          >
-            <span className="text-sm font-medium">
-              Agent Activity ({toolCallCount} tool calls)
-            </span>
-            <svg
-              className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+        <div className={showAsAccordion ? "border rounded-lg overflow-hidden" : ""}>
+          {showAsAccordion && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
+              <span className="text-sm font-medium">
+                Agent Activity ({toolCallCount} tool calls)
+              </span>
+              <svg
+                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+          )}
 
-          {isExpanded && (
-            <div className="max-h-96 overflow-y-auto p-2 space-y-1 text-xs font-mono">
+          {(isExpanded || !showAsAccordion) && (
+            <div
+              ref={scrollContainerRef}
+              className={`${showAsAccordion ? 'max-h-96' : 'max-h-[400px]'} overflow-y-auto ${showAsAccordion ? 'p-2' : ''} space-y-2 text-sm`}
+            >
               {toolEvents.slice(-50).map((event, index) => {
                 const globalIndex = toolEvents.length - 50 + index;
                 const eventIndex = globalIndex >= 0 ? globalIndex : index;
                 const isEventExpanded = expandedEvents.has(eventIndex);
                 const canExpand = hasExpandableContent(event);
 
+                // User messages (chat mode)
+                if (event.event === 'user_message') {
+                  const text = event.text || '';
+                  return (
+                    <div
+                      key={index}
+                      className="flex justify-end"
+                    >
+                      <div className="max-w-[80%] px-3 py-2 rounded-lg bg-primary text-primary-foreground">
+                        {text}
+                      </div>
+                    </div>
+                  );
+                }
+
                 // Agent text messages
                 if (event.event === 'text') {
                   const text = event.text || '';
                   const isLong = text.length > 150;
+
+                  // Chat-style rendering when not in accordion mode
+                  if (!showAsAccordion) {
+                    return (
+                      <div
+                        key={index}
+                        className="flex justify-start"
+                      >
+                        <div className="max-w-[80%] px-3 py-2 rounded-lg bg-muted text-foreground prose prose-sm dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-pre:bg-background/50 prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Accordion-style rendering
                   return (
                     <div
                       key={index}
@@ -280,9 +350,15 @@ export function TransformerProgress({
                     >
                       <div className="flex items-start gap-2">
                         <span className="text-slate-400 flex-shrink-0 italic">Agent:</span>
-                        <span className="italic opacity-80">
-                          {isEventExpanded || !isLong ? text : text.slice(0, 150) + '...'}
-                        </span>
+                        {isEventExpanded ? (
+                          <div className="italic opacity-80 prose prose-sm dark:prose-invert prose-p:my-1 prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <span className="italic opacity-80">
+                            {isLong ? text.slice(0, 150) + '...' : text}
+                          </span>
+                        )}
                         {isLong && (
                           <span className="text-muted-foreground/50 flex-shrink-0">
                             {isEventExpanded ? '[-]' : '[+]'}
@@ -504,6 +580,27 @@ export function TransformerProgress({
             </div>
           )}
         </div>
+      )}
+
+      {/* Chat input field - shown when onSendMessage is provided */}
+      {onSendMessage && (
+        <form onSubmit={handleSubmit} className="flex gap-2 pt-3 border-t border-border">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Type a message..."
+            disabled={isRunning || !canSendMessage}
+            className="flex-1 px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <button
+            type="submit"
+            disabled={isRunning || !canSendMessage || !inputValue.trim()}
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send
+          </button>
+        </form>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import close_database, init_database
+from app.llm.chat.manager import init_session_manager, shutdown_session_manager
 from app.storage.upload_store import get_upload_store
 
 # Configure logging
@@ -55,6 +56,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _cleanup_task = asyncio.create_task(cleanup_uploads_periodically())
     logger.info("Started upload cleanup background task")
 
+    # Start chat session manager
+    await init_session_manager()
+
     yield
 
     # Shutdown
@@ -65,6 +69,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except asyncio.CancelledError:
             pass
         logger.info("Stopped upload cleanup background task")
+
+    # Shutdown chat session manager
+    await shutdown_session_manager()
 
     await close_database()
 
@@ -93,11 +100,12 @@ async def health_check() -> dict[str, str]:
 
 
 # Import and include routers after app is created to avoid circular imports
-from app.api import endpoints, execute, files, references, templates, workflows  # noqa: E402
+from app.api import chat, endpoints, execute, files, references, templates, workflows  # noqa: E402
 
 app.include_router(files.router, prefix="/api/v1", tags=["files"])
 app.include_router(references.router, prefix="/api/v1", tags=["references"])
 app.include_router(templates.router, prefix="/api/v1", tags=["templates"])
 app.include_router(workflows.router, prefix="/api/v1", tags=["workflows"])
 app.include_router(endpoints.router, prefix="/api/v1", tags=["endpoints"])
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(execute.router, tags=["execute"])
