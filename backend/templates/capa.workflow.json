@@ -37,7 +37,10 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "relationships", "events"],
         "listColumns": ["nc_id", "title", "severity", "category", "reported_by", "reported_date"],
-        "quickActions": ["Start Investigation", "Add Tag"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Investigation", "targetNodeType": "Investigation", "edgeType": "TRIGGERS", "direction": "outgoing"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"}
+        ]
       }
     },
     {
@@ -72,7 +75,10 @@
         "defaultViews": ["list", "detail", "graph"],
         "primarySections": ["summary", "findings", "relationships", "files", "events"],
         "listColumns": ["investigation_id", "title", "investigator", "methodology", "start_date"],
-        "quickActions": ["Add Root Cause", "Upload Evidence"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Root Cause", "targetNodeType": "RootCause", "edgeType": "IDENTIFIES", "direction": "outgoing"},
+          {"type": "add_field", "label": "Upload Evidence", "field": "evidence"}
+        ]
       }
     },
     {
@@ -101,7 +107,9 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "relationships", "events"],
         "listColumns": ["rc_id", "description", "category", "identified_by"],
-        "quickActions": ["Create CAPA Action"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest CAPA Action", "targetNodeType": "CAPAAction", "edgeType": "ADDRESSES", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -140,7 +148,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "relationships", "files", "events"],
         "listColumns": ["action_id", "title", "action_type", "assigned_to", "due_date"],
-        "quickActions": ["Mark Complete", "Request Verification"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Verification", "targetNodeType": "Verification", "edgeType": "VERIFIED_BY", "direction": "outgoing"}
+        ]
       }
     },
     {
@@ -171,7 +181,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "relationships", "files", "events"],
         "listColumns": ["verification_id", "title", "verifier", "method", "result"],
-        "quickActions": ["Complete Verification"]
+        "quickActions": []
       }
     },
     {

@@ -72,7 +72,11 @@ Each node type represents an entity in the workflow:
     "defaultViews": ["list", "detail", "graph"],
     "primarySections": ["summary", "relationships"],
     "listColumns": ["field1", "field2"],
-    "quickActions": []
+    "quickActions": [
+      {"type": "suggest", "label": "Suggest ChildType", "targetNodeType": "ChildType", "edgeType": "HAS_CHILD", "direction": "outgoing"},
+      {"type": "link", "label": "Link RelatedType", "targetNodeType": "RelatedType", "edgeType": "RELATED_TO", "direction": "outgoing"},
+      {"type": "add_field", "label": "Add Tag", "field": "tags"}
+    ]
   }
 }
 ```
@@ -133,6 +137,12 @@ Edges define relationships between node types:
    - Node types: PascalCase (Task, Project, Bug)
    - Field keys: snake_case (task_id, due_date)
    - Edge types: UPPER_SNAKE_CASE (HAS_TASK, LINKS_TO)
+
+6. **Quick Actions**: Define contextual actions for each node type:
+   - type: "suggest" (AI-powered node creation), "link" (connect existing nodes), "add_field" (edit a field)
+   - For suggest/link: include targetNodeType, edgeType, and direction ("outgoing" or "incoming")
+   - For add_field: include field (the field key to edit)
+   - Example: {"type": "suggest", "label": "Suggest Analysis", "targetNodeType": "Analysis", "edgeType": "HAS_ANALYSIS", "direction": "outgoing"}
 
 ## Response Format
 

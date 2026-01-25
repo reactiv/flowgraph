@@ -39,7 +39,10 @@
         "defaultViews": ["list", "detail", "graph", "board"],
         "primarySections": ["summary", "metadata", "relationships", "events"],
         "listColumns": ["sample_id", "sample_name", "organism", "collector", "collection_date"],
-        "quickActions": ["Start Prep", "Add Tag"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Prep Step", "targetNodeType": "PrepStep", "edgeType": "PREPARED_FROM", "direction": "incoming"},
+          {"type": "add_field", "label": "Add Tag", "field": "tags"}
+        ]
       }
     },
     {
@@ -72,7 +75,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "parameters", "relationships", "events"],
         "listColumns": ["prep_id", "step_name", "prep_type", "technician", "performed_date"],
-        "quickActions": ["Add QC Results"]
+        "quickActions": []
       }
     },
     {
@@ -109,7 +112,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "metrics", "relationships", "events"],
         "listColumns": ["run_id", "run_name", "platform", "operator", "run_date", "q30_percent"],
-        "quickActions": ["View Metrics", "Start Analysis"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest Analysis", "targetNodeType": "Analysis", "edgeType": "ANALYZED_FROM_RUN", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -144,7 +149,9 @@
         "defaultViews": ["list", "detail", "board"],
         "primarySections": ["summary", "parameters", "relationships", "files", "events"],
         "listColumns": ["analysis_id", "analysis_name", "analysis_type", "analyst", "started_at"],
-        "quickActions": ["View Results", "Generate QC Report"]
+        "quickActions": [
+          {"type": "suggest", "label": "Suggest QC Report", "targetNodeType": "QCReport", "edgeType": "QC_FOR_ANALYSIS", "direction": "incoming"}
+        ]
       }
     },
     {
@@ -166,7 +173,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "statistics", "relationships", "files"],
         "listColumns": ["result_id", "result_name", "result_type", "generated_date", "file_size_gb"],
-        "quickActions": ["Download", "View Stats"]
+        "quickActions": []
       }
     },
     {
@@ -199,7 +206,7 @@
         "defaultViews": ["list", "detail"],
         "primarySections": ["summary", "metrics", "relationships", "files", "events"],
         "listColumns": ["report_id", "report_name", "qc_type", "overall_status", "generated_date"],
-        "quickActions": ["Approve", "Reject"]
+        "quickActions": []
       }
     },
     {

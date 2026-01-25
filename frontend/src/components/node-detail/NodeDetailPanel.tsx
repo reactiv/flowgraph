@@ -7,9 +7,11 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { RuleViolationToast } from './RuleViolationToast';
-import type { WorkflowDefinition, NodeType, NodeCreate, EdgeCreate, RuleViolation } from '@/types/workflow';
+import type { WorkflowDefinition, NodeType, NodeCreate, EdgeCreate, EdgeType, RuleViolation } from '@/types/workflow';
 import type { SuggestionDirection } from '@/types/suggestion';
 import { NodeDetailHeader } from './NodeDetailHeader';
+import { QuickActionsBar } from './QuickActionsBar';
+import { SuggestNodeModal } from './SuggestNodeModal';
 import { SummaryTab } from './tabs/SummaryTab';
 import { PropertiesTab } from './tabs/PropertiesTab';
 import { RelationshipsTab } from './tabs/RelationshipsTab';
@@ -34,6 +36,15 @@ export function NodeDetailPanel({
   onNodeSelect,
 }: NodeDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const [suggestModal, setSuggestModal] = useState<{
+    isOpen: boolean;
+    edgeType: EdgeType | null;
+    direction: SuggestionDirection;
+  }>({
+    isOpen: false,
+    edgeType: null,
+    direction: 'outgoing',
+  });
   const queryClient = useQueryClient();
 
   // Handle escape key
@@ -122,6 +133,16 @@ export function NodeDetailPanel({
       onNodeSelect(relatedNodeId);
     }
   }, [onNodeSelect]);
+
+  // Handle quick action suggest click
+  const handleQuickActionSuggest = useCallback((edgeType: EdgeType, direction: SuggestionDirection) => {
+    setSuggestModal({ isOpen: true, edgeType, direction });
+  }, []);
+
+  // Handle closing the suggest modal
+  const handleSuggestModalClose = useCallback(() => {
+    setSuggestModal({ isOpen: false, edgeType: null, direction: 'outgoing' });
+  }, []);
 
   // Handle accepting a suggested node
   const handleSuggestAccept = useCallback(async (
@@ -212,6 +233,15 @@ export function NodeDetailPanel({
               isUpdating={updateNodeMutation.isPending}
             />
 
+            {/* Quick Actions */}
+            {nodeType.ui.quickActions.length > 0 && (
+              <QuickActionsBar
+                quickActions={nodeType.ui.quickActions}
+                workflowDefinition={workflowDefinition}
+                onSuggestClick={handleQuickActionSuggest}
+              />
+            )}
+
             {/* Tabs */}
             <div className="border-b border-border px-4 bg-card">
               <div className="flex gap-1 -mb-px">
@@ -273,6 +303,20 @@ export function NodeDetailPanel({
                 />
               )}
             </div>
+
+            {/* Suggest Node Modal (triggered from Quick Actions or Relationships tab) */}
+            {suggestModal.edgeType && (
+              <SuggestNodeModal
+                workflowId={workflowId}
+                workflowDefinition={workflowDefinition}
+                sourceNode={node}
+                edgeType={suggestModal.edgeType}
+                direction={suggestModal.direction}
+                isOpen={suggestModal.isOpen}
+                onClose={handleSuggestModalClose}
+                onAccept={handleSuggestAccept}
+              />
+            )}
           </>
         )}
       </div>
