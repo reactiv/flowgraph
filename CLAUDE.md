@@ -30,6 +30,10 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 │   │   ├── components/       # React components
 │   │   ├── lib/              # Client utilities
 │   │   └── types/            # TypeScript types
+│   ├── remotion/             # Promotional video (see remotion/README.md)
+│   │   ├── scenes/           # 7 video scenes
+│   │   ├── components/       # Reusable video components
+│   │   └── lib/              # Theme, fonts, animations
 │   ├── __tests__/            # Vitest tests
 │   ├── Dockerfile
 │   └── package.json
@@ -61,6 +65,7 @@ A prototype demonstrating "any workflow is just a graph" - turn workflow templat
 - **shadcn/ui** - component library
 - **React Flow** - graph visualization
 - **TanStack Query** - data fetching and caching
+- **Remotion** - programmatic video generation (see [frontend/remotion/README.md](frontend/remotion/README.md))
 - **Vitest** / **ESLint** / **Prettier** - testing, linting, formatting
 
 ### Infrastructure
@@ -100,6 +105,10 @@ Use `./scripts/dc` instead of `docker-compose` - it's a thin wrapper that handle
 ./scripts/dc exec -T frontend npm run lint        # lint code
 ./scripts/dc exec -T frontend npm run typecheck   # type check
 ./scripts/dc exec -T frontend npm test            # run tests
+
+# Remotion video (promotional sizzle reel)
+./scripts/dc exec -T frontend npm run remotion:studio   # interactive preview
+./scripts/dc exec -T frontend npm run remotion:render   # render to out/sizzle.mp4
 ```
 
 ### Port Mapping

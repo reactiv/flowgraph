@@ -1,0 +1,27 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer ring -->
+  <circle cx="60" cy="60" r="55" stroke="#00d4ff" stroke-width="2" opacity="0.3"/>
+
+  <!-- Inner ring -->
+  <circle cx="60" cy="60" r="40" stroke="#00d4ff" stroke-width="2" opacity="0.5"/>
+
+  <!-- Central node -->
+  <circle cx="60" cy="60" r="12" fill="#00d4ff"/>
+
+  <!-- Orbital nodes with connections -->
+  <g>
+    <!-- Connection lines -->
+    <line x1="60" y1="60" x2="60" y2="20" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+    <line x1="60" y1="60" x2="98" y2="47.6" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+    <line x1="60" y1="60" x2="83.5" y2="92.4" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+    <line x1="60" y1="60" x2="36.5" y2="92.4" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+    <line x1="60" y1="60" x2="22" y2="47.6" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+
+    <!-- Orbital nodes -->
+    <circle cx="60" cy="20" r="8" fill="#141520" stroke="#00d4ff" stroke-width="2"/>
+    <circle cx="98" cy="47.6" r="8" fill="#141520" stroke="#00d4ff" stroke-width="2"/>
+    <circle cx="83.5" cy="92.4" r="8" fill="#141520" stroke="#00d4ff" stroke-width="2"/>
+    <circle cx="36.5" cy="92.4" r="8" fill="#141520" stroke="#00d4ff" stroke-width="2"/>
+    <circle cx="22" cy="47.6" r="8" fill="#141520" stroke="#00d4ff" stroke-width="2"/>
+  </g>
+</svg>
