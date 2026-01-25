@@ -49,7 +49,6 @@ import type {
   HttpMethod,
 } from '@/types/endpoint';
 import type {
-  ConnectorsResponse,
   ExternalReference,
   NodeExternalRefCreate,
   NodeExternalRefWithDetails,
@@ -62,6 +61,20 @@ import type {
   Snapshot,
   SnapshotsResponse,
 } from '@/types/external-reference';
+import type {
+  Connector,
+  ConnectorCreate,
+  ConnectorLearnRequest,
+  ConnectorLearnResponse,
+  ConnectorsResponse,
+  ConnectorStatus,
+  ConnectorTestRequest,
+  ConnectorTestResponse,
+  ConnectorType,
+  ConnectorUpdate,
+  SecretInfo,
+  SecretSet,
+} from '@/types/connector';
 
 const API_BASE = '/api/v1';
 
@@ -722,8 +735,108 @@ export const api = {
   // ==================== Connectors ====================
 
   /**
-   * List available connectors and their capabilities.
+   * List all connectors with optional filters.
    */
-  listConnectors: () =>
-    fetchJson<ConnectorsResponse>('/connectors'),
+  listConnectors: (params?: {
+    status?: ConnectorStatus;
+    connector_type?: ConnectorType;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.connector_type) searchParams.set('connector_type', params.connector_type);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+    const query = searchParams.toString();
+    return fetchJson<ConnectorsResponse>(`/connectors${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Create a new connector.
+   */
+  createConnector: (data: ConnectorCreate) =>
+    fetchJson<Connector>('/connectors', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Get a connector by ID.
+   */
+  getConnector: (connectorId: string) =>
+    fetchJson<Connector>(`/connectors/${connectorId}`),
+
+  /**
+   * Get a connector by system name.
+   */
+  getConnectorBySystem: (system: string) =>
+    fetchJson<Connector>(`/connectors/by-system/${system}`),
+
+  /**
+   * Update a connector.
+   */
+  updateConnector: (connectorId: string, data: ConnectorUpdate) =>
+    fetchJson<Connector>(`/connectors/${connectorId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Delete a connector.
+   */
+  deleteConnector: (connectorId: string) =>
+    fetchJson<{ deleted: boolean }>(`/connectors/${connectorId}`, {
+      method: 'DELETE',
+    }),
+
+  /**
+   * List secrets for a connector (values not exposed).
+   */
+  listConnectorSecrets: (connectorId: string) =>
+    fetchJson<SecretInfo[]>(`/connectors/${connectorId}/secrets`),
+
+  /**
+   * Set or update a secret.
+   */
+  setConnectorSecret: (connectorId: string, data: SecretSet) =>
+    fetchJson<SecretInfo>(`/connectors/${connectorId}/secrets`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Delete a secret.
+   */
+  deleteConnectorSecret: (connectorId: string, key: string) =>
+    fetchJson<{ deleted: boolean }>(`/connectors/${connectorId}/secrets/${key}`, {
+      method: 'DELETE',
+    }),
+
+  /**
+   * Test a connector's configuration.
+   */
+  testConnector: (connectorId: string, data?: ConnectorTestRequest) =>
+    fetchJson<ConnectorTestResponse>(`/connectors/${connectorId}/test`, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  /**
+   * Learn connector configuration from API docs.
+   */
+  learnConnector: (connectorId: string, data: ConnectorLearnRequest) =>
+    fetchJson<ConnectorLearnResponse>(`/connectors/${connectorId}/learn`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Clear learned assets from a connector.
+   */
+  unlearnConnector: (connectorId: string) =>
+    fetchJson<{ success: boolean }>(`/connectors/${connectorId}/learn`, {
+      method: 'DELETE',
+    }),
 };

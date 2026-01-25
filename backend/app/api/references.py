@@ -147,16 +147,15 @@ async def resolve_url(request: ResolveUrlRequest) -> ResolveUrlResponse:
     3. Creates/updates the reference
     4. Optionally fetches and caches a projection
     """
-    # Find connector that can handle this URL
-    connector_class = ConnectorRegistry.get_for_url(request.url)
-    if connector_class is None:
+    # Find connector that can handle this URL (with DB secrets support)
+    connector = await ConnectorRegistry.get_instance_for_url(request.url)
+    if connector is None:
         raise HTTPException(
             status_code=400,
             detail=f"No connector available for URL: {request.url}",
         )
 
     try:
-        connector = connector_class()
         ref_create = await connector.identify(request.url)
     except Exception as e:
         raise HTTPException(
@@ -207,17 +206,15 @@ async def refresh_projection(reference_id: str) -> RefreshProjectionResponse:
     was_stale = current_proj.is_stale if current_proj else True
     old_hash = current_proj.content_hash if current_proj else None
 
-    # Find and use connector
-    connector_class = ConnectorRegistry.get(ref.system)
-    if connector_class is None:
+    # Find and use connector (with DB secrets support)
+    connector = await ConnectorRegistry.get_instance(ref.system)
+    if connector is None:
         raise HTTPException(
             status_code=400,
             detail=f"No connector for system: {ref.system}",
         )
 
     try:
-        connector = connector_class()
-
         # Force full fetch if summary is missing, otherwise use conditional fetch
         needs_content = not current_proj or current_proj.summary is None
         if_none_match = None if needs_content else (ref.version if not was_stale else None)
@@ -279,9 +276,9 @@ async def create_snapshot(
     if ref is None:
         raise HTTPException(status_code=404, detail="Reference not found")
 
-    # Find and use connector to fetch content
-    connector_class = ConnectorRegistry.get(ref.system)
-    if connector_class is None:
+    # Find and use connector to fetch content (with DB secrets support)
+    connector = await ConnectorRegistry.get_instance(ref.system)
+    if connector is None:
         raise HTTPException(
             status_code=400,
             detail=f"No connector for system: {ref.system}",
@@ -291,7 +288,6 @@ async def create_snapshot(
         from app.connectors.base import BaseConnector
         from app.models.external_reference import CaptureReason
 
-        connector = connector_class()
         _, content = await connector.read(ref, include_content=True)
 
         if content is None:
@@ -461,13 +457,17 @@ async def get_context_pack(pack_id: str) -> ContextPack:
 
 
 # =============================================================================
-# Connector Discovery
+# Connector Discovery (lightweight registry lookup)
 # =============================================================================
 
 
-@router.get("/connectors")
-async def list_connectors() -> dict[str, Any]:
-    """List available connectors and their capabilities."""
+@router.get("/connector-registry")
+async def list_connector_registry() -> dict[str, Any]:
+    """List registered connector classes and their capabilities.
+
+    NOTE: For full connector management (CRUD, secrets, etc.), use /api/v1/connectors
+    which returns database-backed connectors with IDs.
+    """
     connectors = []
     for system in ConnectorRegistry.list_systems():
         connector_class = ConnectorRegistry.get(system)

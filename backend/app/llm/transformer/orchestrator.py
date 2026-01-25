@@ -290,6 +290,7 @@ class DataTransformer:
         on_event: EventCallback | None = None,
         workflow_id: str | None = None,
         db_path: str | None = None,
+        env_vars: dict[str, str] | None = None,
     ) -> tuple[bool, TransformRun[T] | None, str | None]:
         """Try to execute an existing transform.py programmatically.
 
@@ -301,6 +302,7 @@ class DataTransformer:
             on_event: Optional callback for streaming events.
             workflow_id: Optional workflow ID for graph_api.py.
             db_path: Optional database path for graph_api.py.
+            env_vars: Extra environment variables to pass to the script.
 
         Returns:
             Tuple of (success, result, error_message).
@@ -322,12 +324,14 @@ class DataTransformer:
             })
 
         try:
-            # Build environment with graph API context
+            # Build environment with graph API context and extra env vars
             env = os.environ.copy()
             if workflow_id:
                 env["WORKFLOW_ID"] = workflow_id
             if db_path:
                 env["WORKFLOW_DB_PATH"] = db_path
+            if env_vars:
+                env.update(env_vars)
 
             # Execute transform.py
             result = subprocess.run(
@@ -549,6 +553,7 @@ class DataTransformer:
                     on_event=on_event,
                     workflow_id=config.workflow_id,
                     db_path=config.db_path,
+                    env_vars=config.env_vars,
                 )
 
                 if success and replay_result:
@@ -638,6 +643,7 @@ class DataTransformer:
             custom_validator=custom_validator,
             workflow_id=config.workflow_id,
             db_path=config.db_path,
+            env_vars=config.env_vars,
         )
 
         # Build allowed tools list

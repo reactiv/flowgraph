@@ -313,4 +313,56 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
         ON endpoints(workflow_id)
     """)
 
+    # =========================================================================
+    # Connectors (External System Integrations)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS connectors (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            system TEXT NOT NULL UNIQUE,
+            description TEXT,
+            connector_type TEXT NOT NULL DEFAULT 'custom',
+            url_patterns_json TEXT DEFAULT '[]',
+            supported_types_json TEXT DEFAULT '[]',
+            config_schema_json TEXT DEFAULT '{}',
+            learned_skill_md TEXT,
+            learned_connector_code TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_connectors_system
+        ON connectors(system)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_connectors_status
+        ON connectors(status)
+    """)
+
+    # =========================================================================
+    # Connector Secrets (Encrypted Credentials)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS connector_secrets (
+            id TEXT PRIMARY KEY,
+            connector_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            encrypted_value TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (connector_id) REFERENCES connectors(id) ON DELETE CASCADE,
+            UNIQUE(connector_id, key)
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_connector_secrets_connector
+        ON connector_secrets(connector_id)
+    """)
+
     await db.commit()

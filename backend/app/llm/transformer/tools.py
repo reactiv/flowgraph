@@ -32,6 +32,7 @@ def run_and_validate_transformer(
     custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
     workflow_id: str | None = None,
     db_path: str | None = None,
+    env_vars: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Execute a transformer script and validate its output.
 
@@ -47,6 +48,7 @@ def run_and_validate_transformer(
         custom_validator: Optional custom validator for domain-specific validation.
         workflow_id: Optional workflow ID for graph_api.py to query existing nodes.
         db_path: Optional database path for graph_api.py to connect to.
+        env_vars: Extra environment variables to pass to the script.
 
     Returns:
         Dict with success status, execution results, and validation results.
@@ -85,12 +87,14 @@ def run_and_validate_transformer(
         # Execute all copies
         DataTransformer.copy_files(copies)
 
-        # Build environment with graph API context
+        # Build environment with graph API context and extra env vars
         env = os.environ.copy()
         if workflow_id:
             env["WORKFLOW_ID"] = workflow_id
         if db_path:
             env["WORKFLOW_DB_PATH"] = db_path
+        if env_vars:
+            env.update(env_vars)
 
         result = subprocess.run(
             [sys.executable, str(validation_dir / "transform.py")],
@@ -175,6 +179,7 @@ def create_transformer_tools(
     custom_validator: Callable[[Any], list[CustomValidationError]] | None = None,
     workflow_id: str | None = None,
     db_path: str | None = None,
+    env_vars: dict[str, str] | None = None,
 ):
     """Create custom MCP tools for the transformer.
 
@@ -186,6 +191,7 @@ def create_transformer_tools(
         custom_validator: Optional custom validator for domain-specific validation.
         workflow_id: Optional workflow ID for graph_api.py to query existing nodes.
         db_path: Optional database path for graph_api.py to connect to.
+        env_vars: Extra environment variables to pass when running scripts.
 
     Returns:
         SDK MCP server with custom tools.
@@ -284,6 +290,7 @@ def create_transformer_tools(
             custom_validator=custom_validator,
             workflow_id=workflow_id,
             db_path=db_path,
+            env_vars=env_vars,
         )
 
         # Truncate response if too large

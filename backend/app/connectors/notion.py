@@ -4,7 +4,6 @@ This connector integrates with Notion using the official notion-client SDK,
 converting Notion pages and databases into the Pointer/Projection model.
 """
 
-import os
 import re
 from datetime import datetime
 from typing import Any, ClassVar
@@ -36,17 +35,19 @@ class NotionConnector(BaseConnector):
         r"https?://(?:www\.)?notion\.site/.*",
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, connector_id: str | None = None) -> None:
+        super().__init__(connector_id)
         self._client: Any = None
 
     async def _ensure_client(self) -> Any:
         """Ensure Notion client is initialized."""
         if self._client is None:
-            token = os.environ.get("NOTION_TOKEN")
+            # Try to get token from DB first, then fall back to env var
+            token = await self._get_secret("api_token", env_fallback="NOTION_TOKEN")
             if not token:
                 raise AuthenticationError(
-                    "NOTION_TOKEN environment variable not set",
+                    "Notion API token not configured. Set it via the Connectors "
+                    "page or NOTION_TOKEN environment variable.",
                     system=self.system,
                 )
             try:
