@@ -77,24 +77,24 @@ function PathEditor({
   };
 
   return (
-    <div className="border rounded-lg bg-white">
+    <div className="border rounded-lg bg-card">
       {/* Path header */}
       <div
-        className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"
+        className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <GripVertical className="h-4 w-4 text-gray-300" />
+        <GripVertical className="h-4 w-4 text-muted-foreground/50" />
         {isExpanded ? (
-          <ChevronDown className="h-4 w-4 text-gray-500" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-gray-500" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
         <input
           type="text"
           value={path.name}
           onChange={(e) => handleNameChange(e.target.value)}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-purple-300 rounded px-1"
+          className="flex-1 text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/50 rounded px-1 text-foreground"
           placeholder="Path name"
         />
         <button
@@ -102,7 +102,7 @@ function PathEditor({
             e.stopPropagation();
             onDelete();
           }}
-          className="p-1 text-gray-400 hover:text-red-500 rounded"
+          className="p-1 text-muted-foreground hover:text-destructive rounded"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -113,13 +113,13 @@ function PathEditor({
         <div className="px-3 pb-3 space-y-3 border-t">
           {/* From path selector */}
           <div className="pt-3">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
               Start from
             </label>
             <select
               value={path.fromPath || ''}
               onChange={(e) => handleFromPathChange(e.target.value || null)}
-              className="w-full text-sm border rounded px-2 py-1.5 bg-white"
+              className="w-full text-sm border rounded px-2 py-1.5 bg-input text-foreground"
             >
               <option value="">Source node</option>
               {availableFromPaths.map((p) => (
@@ -132,7 +132,7 @@ function PathEditor({
 
           {/* Steps */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
               Traversal steps
             </label>
             <div className="space-y-2">
@@ -146,7 +146,7 @@ function PathEditor({
                         direction: e.target.value as Direction,
                       })
                     }
-                    className="text-sm border rounded px-2 py-1.5 bg-white w-28"
+                    className="text-sm border rounded px-2 py-1.5 bg-input text-foreground w-28"
                   >
                     <option value="outgoing">out:</option>
                     <option value="incoming">in:</option>
@@ -156,7 +156,7 @@ function PathEditor({
                     onChange={(e) =>
                       handleUpdateStep(stepIndex, { ...step, edgeType: e.target.value })
                     }
-                    className="flex-1 text-sm border rounded px-2 py-1.5 bg-white"
+                    className="flex-1 text-sm border rounded px-2 py-1.5 bg-input text-foreground"
                   >
                     {edgeTypes.map((et) => (
                       <option key={et.type} value={et.type}>
@@ -166,7 +166,7 @@ function PathEditor({
                   </select>
                   <button
                     onClick={() => handleDeleteStep(stepIndex)}
-                    className="p-1 text-gray-400 hover:text-red-500 rounded"
+                    className="p-1 text-muted-foreground hover:text-destructive rounded"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -174,7 +174,7 @@ function PathEditor({
               ))}
               <button
                 onClick={handleAddStep}
-                className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add step
@@ -185,13 +185,13 @@ function PathEditor({
           {/* Target type and max count */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 Target type
               </label>
               <select
                 value={path.targetType || ''}
                 onChange={(e) => handleTargetTypeChange(e.target.value || null)}
-                className="w-full text-sm border rounded px-2 py-1.5 bg-white"
+                className="w-full text-sm border rounded px-2 py-1.5 bg-input text-foreground"
               >
                 <option value="">Any type</option>
                 {nodeTypes.map((nt) => (
@@ -202,7 +202,7 @@ function PathEditor({
               </select>
             </div>
             <div className="w-24">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
                 Max count
               </label>
               <input
@@ -211,7 +211,7 @@ function PathEditor({
                 onChange={(e) => handleMaxCountChange(parseInt(e.target.value) || 10)}
                 min={1}
                 max={50}
-                className="w-full text-sm border rounded px-2 py-1.5"
+                className="w-full text-sm border rounded px-2 py-1.5 bg-input text-foreground"
               />
             </div>
           </div>
@@ -273,10 +273,10 @@ export function ContextEditorForm({
       {/* Paths section */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold text-gray-700">Context Paths</h4>
+          <h4 className="text-sm font-semibold text-foreground">Context Paths</h4>
           <button
             onClick={handleAddPath}
-            className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+            className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
           >
             <Plus className="h-4 w-4" />
             Add Path
@@ -285,7 +285,7 @@ export function ContextEditorForm({
 
         <div className="space-y-2">
           {contextSelector.paths.length === 0 ? (
-            <p className="text-sm text-gray-500 italic py-2">
+            <p className="text-sm text-muted-foreground italic py-2">
               No paths configured. Add a path to define which nodes to include.
             </p>
           ) : (
@@ -306,7 +306,7 @@ export function ContextEditorForm({
 
       {/* Presets section */}
       <div className="border-t pt-4">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Presets</h4>
+        <h4 className="text-sm font-semibold text-foreground mb-2">Presets</h4>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() =>
@@ -316,7 +316,7 @@ export function ContextEditorForm({
                 contextProperties: { mode: 'all', fields: [] },
               })
             }
-            className="text-xs px-3 py-1.5 border rounded-full hover:bg-gray-50 text-gray-600"
+            className="text-xs px-3 py-1.5 border rounded-full hover:bg-muted text-muted-foreground"
           >
             Default (neighbors)
           </button>
@@ -328,7 +328,7 @@ export function ContextEditorForm({
                 contextProperties: { mode: 'all', fields: [] },
               })
             }
-            className="text-xs px-3 py-1.5 border rounded-full hover:bg-gray-50 text-gray-600"
+            className="text-xs px-3 py-1.5 border rounded-full hover:bg-muted text-muted-foreground"
           >
             Minimal
           </button>

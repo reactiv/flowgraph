@@ -108,9 +108,9 @@ export function ContextView({
   const containerClass = isCompact ? 'max-h-[400px]' : 'h-full';
 
   return (
-    <div className={`flex flex-col border rounded-lg bg-white ${containerClass}`}>
+    <div className={`flex flex-col border border-border rounded-lg bg-card ${containerClass}`}>
       {/* Tab header */}
-      <div className="border-b px-3 py-2">
+      <div className="border-b border-border px-3 py-2">
         <div className="flex gap-1">
           {tabs.map((tab) => (
             <button
@@ -118,8 +118,8 @@ export function ContextView({
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 activeTab === tab.id
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
               {tab.icon}
@@ -132,14 +132,14 @@ export function ContextView({
       {/* Tab content */}
       <div className="flex-1 overflow-auto">
         {isLoading && (
-          <div className="flex items-center justify-center h-32 text-gray-500">
+          <div className="flex items-center justify-center h-32 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
             Loading context preview...
           </div>
         )}
 
         {isError && (
-          <div className="p-4 text-red-600 text-sm">
+          <div className="p-4 text-destructive text-sm">
             Error loading preview: {error?.message || 'Unknown error'}
           </div>
         )}
@@ -181,7 +181,7 @@ export function ContextView({
 
       {/* Footer with stats */}
       {preview && (
-        <div className="border-t px-3 py-2 text-xs text-gray-500 flex justify-between">
+        <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground flex justify-between">
           <span>
             {preview.totalNodes} context node{preview.totalNodes !== 1 ? 's' : ''}
           </span>

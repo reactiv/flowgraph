@@ -4,6 +4,13 @@
 
 set -e
 
+# Load .env file if it exists
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
 # Project name: use workspace name if set, otherwise directory name
 PROJECT_NAME="${CONDUCTOR_WORKSPACE_NAME:-$(basename "$PWD")}"
 

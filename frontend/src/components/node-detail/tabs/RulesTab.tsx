@@ -75,15 +75,15 @@ export function RulesTab({ node, rules, neighbors }: RulesTabProps) {
             key={rule.id}
             className={`border rounded-lg p-4 transition-colors ${
               isSatisfied
-                ? 'border-green-200 bg-green-50/50'
-                : 'border-yellow-200 bg-yellow-50/50'
+                ? 'border-accent/30 bg-accent/10'
+                : 'border-secondary/30 bg-secondary/10'
             }`}
           >
             <div className="flex items-start gap-3">
               {isSatisfied ? (
-                <ShieldCheck className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <ShieldCheck className="h-5 w-5 text-accent mt-0.5 flex-shrink-0" />
               ) : (
-                <ShieldAlert className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <ShieldAlert className="h-5 w-5 text-secondary mt-0.5 flex-shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">{rule.message}</p>
@@ -105,11 +105,11 @@ export function RulesTab({ node, rules, neighbors }: RulesTabProps) {
                       <div
                         key={req.edgeType}
                         className={`text-xs flex items-center gap-2 ${
-                          met ? 'text-green-700' : 'text-yellow-700'
+                          met ? 'text-accent' : 'text-secondary'
                         }`}
                       >
                         <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                          met ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'
+                          met ? 'bg-accent/20 text-accent' : 'bg-secondary/20 text-secondary'
                         }`}>
                           {met ? '✓' : '!'}
                         </span>

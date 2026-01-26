@@ -129,10 +129,11 @@ export function SchemaGraphPreview({
         maxZoom={2}
       >
         <Background color="hsl(var(--border))" gap={16} />
-        <Controls />
+        <Controls className="!bg-card !border-border" />
         <MiniMap
           nodeColor={() => 'hsl(var(--muted-foreground))'}
-          maskColor="rgba(0, 0, 0, 0.2)"
+          maskColor="rgba(0, 0, 0, 0.4)"
+          style={{ backgroundColor: 'hsl(var(--card))' }}
           pannable
           zoomable
         />

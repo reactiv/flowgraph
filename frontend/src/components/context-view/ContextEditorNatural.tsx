@@ -96,14 +96,14 @@ export function ContextEditorNatural({
     <div className="p-4 space-y-4">
       {/* Description input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Describe the context you want
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g., Include all Issues in the same Project, or Show my documents and my siblings' documents"
-          className="w-full h-24 text-sm border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400"
+          className="w-full h-24 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           disabled={isParsing}
         />
       </div>
@@ -113,7 +113,7 @@ export function ContextEditorNatural({
         <button
           onClick={handleParse}
           disabled={isParsing || !description.trim()}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isParsing ? (
             <>
@@ -129,7 +129,7 @@ export function ContextEditorNatural({
         </button>
 
         {lastParsed && (
-          <span className="text-sm text-green-600 flex items-center gap-1">
+          <span className="text-sm text-green-500 flex items-center gap-1">
             <Check className="h-4 w-4" />
             Applied
           </span>
@@ -138,18 +138,18 @@ export function ContextEditorNatural({
 
       {/* Error message */}
       {error && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <p>{error}</p>
         </div>
       )}
 
       {/* Current configuration */}
-      <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-        <h4 className="text-sm font-medium text-purple-800 mb-2">
+      <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
+        <h4 className="text-sm font-medium text-primary mb-2">
           Current Configuration
         </h4>
-        <ul className="text-sm text-purple-700 space-y-1">
+        <ul className="text-sm text-primary/80 space-y-1">
           <li>
             <strong>Paths:</strong>{' '}
             {displaySelector.paths.length > 0
@@ -161,7 +161,7 @@ export function ContextEditorNatural({
 
       {/* Example prompts */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
           Example prompts
         </h4>
         <div className="flex flex-wrap gap-2">
@@ -169,7 +169,7 @@ export function ContextEditorNatural({
             <button
               key={example}
               onClick={() => handleExampleClick(example)}
-              className="text-xs px-3 py-1.5 border rounded-full hover:bg-gray-50 text-gray-600"
+              className="text-xs px-3 py-1.5 border border-border rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
             >
               {example}
             </button>
@@ -178,11 +178,11 @@ export function ContextEditorNatural({
       </div>
 
       {/* Available schema context */}
-      <div className="border-t pt-4">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+      <div className="border-t border-border pt-4">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
           Available in this workflow
         </h4>
-        <div className="text-xs text-gray-500 space-y-1">
+        <div className="text-xs text-muted-foreground space-y-1">
           <p>
             <strong>Node types:</strong> {nodeTypeNames.join(', ')}
           </p>
