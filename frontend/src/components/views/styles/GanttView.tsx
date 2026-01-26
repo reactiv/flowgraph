@@ -371,7 +371,7 @@ export function GanttView({
   if (nodes.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">No items to display</div>
+        <div className="text-muted-foreground">No items to display</div>
       </div>
     );
   }
@@ -379,7 +379,7 @@ export function GanttView({
   if (tasks.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">
+        <div className="text-muted-foreground">
           No items with valid start and end dates
         </div>
       </div>
@@ -390,10 +390,10 @@ export function GanttView({
     <div ref={containerRef} className="h-full overflow-auto">
       <div className="inline-block min-w-full">
         {/* Header row */}
-        <div className="sticky top-0 z-20 flex border-b bg-gray-50">
+        <div className="sticky top-0 z-20 flex border-b border-border bg-muted/50">
           {/* Label column header */}
           <div
-            className="sticky left-0 z-30 shrink-0 border-r bg-gray-50 px-3 py-2 font-medium"
+            className="sticky left-0 z-30 shrink-0 border-r border-border bg-muted/50 px-3 py-2 font-medium text-foreground"
             style={{ width: labelColumnWidth }}
           >
             Task
@@ -403,19 +403,19 @@ export function GanttView({
             {timeColumns.map((col, i) => (
               <div
                 key={i}
-                className={`shrink-0 border-r px-1 py-1 text-center ${
-                  col.isToday ? 'bg-blue-50' : ''
+                className={`shrink-0 border-r border-border px-1 py-1 text-center ${
+                  col.isToday ? 'bg-primary/10' : ''
                 }`}
                 style={{ width: col.width }}
               >
                 <div
-                  className={`text-xs font-medium ${col.isToday ? 'text-blue-700' : 'text-gray-700'}`}
+                  className={`text-xs font-medium ${col.isToday ? 'text-primary' : 'text-foreground'}`}
                 >
                   {col.label}
                 </div>
                 {col.subLabel && (
                   <div
-                    className={`text-xs ${col.isToday ? 'text-blue-500' : 'text-gray-400'}`}
+                    className={`text-xs ${col.isToday ? 'text-primary' : 'text-muted-foreground'}`}
                   >
                     {col.subLabel}
                   </div>
@@ -451,11 +451,11 @@ export function GanttView({
               {/* Group header */}
               {groupName && groupByField && (
                 <div
-                  className="sticky left-0 flex border-b bg-gray-100"
+                  className="sticky left-0 flex border-b border-border bg-muted"
                   style={{ width: labelColumnWidth + totalWidth }}
                 >
                   <div
-                    className="px-3 py-1.5 text-sm font-medium text-gray-700"
+                    className="px-3 py-1.5 text-sm font-medium text-foreground"
                     style={{ width: labelColumnWidth }}
                   >
                     {groupName}
@@ -554,22 +554,22 @@ function GanttRow({
 
   return (
     <div
-      className={`flex border-b hover:bg-gray-50 ${isDragging ? 'opacity-50' : ''}`}
+      className={`flex border-b border-border hover:bg-muted/50 ${isDragging ? 'opacity-50' : ''}`}
       style={{ minHeight: barHeight + 16 }}
       data-testid="gantt-row"
     >
       {/* Label column */}
       <div
-        className="sticky left-0 z-10 shrink-0 border-r bg-white px-3 py-2"
+        className="sticky left-0 z-10 shrink-0 border-r border-border bg-card px-3 py-2"
         style={{ width: labelColumnWidth }}
       >
         <button
           onClick={() => onNodeClick?.(task.node)}
-          className="w-full text-left hover:text-blue-600"
+          className="w-full text-left hover:text-primary"
         >
-          <div className="truncate text-sm font-medium">{task.label}</div>
+          <div className="truncate text-sm font-medium text-foreground">{task.label}</div>
           {subtitle && (
-            <div className="truncate text-xs text-gray-500">{subtitle}</div>
+            <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
           )}
         </button>
       </div>
