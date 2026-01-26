@@ -18,10 +18,10 @@ interface ContextPreviewListProps {
   mode?: 'compact' | 'expanded';
 }
 
-// Color palette for paths
+// Color palette for paths - using Tailwind colors that work in dark mode
 const PATH_COLORS: Record<string, string> = {
-  neighbors: 'bg-blue-100 text-blue-800 border-blue-200',
-  similar: 'bg-purple-100 text-purple-800 border-purple-200',
+  neighbors: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  similar: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 };
 
 function getPathColor(pathName: string): string {
@@ -29,12 +29,12 @@ function getPathColor(pathName: string): string {
 
   // Generate consistent color based on path name hash
   const colors = [
-    'bg-green-100 text-green-800 border-green-200',
-    'bg-orange-100 text-orange-800 border-orange-200',
-    'bg-pink-100 text-pink-800 border-pink-200',
-    'bg-cyan-100 text-cyan-800 border-cyan-200',
-    'bg-yellow-100 text-yellow-800 border-yellow-200',
-    'bg-indigo-100 text-indigo-800 border-indigo-200',
+    'bg-green-500/20 text-green-400 border-green-500/30',
+    'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    'bg-pink-500/20 text-pink-400 border-pink-500/30',
+    'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+    'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
   ];
 
   let hash = 0;
@@ -70,7 +70,7 @@ function NodeCard({
   return (
     <div
       className={`border rounded-lg p-3 ${
-        isSource ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'
+        isSource ? 'border-amber-500/50 bg-amber-500/10' : 'border-border bg-muted/50'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -78,11 +78,11 @@ function NodeCard({
           {isSource ? (
             <Star className="h-4 w-4 text-amber-500 flex-shrink-0" />
           ) : (
-            <CircleDot className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <CircleDot className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           )}
           <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{node.title}</p>
-            <p className="text-xs text-gray-500">{displayName}</p>
+            <p className="text-sm font-medium text-foreground truncate">{node.title}</p>
+            <p className="text-xs text-muted-foreground">{displayName}</p>
           </div>
         </div>
 
@@ -97,7 +97,7 @@ function NodeCard({
 
       {node.status && (
         <div className="mt-2">
-          <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+          <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
             {node.status}
           </span>
         </div>
@@ -116,7 +116,7 @@ export function ContextPreviewList({
 }: ContextPreviewListProps) {
   if (!preview || !preview.sourceNode) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No preview data available
       </div>
     );
@@ -129,14 +129,14 @@ export function ContextPreviewList({
     <div className="p-4 space-y-4">
       {/* Graph placeholder */}
       {showGraph && (
-        <div className="border rounded-lg bg-gray-50 p-4 text-center text-gray-400 text-sm">
+        <div className="border border-border rounded-lg bg-muted/50 p-4 text-center text-muted-foreground text-sm">
           Graph visualization will appear here
         </div>
       )}
 
       {/* Source node */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
           Source Node
         </h4>
         <NodeCard
@@ -155,13 +155,13 @@ export function ContextPreviewList({
 
         return (
           <div key={pathName}>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-2">
               <span
                 className={`px-2 py-0.5 rounded-full border text-xs font-medium ${pathColor}`}
               >
                 {pathName}
               </span>
-              <span className="text-gray-400">({nodes.length})</span>
+              <span className="text-muted-foreground/70">({nodes.length})</span>
             </h4>
             <div className="space-y-2">
               {nodes.map((node) => (
@@ -178,7 +178,7 @@ export function ContextPreviewList({
 
       {/* Empty state */}
       {pathNames.length === 0 && (
-        <div className="text-center text-gray-500 text-sm py-4">
+        <div className="text-center text-muted-foreground text-sm py-4">
           No context nodes selected. Configure paths in the Form tab.
         </div>
       )}

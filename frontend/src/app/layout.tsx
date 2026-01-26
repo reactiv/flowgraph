@@ -24,7 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Workflow Graph Studio',
+  title: 'Curie Omni',
   description: 'Turn workflow templates into working apps with realistic data and polished UI',
 };
 

@@ -136,17 +136,17 @@ export function SuggestFieldValueModal({
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl">
+      <div className="relative z-10 w-full max-w-lg rounded-lg bg-card border border-border shadow-xl">
         {/* Header */}
-        <div className="flex items-center gap-3 border-b px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-            <Sparkles className="h-5 w-5 text-purple-600" />
+        <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               Suggest {field.label}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Generate a value based on node context
             </p>
           </div>
@@ -155,20 +155,20 @@ export function SuggestFieldValueModal({
         <div className="px-6 py-4">
           {/* Current value info */}
           {currentValue !== null && currentValue !== undefined && currentValue !== '' && (
-            <div className="mb-4 rounded-md bg-gray-50 p-3">
-              <p className="text-xs font-medium text-gray-500 uppercase mb-1">Current Value</p>
-              <p className="text-sm text-gray-700">{formatValue(currentValue)}</p>
+            <div className="mb-4 rounded-md bg-muted p-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Current Value</p>
+              <p className="text-sm text-foreground">{formatValue(currentValue)}</p>
             </div>
           )}
 
           {!suggestion ? (
             // Initial state: Generate button
             <>
-              <div className="rounded-lg bg-gray-50 p-4 text-center">
-                <p className="text-sm text-gray-600 mb-4">
-                  Use AI to suggest a value for <strong>{field.label}</strong> ({field.kind}) based on:
+              <div className="rounded-lg bg-muted p-4 text-center">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Use AI to suggest a value for <strong className="text-foreground">{field.label}</strong> ({field.kind}) based on:
                 </p>
-                <ul className="text-sm text-gray-500 text-left space-y-1 mb-4">
+                <ul className="text-sm text-muted-foreground text-left space-y-1 mb-4">
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500" />
                     Current node properties
@@ -186,12 +186,12 @@ export function SuggestFieldValueModal({
                 {/* Field constraints info */}
                 {field.values && field.values.length > 0 && (
                   <div className="mb-4 text-left">
-                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Allowed Values</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Allowed Values</p>
                     <div className="flex flex-wrap gap-1">
                       {field.values.map((v) => (
                         <span
                           key={v}
-                          className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700"
+                          className="inline-flex items-center rounded-full bg-background px-2 py-0.5 text-xs font-medium text-foreground border border-border"
                         >
                           {v}
                         </span>
@@ -201,27 +201,27 @@ export function SuggestFieldValueModal({
                 )}
 
                 {/* Context Configuration Section */}
-                <div className="mb-4 rounded-lg border border-gray-200 overflow-hidden text-left">
+                <div className="mb-4 rounded-lg border border-border overflow-hidden text-left">
                   <button
                     type="button"
                     onClick={() => setIsContextExpanded(!isContextExpanded)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-background hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
                         Configure Context
                       </span>
                     </div>
                     {isContextExpanded ? (
-                      <ChevronUp className="h-4 w-4 text-gray-500" />
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
 
                   {isContextExpanded && (
-                    <div className="p-4 border-t border-gray-200 space-y-4">
+                    <div className="p-4 border-t border-border space-y-4">
                       <ContextView
                         workflowId={workflowId}
                         workflowDefinition={workflowDefinition}
@@ -235,17 +235,17 @@ export function SuggestFieldValueModal({
                       />
 
                       {/* External References Toggle */}
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">External References</h4>
+                      <div className="pt-3 border-t border-border">
+                        <h4 className="text-sm font-medium text-foreground mb-2">External References</h4>
                         <div className="space-y-2">
                           <label className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={includeExternalContent}
                               onChange={(e) => setIncludeExternalContent(e.target.checked)}
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              className="rounded border-border text-primary focus:ring-primary"
                             />
-                            <span className="text-gray-600">Include external reference content</span>
+                            <span className="text-muted-foreground">Include external reference content</span>
                           </label>
                           {includeExternalContent && (
                             <label className="flex items-center gap-2 text-sm ml-6">
@@ -253,9 +253,9 @@ export function SuggestFieldValueModal({
                                 type="checkbox"
                                 checked={includeFullContent}
                                 onChange={(e) => setIncludeFullContent(e.target.checked)}
-                                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                className="rounded border-border text-primary focus:ring-primary"
                               />
-                              <span className="text-gray-600">Include full snapshot content (heavier)</span>
+                              <span className="text-muted-foreground">Include full snapshot content (heavier)</span>
                             </label>
                           )}
                         </div>
@@ -266,7 +266,7 @@ export function SuggestFieldValueModal({
 
                 {/* Guidance input */}
                 <div className="mb-4 text-left">
-                  <label htmlFor="guidance" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="guidance" className="block text-sm font-medium text-foreground mb-1">
                     Guidance (optional)
                   </label>
                   <textarea
@@ -274,17 +274,17 @@ export function SuggestFieldValueModal({
                     value={guidance}
                     onChange={(e) => setGuidance(e.target.value)}
                     placeholder="e.g., Focus on recent experiments, or Keep it brief..."
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    className="block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     rows={2}
                     disabled={isGenerating}
                   />
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Add specific instructions to guide the AI suggestion
                   </p>
                 </div>
 
                 {error && (
-                  <div className="mb-4 flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                  <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     <AlertCircle className="h-4 w-4" />
                     {error}
                   </div>
@@ -293,7 +293,7 @@ export function SuggestFieldValueModal({
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isGenerating ? (
                     <>
@@ -314,20 +314,20 @@ export function SuggestFieldValueModal({
             <div className="space-y-4">
               {/* Suggested value (editable) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Suggested Value
                 </label>
                 {renderEditableValue(field, editedValue, setEditedValue)}
               </div>
 
               {/* Rationale */}
-              <div className="rounded-md bg-purple-50 p-3">
-                <h4 className="text-sm font-medium text-purple-800 mb-1">Why this suggestion?</h4>
-                <p className="text-sm text-purple-700">{suggestion.rationale}</p>
+              <div className="rounded-md bg-primary/10 p-3">
+                <h4 className="text-sm font-medium text-primary mb-1">Why this suggestion?</h4>
+                <p className="text-sm text-primary/80">{suggestion.rationale}</p>
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4" />
                   {error}
                 </div>
@@ -337,10 +337,10 @@ export function SuggestFieldValueModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t px-6 py-4">
+        <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
           <button
             onClick={handleClose}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
             disabled={isGenerating}
           >
             Cancel
@@ -350,7 +350,7 @@ export function SuggestFieldValueModal({
               <button
                 onClick={handleRegenerate}
                 disabled={isGenerating}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
               >
                 {isGenerating ? (
                   <>
@@ -364,7 +364,7 @@ export function SuggestFieldValueModal({
               <button
                 onClick={handleAccept}
                 disabled={isGenerating}
-                className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 Accept
               </button>
@@ -395,6 +395,7 @@ function renderEditableValue(
   onChange: (value: unknown) => void
 ): React.ReactNode {
   const kind = field.kind;
+  const inputClasses = "block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
   switch (kind) {
     case 'string':
@@ -404,7 +405,7 @@ function renderEditableValue(
           type="text"
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={inputClasses}
         />
       );
 
@@ -417,7 +418,7 @@ function renderEditableValue(
             const num = parseFloat(e.target.value);
             onChange(isNaN(num) ? null : num);
           }}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={inputClasses}
         />
       );
 
@@ -433,7 +434,7 @@ function renderEditableValue(
               onChange(null);
             }
           }}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={inputClasses}
         />
       );
 
@@ -442,7 +443,7 @@ function renderEditableValue(
         <select
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value || null)}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={inputClasses}
         >
           <option value="">Select a value...</option>
           {field.values?.map((v) => (
@@ -461,7 +462,7 @@ function renderEditableValue(
             {tags.map((tag, index) => (
               <span
                 key={index}
-                className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
               >
                 {tag}
                 <button
@@ -470,7 +471,7 @@ function renderEditableValue(
                     const newTags = tags.filter((_, i) => i !== index);
                     onChange(newTags);
                   }}
-                  className="ml-1 text-purple-500 hover:text-purple-700"
+                  className="ml-1 text-primary/70 hover:text-primary"
                 >
                   &times;
                 </button>
@@ -491,7 +492,7 @@ function renderEditableValue(
                 }
               }
             }}
-            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className={inputClasses}
           />
         </div>
       );
@@ -509,7 +510,7 @@ function renderEditableValue(
             }
           }}
           rows={4}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={`${inputClasses} font-mono`}
         />
       );
 
@@ -519,7 +520,7 @@ function renderEditableValue(
           type="text"
           value={formatValue(value)}
           onChange={(e) => onChange(e.target.value)}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className={inputClasses}
         />
       );
   }

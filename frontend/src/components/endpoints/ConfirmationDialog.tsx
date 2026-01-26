@@ -94,14 +94,14 @@ export function ConfirmationDialog({
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Dialog */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col mx-4">
+      <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col mx-4">
         {/* Header */}
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Confirm Changes</h2>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Confirm Changes</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Review the changes before applying them to the workflow.
           </p>
-          <div className="mt-3 text-sm font-medium">{summary}</div>
+          <div className="mt-3 text-sm font-medium text-foreground">{summary}</div>
         </div>
 
         {/* Tabs */}

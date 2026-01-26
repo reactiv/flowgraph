@@ -130,4 +130,48 @@
   .text-gradient-cyan {
     @apply bg-gradient-to-r from-cyan-400 to-cyan-300 bg-clip-text text-transparent;
   }
+
+  /* Hide scrollbar while keeping scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* React Flow dark mode overrides */
+.react-flow__controls {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
+.react-flow__controls-button {
+  background: hsl(var(--card)) !important;
+  border: none !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  fill: hsl(var(--muted-foreground)) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: hsl(var(--muted)) !important;
+  fill: hsl(var(--foreground)) !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button svg {
+  fill: inherit !important;
+}
+
+/* React Flow MiniMap dark mode */
+.react-flow__minimap {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.5rem !important;
 }

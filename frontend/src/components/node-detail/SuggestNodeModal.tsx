@@ -151,17 +151,17 @@ export function SuggestNodeModal({
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl">
+      <div className="relative z-10 w-full max-w-lg rounded-lg bg-card border border-border shadow-xl">
         {/* Header */}
-        <div className="flex items-center gap-3 border-b px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-            <Sparkles className="h-5 w-5 text-purple-600" />
+        <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               Suggest {targetDisplayName}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {direction === 'outgoing'
                 ? `Create a ${targetDisplayName} that ${relationshipDisplay} "${sourceNode.title}"`
                 : `Create a ${targetDisplayName} that ${relationshipDisplay} "${sourceNode.title}"`}
@@ -175,27 +175,27 @@ export function SuggestNodeModal({
             <>
               <div className="space-y-4">
                 {/* Context Configuration Section */}
-                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <div className="rounded-lg border border-border overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setIsContextExpanded(!isContextExpanded)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-muted hover:bg-muted/80 transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
                         Configure Context
                       </span>
                     </div>
                     {isContextExpanded ? (
-                      <ChevronUp className="h-4 w-4 text-gray-500" />
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
 
                   {isContextExpanded && (
-                    <div className="p-4 border-t border-gray-200">
+                    <div className="p-4 border-t border-border">
                       <ContextView
                         workflowId={workflowId}
                         workflowDefinition={workflowDefinition}
@@ -212,24 +212,24 @@ export function SuggestNodeModal({
                       />
 
                       {/* External References Options */}
-                      <div className="mt-4 pt-3 border-t border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">External References</h4>
-                        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                      <div className="mt-4 pt-3 border-t border-border">
+                        <h4 className="text-sm font-medium text-foreground mb-2">External References</h4>
+                        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
                           <input
                             type="checkbox"
                             checked={includeExternalContent}
                             onChange={(e) => setIncludeExternalContent(e.target.checked)}
-                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            className="rounded border-border text-primary focus:ring-primary"
                           />
                           Include external reference content
                         </label>
                         {includeExternalContent && (
-                          <label className="flex items-center gap-2 text-sm text-gray-600 ml-6 mt-2 cursor-pointer">
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground ml-6 mt-2 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={includeFullContent}
                               onChange={(e) => setIncludeFullContent(e.target.checked)}
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              className="rounded border-border text-primary focus:ring-primary"
                             />
                             Include full snapshot content (heavier)
                           </label>
@@ -241,7 +241,7 @@ export function SuggestNodeModal({
 
                 {/* Guidance input */}
                 <div className="text-left">
-                  <label htmlFor="guidance" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="guidance" className="block text-sm font-medium text-foreground mb-1">
                     Guidance (optional)
                   </label>
                   <textarea
@@ -249,17 +249,17 @@ export function SuggestNodeModal({
                     value={guidance}
                     onChange={(e) => setGuidance(e.target.value)}
                     placeholder="e.g., Focus on temperature optimization, or Include a control group..."
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    className="block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     rows={2}
                     disabled={isGenerating}
                   />
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Add specific instructions to guide the AI suggestion
                   </p>
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                  <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     <AlertCircle className="h-4 w-4" />
                     {error}
                   </div>
@@ -269,7 +269,7 @@ export function SuggestNodeModal({
                   <button
                     onClick={handleGenerate}
                     disabled={isGenerating}
-                    className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {isGenerating ? (
                       <>
@@ -292,7 +292,7 @@ export function SuggestNodeModal({
               {/* Back button */}
               <button
                 onClick={() => setSuggestion(null)}
-                className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Back
@@ -301,7 +301,7 @@ export function SuggestNodeModal({
               {/* Editable fields */}
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="node-title" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="node-title" className="block text-sm font-medium text-foreground">
                     Title
                   </label>
                   <input
@@ -309,20 +309,20 @@ export function SuggestNodeModal({
                     type="text"
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
                 {availableStatuses.length > 0 && (
                   <div>
-                    <label htmlFor="node-status" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="node-status" className="block text-sm font-medium text-foreground">
                       Status
                     </label>
                     <select
                       id="node-status"
                       value={editedStatus || ''}
                       onChange={(e) => setEditedStatus(e.target.value || undefined)}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       {availableStatuses.map((status) => (
                         <option key={status} value={status}>
@@ -334,19 +334,19 @@ export function SuggestNodeModal({
                 )}
 
                 {/* Rationale */}
-                <div className="rounded-md bg-purple-50 p-3">
-                  <h4 className="text-sm font-medium text-purple-800 mb-1">Why this suggestion?</h4>
-                  <p className="text-sm text-purple-700">{suggestion.rationale}</p>
+                <div className="rounded-md bg-primary/10 p-3">
+                  <h4 className="text-sm font-medium text-primary mb-1">Why this suggestion?</h4>
+                  <p className="text-sm text-primary/80">{suggestion.rationale}</p>
                 </div>
 
                 {/* Properties preview */}
                 {suggestion.node.properties && Object.keys(suggestion.node.properties).length > 0 && (
-                  <div className="rounded-md bg-gray-50 p-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Generated Properties</h4>
-                    <div className="space-y-1 text-sm text-gray-600 max-h-32 overflow-y-auto">
+                  <div className="rounded-md bg-muted p-3">
+                    <h4 className="text-sm font-medium text-foreground mb-2">Generated Properties</h4>
+                    <div className="space-y-1 text-sm text-muted-foreground max-h-32 overflow-y-auto">
                       {Object.entries(suggestion.node.properties).map(([key, value]) => (
                         <div key={key} className="flex gap-2">
-                          <span className="font-medium text-gray-500 min-w-[100px]">{key}:</span>
+                          <span className="font-medium text-muted-foreground min-w-[100px]">{key}:</span>
                           <span className="truncate">{formatPropertyValue(value)}</span>
                         </div>
                       ))}
@@ -356,7 +356,7 @@ export function SuggestNodeModal({
               </div>
 
               {error && (
-                <div className="mt-4 flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div className="mt-4 flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4" />
                   {error}
                 </div>
@@ -366,10 +366,10 @@ export function SuggestNodeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t px-6 py-4">
+        <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
           <button
             onClick={handleClose}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
             disabled={isGenerating || isAccepting}
           >
             Cancel
@@ -379,7 +379,7 @@ export function SuggestNodeModal({
               <button
                 onClick={handleRegenerate}
                 disabled={isGenerating || isAccepting}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
               >
                 {isGenerating ? (
                   <>
@@ -393,7 +393,7 @@ export function SuggestNodeModal({
               <button
                 onClick={handleAccept}
                 disabled={isAccepting || !editedTitle.trim()}
-                className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isAccepting ? (
                   <>

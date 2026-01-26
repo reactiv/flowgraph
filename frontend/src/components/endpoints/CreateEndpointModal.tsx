@@ -84,22 +84,22 @@ export function CreateEndpointModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-auto">
+      <div className="relative bg-card border border-border rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-auto">
         <div className="p-6">
-          <h2 className="text-lg font-semibold mb-4">
+          <h2 className="text-lg font-semibold text-foreground mb-4">
             {isEditing ? 'Edit Endpoint' : 'Create Endpoint'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Ingest Customer Feedback"
-                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 required
               />
             </div>
@@ -107,7 +107,7 @@ export function CreateEndpointModal({
             {/* Slug */}
             {!isEditing && (
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Slug
                   <span className="text-muted-foreground font-normal ml-1">
                     (URL path)
@@ -123,7 +123,7 @@ export function CreateEndpointModal({
                     }}
                     placeholder="ingest-customer-feedback"
                     pattern="^[a-z0-9-]+$"
-                    className="flex-1 px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="flex-1 px-3 py-2 border rounded-md text-sm font-mono bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     required
                   />
                   {!autoSlug && (
@@ -147,7 +147,7 @@ export function CreateEndpointModal({
 
             {/* HTTP Method */}
             <div>
-              <label className="block text-sm font-medium mb-1">HTTP Method</label>
+              <label className="block text-sm font-medium text-foreground mb-1">HTTP Method</label>
               <div className="flex gap-2">
                 {(['GET', 'POST', 'PUT', 'DELETE'] as HttpMethod[]).map((m) => (
                   <button
@@ -157,13 +157,13 @@ export function CreateEndpointModal({
                     className={`px-3 py-1.5 text-sm font-mono rounded-md border transition-colors ${
                       httpMethod === m
                         ? m === 'GET'
-                          ? 'bg-green-100 text-green-700 border-green-300'
+                          ? 'bg-accent/20 text-accent border-accent/40'
                           : m === 'POST'
-                            ? 'bg-blue-100 text-blue-700 border-blue-300'
+                            ? 'bg-primary/20 text-primary border-primary/40'
                             : m === 'PUT'
-                              ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                              : 'bg-red-100 text-red-700 border-red-300'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                              ? 'bg-secondary/20 text-secondary border-secondary/40'
+                              : 'bg-destructive/20 text-destructive border-destructive/40'
+                        : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
                     }`}
                   >
                     {m}
@@ -180,7 +180,7 @@ export function CreateEndpointModal({
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Description
                 <span className="text-muted-foreground font-normal ml-1">(optional)</span>
               </label>
@@ -189,19 +189,19 @@ export function CreateEndpointModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Brief description of what this endpoint does"
-                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
 
             {/* Instruction */}
             <div>
-              <label className="block text-sm font-medium mb-1">Instruction</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Instruction</label>
               <textarea
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
                 placeholder="Describe what this endpoint should do in natural language. E.g., 'Parse incoming customer feedback emails, extract the sentiment and key topics, and create a FeedbackItem node linked to the appropriate Customer.'"
                 rows={4}
-                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -211,7 +211,7 @@ export function CreateEndpointModal({
 
             {/* Mode */}
             <div>
-              <label className="block text-sm font-medium mb-1">Transform Mode</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Transform Mode</label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -220,9 +220,9 @@ export function CreateEndpointModal({
                     value="direct"
                     checked={mode === 'direct'}
                     onChange={() => setMode('direct')}
-                    className="text-primary"
+                    className="text-primary accent-primary"
                   />
-                  <span className="text-sm">Direct</span>
+                  <span className="text-sm text-foreground">Direct</span>
                   <span className="text-xs text-muted-foreground">
                     (faster, for small outputs)
                   </span>
@@ -234,9 +234,9 @@ export function CreateEndpointModal({
                     value="code"
                     checked={mode === 'code'}
                     onChange={() => setMode('code')}
-                    className="text-primary"
+                    className="text-primary accent-primary"
                   />
-                  <span className="text-sm">Code</span>
+                  <span className="text-sm text-foreground">Code</span>
                   <span className="text-xs text-muted-foreground">
                     (for complex transforms)
                   </span>

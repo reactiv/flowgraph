@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useSeedWorkflow } from '@/lib/use-seed-workflow';
@@ -107,6 +107,7 @@ export default function CreateWorkflowPage() {
   const [validation, setValidation] = useState<SchemaValidationResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const isSubmittingRef = useRef(false); // Extra guard against double-submission
   const [error, setError] = useState<string | null>(null);
 
   // File upload state
@@ -228,6 +229,10 @@ export default function CreateWorkflowPage() {
   const handleCreate = async () => {
     if (!generatedDefinition) return;
 
+    // Extra guard against double-submission (ref updates synchronously)
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     setIsCreating(true);
     setError(null);
 
@@ -281,6 +286,7 @@ export default function CreateWorkflowPage() {
           setTransformSeedDataJson(result.seed_data_json || null);  // Cache for confirm
           setShowTransformConfirmation(true);
           setIsCreating(false);
+          isSubmittingRef.current = false;
         } else {
           throw new Error('Preview did not return script or preview data');
         }
@@ -292,6 +298,7 @@ export default function CreateWorkflowPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workflow');
       setIsCreating(false);
+      isSubmittingRef.current = false;
     }
   };
 

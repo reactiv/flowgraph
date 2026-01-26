@@ -15,9 +15,9 @@ interface DeltaPreviewProps {
 }
 
 const decisionConfig: Record<MatchDecision, { bg: string; text: string; label: string }> = {
-  create: { bg: 'bg-green-100', text: 'text-green-700', label: 'CREATE' },
-  update: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'UPDATE' },
-  skip: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'SKIP' },
+  create: { bg: 'bg-accent/20', text: 'text-accent', label: 'CREATE' },
+  update: { bg: 'bg-secondary/20', text: 'text-secondary', label: 'UPDATE' },
+  skip: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'SKIP' },
 };
 
 function MatchBadge({
@@ -80,27 +80,27 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
           {/* Summary */}
           <div className="flex flex-wrap gap-3 text-sm">
             {toCreate.length > 0 && (
-              <span className="bg-green-50 text-green-700 px-2 py-1 rounded">
+              <span className="bg-accent/10 text-accent px-2 py-1 rounded">
                 {toCreate.length} new
               </span>
             )}
             {toUpdate.length > 0 && (
-              <span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded">
+              <span className="bg-secondary/10 text-secondary px-2 py-1 rounded">
                 {toUpdate.length} to update
               </span>
             )}
             {toSkip.length > 0 && (
-              <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded">
+              <span className="bg-muted text-muted-foreground px-2 py-1 rounded">
                 {toSkip.length} duplicates
               </span>
             )}
             {edgesToCreate.length > 0 && (
-              <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded">
+              <span className="bg-primary/10 text-primary px-2 py-1 rounded">
                 {edgesToCreate.length} edges
               </span>
             )}
             {edgesToSkip.length > 0 && (
-              <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded">
+              <span className="bg-muted text-muted-foreground px-2 py-1 rounded">
                 {edgesToSkip.length} existing edges
               </span>
             )}
@@ -109,8 +109,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
           {/* Nodes to create */}
           {toCreate.length > 0 && (
             <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">
+              <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+                <span className="bg-accent/20 text-accent text-xs px-2 py-0.5 rounded">
                   CREATE
                 </span>
                 New Nodes ({toCreate.length})
@@ -127,8 +127,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
           {/* Nodes to update */}
           {toUpdate.length > 0 && (
             <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded">
+              <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+                <span className="bg-secondary/20 text-secondary text-xs px-2 py-0.5 rounded">
                   UPDATE
                 </span>
                 Existing Nodes ({toUpdate.length})
@@ -145,15 +145,15 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
           {/* Nodes to skip */}
           {toSkip.length > 0 && (
             <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded">
+              <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+                <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded">
                   SKIP
                 </span>
                 Duplicates ({toSkip.length})
               </h4>
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {toSkip.map((match, i) => (
-                  <div key={i} className="border rounded p-2 text-sm bg-gray-50">
+                  <div key={i} className="border rounded p-2 text-sm bg-muted/50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -177,8 +177,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
           {/* Edges */}
           {(edgesToCreate.length > 0 || edgesToSkip.length > 0) && (
             <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">
+              <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+                <span className="bg-primary/20 text-primary text-xs px-2 py-0.5 rounded">
                   CONNECT
                 </span>
                 Edges ({edgesToCreate.length} new, {edgesToSkip.length} existing)
@@ -200,8 +200,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
     return (
       <div className="space-y-6">
         <div>
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">CREATE</span>
+          <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+            <span className="bg-accent/20 text-accent text-xs px-2 py-0.5 rounded">CREATE</span>
             Nodes ({nodes.length})
           </h4>
           {nodes.length === 0 ? (
@@ -217,8 +217,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
 
         {edges.length > 0 && (
           <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">CONNECT</span>
+            <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+              <span className="bg-primary/20 text-primary text-xs px-2 py-0.5 rounded">CONNECT</span>
               Edges ({edges.length})
             </h4>
             <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -237,8 +237,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
 
     return (
       <div>
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded">UPDATE</span>
+        <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+          <span className="bg-secondary/20 text-secondary text-xs px-2 py-0.5 rounded">UPDATE</span>
           Nodes ({updates.length})
         </h4>
         {updates.length === 0 ? (
@@ -254,20 +254,20 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
                     <div className="font-mono text-xs text-muted-foreground truncate max-w-[250px]" title={update.node_id}>
                       {update.node_id}
                     </div>
-                    <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded">
+                    <span className="bg-secondary/20 text-secondary text-xs px-2 py-0.5 rounded">
                       {propKeys.length} field{propKeys.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                   {propKeys.length > 0 && (
-                    <div className="bg-yellow-50/50 border border-yellow-200/50 rounded p-2">
-                      <div className="text-xs font-medium text-yellow-800 mb-1.5">Setting properties:</div>
+                    <div className="bg-secondary/10 border border-secondary/20 rounded p-2">
+                      <div className="text-xs font-medium text-secondary mb-1.5">Setting properties:</div>
                       <div className="space-y-1">
                         {Object.entries(props).map(([key, value]) => (
                           <div key={key} className="flex items-start gap-2 text-xs">
-                            <span className="font-mono font-medium text-yellow-700 min-w-0 flex-shrink-0">
+                            <span className="font-mono font-medium text-secondary min-w-0 flex-shrink-0">
                               {key}:
                             </span>
-                            <span className="text-green-700 font-medium truncate max-w-[200px]" title={formatValue(value)}>
+                            <span className="text-accent font-medium truncate max-w-[200px]" title={formatValue(value)}>
                               {formatValue(value)}
                             </span>
                           </div>
@@ -289,8 +289,8 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
 
     return (
       <div>
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">DELETE</span>
+        <h4 className="font-medium mb-3 flex items-center gap-2 text-foreground">
+          <span className="bg-destructive/20 text-destructive text-xs px-2 py-0.5 rounded">DELETE</span>
           Nodes ({nodeIds.length})
         </h4>
         {nodeIds.length === 0 ? (
@@ -298,7 +298,7 @@ export function DeltaPreview({ result }: DeltaPreviewProps) {
         ) : (
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {nodeIds.map((nodeId, i) => (
-              <div key={i} className="font-mono text-sm p-2 bg-red-50 border border-red-200 rounded">
+              <div key={i} className="font-mono text-sm p-2 bg-destructive/10 border border-destructive/20 rounded text-foreground">
                 {nodeId}
               </div>
             ))}
@@ -361,19 +361,19 @@ function PropertyDiff({
         const newValue = propertiesToUpdate[key];
         return (
           <div key={key} className="flex items-start gap-2 text-xs">
-            <span className="font-mono font-medium text-yellow-700 min-w-0 flex-shrink-0">
+            <span className="font-mono font-medium text-secondary min-w-0 flex-shrink-0">
               {key}:
             </span>
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
               {oldValue !== undefined && (
                 <>
-                  <span className="text-red-600 line-through truncate max-w-[150px]" title={formatValue(oldValue)}>
+                  <span className="text-destructive line-through truncate max-w-[150px]" title={formatValue(oldValue)}>
                     {formatValue(oldValue)}
                   </span>
                   <span className="text-muted-foreground">→</span>
                 </>
               )}
-              <span className="text-green-700 font-medium truncate max-w-[200px]" title={formatValue(newValue)}>
+              <span className="text-accent font-medium truncate max-w-[200px]" title={formatValue(newValue)}>
                 {formatValue(newValue)}
               </span>
             </div>
@@ -426,8 +426,8 @@ function NodeWithMatchCard({ node, match }: { node: SeedNode | null; match: Node
       {match.decision === 'update' &&
         match.properties_to_update &&
         Object.keys(match.properties_to_update).length > 0 && (
-          <div className="bg-yellow-50/50 border border-yellow-200/50 rounded p-2">
-            <div className="text-xs font-medium text-yellow-800 mb-1">Property changes:</div>
+          <div className="bg-secondary/10 border border-secondary/20 rounded p-2">
+            <div className="text-xs font-medium text-secondary mb-1">Property changes:</div>
             <PropertyDiff
               propertiesToUpdate={match.properties_to_update}
               matchedProperties={match.matched_node_properties}
