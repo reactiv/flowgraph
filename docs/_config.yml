@@ -1,0 +1,17 @@
+title: Curie Omni
+description: Building heterogeneous workflows through context graphs and agentic transformation
+theme: jekyll-theme-cayman
+markdown: kramdown
+
+# GitHub repository (update after transfer to org)
+repository: reactivy/papeete
+
+# Navigation
+header_pages:
+  - index.md
+
+# Build settings
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
