@@ -296,8 +296,8 @@ This pattern generalizes across domains:
 |----------|--------------|------------|
 | **Suggest next experiment** | Previous samples + their analyses + outcomes | New Sample node with parameters |
 | **Generate readable nickname** | Parent samples + analysis types + key results | Human-friendly identifier like "High-Temp-TGA-Batch-3" |
-| **Draft hypothesis** | Related samples + anomalous analysis results | Hypothesis node with rationale |
-| **Recommend analysis** | Sample properties + similar samples' successful analyses | Analysis node with suggested parameters |
+| **Find a Supplier Part for a CAD Part** | Other suppliers for similar parts | Agentic search over catalogues for a matching part and SKU |
+| **Recommend Synthetic Route** | Routes that have been tried and their results | A new Route with appropriate Steps |
 
 The abstraction is domain-agnostic:
 
