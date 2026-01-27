@@ -4,7 +4,7 @@ theme: jekyll-theme-cayman
 markdown: kramdown
 
 # GitHub repository (update after transfer to org)
-repository: reactiv/flowgraph
+repository: orbital-materials/curie-omni-demo
 
 # Navigation
 header_pages:
