@@ -588,5 +588,3 @@ The graph representation makes this possible—but the execution engine makes it
 This takes us one step closer to our goal of multi-scale technology development!
 
 ---
-
-*Built by the Reactivy team. For questions or collaboration opportunities, reach out at [team@reactivy.io](mailto:team@reactivy.io).*
