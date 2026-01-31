@@ -75,6 +75,22 @@ import type {
   SecretInfo,
   SecretSet,
 } from '@/types/connector';
+import type {
+  AssigneeType,
+  AssignTaskRequest,
+  AvailableTasksResponse,
+  CompleteTaskRequest,
+  MyTasksResponse,
+  NodeTaskProgressResponse,
+  TaskInstance,
+  TaskSetDefinition,
+  TaskSetDefinitionCreate,
+  TaskSetDefinitionsResponse,
+  TaskSetInstance,
+  TaskSetInstancesResponse,
+  TaskSetInstanceStatus,
+  TaskStatus,
+} from '@/types/task';
 
 const API_BASE = '/api/v1';
 
@@ -839,4 +855,134 @@ export const api = {
     fetchJson<{ success: boolean }>(`/connectors/${connectorId}/learn`, {
       method: 'DELETE',
     }),
+
+  // ==================== Task Execution Engine ====================
+
+  // TaskSet Definition CRUD
+  listTaskSetDefinitions: (workflowId: string) =>
+    fetchJson<TaskSetDefinitionsResponse>(`/workflows/${workflowId}/task-sets`),
+
+  createTaskSetDefinition: (workflowId: string, definition: TaskSetDefinitionCreate) =>
+    fetchJson<TaskSetDefinition>(`/workflows/${workflowId}/task-sets`, {
+      method: 'POST',
+      body: JSON.stringify(definition),
+    }),
+
+  getTaskSetDefinition: (workflowId: string, taskSetId: string) =>
+    fetchJson<TaskSetDefinition>(`/workflows/${workflowId}/task-sets/${taskSetId}`),
+
+  deleteTaskSetDefinition: (workflowId: string, taskSetId: string) =>
+    fetchJson<{ deleted: boolean }>(`/workflows/${workflowId}/task-sets/${taskSetId}`, {
+      method: 'DELETE',
+    }),
+
+  // TaskSet Instance Management
+  startTaskSetInstance: (workflowId: string, taskSetId: string, rootNodeId?: string) => {
+    const params = rootNodeId ? `?root_node_id=${encodeURIComponent(rootNodeId)}` : '';
+    return fetchJson<TaskSetInstance>(`/workflows/${workflowId}/task-sets/${taskSetId}/start${params}`, {
+      method: 'POST',
+    });
+  },
+
+  listTaskSetInstances: (
+    workflowId: string,
+    params?: { status?: TaskSetInstanceStatus; rootNodeId?: string }
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.rootNodeId) searchParams.set('root_node_id', params.rootNodeId);
+
+    const query = searchParams.toString();
+    return fetchJson<TaskSetInstancesResponse>(
+      `/workflows/${workflowId}/task-set-instances${query ? `?${query}` : ''}`
+    );
+  },
+
+  getTaskSetInstance: (workflowId: string, instanceId: string) =>
+    fetchJson<TaskSetInstance>(`/workflows/${workflowId}/task-set-instances/${instanceId}`),
+
+  refreshTaskSetInstance: (workflowId: string, instanceId: string) =>
+    fetchJson<TaskSetInstance>(`/workflows/${workflowId}/task-set-instances/${instanceId}/refresh`, {
+      method: 'POST',
+    }),
+
+  cancelTaskSetInstance: (workflowId: string, instanceId: string) =>
+    fetchJson<TaskSetInstance>(`/workflows/${workflowId}/task-set-instances/${instanceId}/cancel`, {
+      method: 'POST',
+    }),
+
+  // Task Operations
+  getAvailableTasks: (workflowId: string, instanceId: string) =>
+    fetchJson<AvailableTasksResponse>(
+      `/workflows/${workflowId}/task-set-instances/${instanceId}/available-tasks`
+    ),
+
+  assignTask: (
+    workflowId: string,
+    instanceId: string,
+    taskDefId: string,
+    request: AssignTaskRequest
+  ) =>
+    fetchJson<TaskInstance>(
+      `/workflows/${workflowId}/task-set-instances/${instanceId}/tasks/${taskDefId}/assign`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      }
+    ),
+
+  startTask: (workflowId: string, instanceId: string, taskDefId: string) =>
+    fetchJson<TaskInstance>(
+      `/workflows/${workflowId}/task-set-instances/${instanceId}/tasks/${taskDefId}/start`,
+      { method: 'POST' }
+    ),
+
+  completeTask: (
+    workflowId: string,
+    instanceId: string,
+    taskDefId: string,
+    request?: CompleteTaskRequest
+  ) => {
+    // Convert camelCase to snake_case for API
+    const body = request
+      ? JSON.stringify({
+          output_node_id: request.outputNodeId,
+          notes: request.notes,
+          initial_values: request.initialValues,
+        })
+      : undefined;
+
+    return fetchJson<TaskSetInstance>(
+      `/workflows/${workflowId}/task-set-instances/${instanceId}/tasks/${taskDefId}/complete`,
+      {
+        method: 'POST',
+        body,
+      }
+    );
+  },
+
+  skipTask: (workflowId: string, instanceId: string, taskDefId: string, notes?: string) => {
+    const params = notes ? `?notes=${encodeURIComponent(notes)}` : '';
+    return fetchJson<TaskSetInstance>(
+      `/workflows/${workflowId}/task-set-instances/${instanceId}/tasks/${taskDefId}/skip${params}`,
+      { method: 'POST' }
+    );
+  },
+
+  // Progress Queries
+  getNodeTaskProgress: (workflowId: string, nodeId: string) =>
+    fetchJson<NodeTaskProgressResponse>(`/workflows/${workflowId}/nodes/${nodeId}/task-progress`),
+
+  getMyTasks: (
+    workflowId: string,
+    assigneeId: string,
+    params?: { assigneeType?: AssigneeType; status?: TaskStatus }
+  ) => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('assignee_id', assigneeId);
+    if (params?.assigneeType) searchParams.set('assignee_type', params.assigneeType);
+    if (params?.status) searchParams.set('status', params.status);
+
+    return fetchJson<MyTasksResponse>(`/workflows/${workflowId}/my-tasks?${searchParams.toString()}`);
+  },
 };

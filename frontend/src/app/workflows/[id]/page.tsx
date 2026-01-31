@@ -167,15 +167,26 @@ export default function WorkflowPage() {
             <Link href="/" className="text-sm text-muted-foreground hover:text-primary inline-block">
               &larr; Back to home
             </Link>
-            <Link
-              href={`/workflows/${workflowId}/endpoints`}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Endpoints
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/workflows/${workflowId}/tasks`}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Tasks
+              </Link>
+              <Link
+                href={`/workflows/${workflowId}/endpoints`}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Endpoints
+              </Link>
+            </div>
           </div>
           <h1 className="text-2xl font-bold">{workflow.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">{workflow.description}</p>

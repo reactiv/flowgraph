@@ -345,6 +345,99 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
     """)
 
     # =========================================================================
+    # Task Execution Engine - TaskSet Definitions (DAG Templates)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS task_set_definitions (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            definition_json TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_set_defs_workflow
+        ON task_set_definitions(workflow_id)
+    """)
+
+    # =========================================================================
+    # Task Execution Engine - TaskSet Instances (Running Workflows)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS task_set_instances (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            task_set_definition_id TEXT NOT NULL,
+            root_node_id TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (workflow_id) REFERENCES workflow_definitions(id) ON DELETE CASCADE,
+            FOREIGN KEY (task_set_definition_id) REFERENCES task_set_definitions(id) ON DELETE CASCADE,
+            FOREIGN KEY (root_node_id) REFERENCES nodes(id) ON DELETE SET NULL
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_set_inst_workflow
+        ON task_set_instances(workflow_id)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_set_inst_root
+        ON task_set_instances(root_node_id)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_set_inst_status
+        ON task_set_instances(status)
+    """)
+
+    # =========================================================================
+    # Task Execution Engine - Task Instances (Individual Task States)
+    # =========================================================================
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS task_instances (
+            id TEXT PRIMARY KEY,
+            task_set_instance_id TEXT NOT NULL,
+            task_definition_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            assignee_type TEXT DEFAULT 'unassigned',
+            assignee_id TEXT,
+            assigned_at TEXT,
+            assigned_by TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            output_node_id TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (task_set_instance_id) REFERENCES task_set_instances(id) ON DELETE CASCADE,
+            FOREIGN KEY (output_node_id) REFERENCES nodes(id) ON DELETE SET NULL
+        )
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_inst_set
+        ON task_instances(task_set_instance_id)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_inst_status
+        ON task_instances(status)
+    """)
+
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_task_inst_assignee
+        ON task_instances(assignee_type, assignee_id)
+    """)
+
+    # =========================================================================
     # Connector Secrets (Encrypted Credentials)
     # =========================================================================
     await db.execute("""

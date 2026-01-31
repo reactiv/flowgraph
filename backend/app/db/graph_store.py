@@ -19,6 +19,14 @@ from app.models import (
     Node,
     NodeCreate,
     NodeUpdate,
+    TaskAssignment,
+    TaskInstance,
+    TaskSetDefinition,
+    TaskSetDefinitionCreate,
+    TaskSetInstance,
+    TaskSetInstanceCreate,
+    TaskSetInstanceStatus,
+    TaskStatus,
     WorkflowDefinition,
 )
 from app.models.workflow import (
@@ -2123,6 +2131,476 @@ class GraphStore:
             any_stale=bool(row["any_stale"]),
             estimated_tokens=row["estimated_tokens"],
             created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    # ==================== Task Execution Engine ====================
+
+    async def create_task_set_definition(
+        self, workflow_id: str, definition: TaskSetDefinitionCreate
+    ) -> TaskSetDefinition:
+        """Create a new TaskSet definition."""
+        db = await get_db()
+        task_set_id = _generate_id()
+        now = _now()
+
+        # Build the full definition with computed fields
+        full_definition = TaskSetDefinition(
+            id=task_set_id,
+            name=definition.name,
+            description=definition.description,
+            root_node_type=definition.root_node_type,
+            tasks=definition.tasks,
+            tags=definition.tags,
+            created_at=now,
+            updated_at=now,
+        )
+
+        await db.execute(
+            """
+            INSERT INTO task_set_definitions (id, workflow_id, name, version, definition_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                task_set_id,
+                workflow_id,
+                definition.name,
+                1,
+                json.dumps(full_definition.model_dump(by_alias=True)),
+                now,
+                now,
+            ),
+        )
+        await db.commit()
+
+        return full_definition
+
+    async def get_task_set_definition(
+        self, workflow_id: str, task_set_id: str
+    ) -> TaskSetDefinition | None:
+        """Get a TaskSet definition by ID."""
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT definition_json FROM task_set_definitions
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (task_set_id, workflow_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return TaskSetDefinition.model_validate_json(row["definition_json"])
+
+    async def list_task_set_definitions(
+        self, workflow_id: str
+    ) -> list[TaskSetDefinition]:
+        """List all TaskSet definitions for a workflow."""
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            SELECT definition_json FROM task_set_definitions
+            WHERE workflow_id = ?
+            ORDER BY created_at DESC
+            """,
+            (workflow_id,),
+        )
+        rows = await cursor.fetchall()
+
+        return [
+            TaskSetDefinition.model_validate_json(row["definition_json"])
+            for row in rows
+        ]
+
+    async def delete_task_set_definition(
+        self, workflow_id: str, task_set_id: str
+    ) -> bool:
+        """Delete a TaskSet definition."""
+        db = await get_db()
+        cursor = await db.execute(
+            """
+            DELETE FROM task_set_definitions WHERE id = ? AND workflow_id = ?
+            """,
+            (task_set_id, workflow_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def create_task_set_instance(
+        self, workflow_id: str, create: TaskSetInstanceCreate
+    ) -> TaskSetInstance:
+        """Start a new TaskSet instance."""
+        db = await get_db()
+
+        # Verify the TaskSet definition exists
+        task_set_def = await self.get_task_set_definition(
+            workflow_id, create.task_set_definition_id
+        )
+        if task_set_def is None:
+            raise ValueError(
+                f"TaskSet definition {create.task_set_definition_id} not found"
+            )
+
+        instance_id = _generate_id()
+        now = _now()
+
+        # Create the instance
+        await db.execute(
+            """
+            INSERT INTO task_set_instances
+            (id, workflow_id, task_set_definition_id, root_node_id, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                instance_id,
+                workflow_id,
+                create.task_set_definition_id,
+                create.root_node_id,
+                TaskSetInstanceStatus.ACTIVE.value,
+                now,
+                now,
+            ),
+        )
+
+        # Create task instances for each task in the definition
+        task_instances = []
+        for task_def in task_set_def.tasks:
+            task_instance_id = _generate_id()
+            initial_status = TaskStatus.PENDING.value
+
+            await db.execute(
+                """
+                INSERT INTO task_instances
+                (id, task_set_instance_id, task_definition_id, status, assignee_type, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    task_instance_id,
+                    instance_id,
+                    task_def.id,
+                    initial_status,
+                    task_def.default_assignee_type.value,
+                    now,
+                    now,
+                ),
+            )
+
+            task_instances.append(
+                TaskInstance(
+                    id=task_instance_id,
+                    task_set_instance_id=instance_id,
+                    task_definition_id=task_def.id,
+                    status=TaskStatus.PENDING,
+                    assignment=TaskAssignment(
+                        assignee_type=task_def.default_assignee_type
+                    ),
+                )
+            )
+
+        await db.commit()
+
+        return TaskSetInstance(
+            id=instance_id,
+            workflow_id=workflow_id,
+            task_set_definition_id=create.task_set_definition_id,
+            root_node_id=create.root_node_id,
+            status=TaskSetInstanceStatus.ACTIVE,
+            task_instances=task_instances,
+            total_tasks=len(task_instances),
+            completed_tasks=0,
+            available_tasks=0,
+            created_at=now,
+            updated_at=now,
+        )
+
+    async def get_task_set_instance(
+        self, workflow_id: str, instance_id: str
+    ) -> TaskSetInstance | None:
+        """Get a TaskSet instance with all its task instances."""
+        db = await get_db()
+
+        # Get the instance
+        cursor = await db.execute(
+            """
+            SELECT id, workflow_id, task_set_definition_id, root_node_id, status, created_at, updated_at
+            FROM task_set_instances
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (instance_id, workflow_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        # Get all task instances
+        cursor = await db.execute(
+            """
+            SELECT id, task_set_instance_id, task_definition_id, status,
+                   assignee_type, assignee_id, assigned_at, assigned_by,
+                   started_at, completed_at, output_node_id, notes
+            FROM task_instances
+            WHERE task_set_instance_id = ?
+            """,
+            (instance_id,),
+        )
+        task_rows = await cursor.fetchall()
+
+        task_instances = []
+        completed_count = 0
+        for task_row in task_rows:
+            status = TaskStatus(task_row["status"])
+            if status == TaskStatus.COMPLETED:
+                completed_count += 1
+
+            assignment = None
+            if task_row["assignee_type"]:
+                from app.models.task import AssigneeType
+                assignment = TaskAssignment(
+                    assignee_type=AssigneeType(task_row["assignee_type"]),
+                    assignee_id=task_row["assignee_id"],
+                    assigned_at=task_row["assigned_at"],
+                    assigned_by=task_row["assigned_by"],
+                )
+
+            task_instances.append(
+                TaskInstance(
+                    id=task_row["id"],
+                    task_set_instance_id=task_row["task_set_instance_id"],
+                    task_definition_id=task_row["task_definition_id"],
+                    status=status,
+                    assignment=assignment,
+                    started_at=task_row["started_at"],
+                    completed_at=task_row["completed_at"],
+                    output_node_id=task_row["output_node_id"],
+                    notes=task_row["notes"],
+                )
+            )
+
+        return TaskSetInstance(
+            id=row["id"],
+            workflow_id=row["workflow_id"],
+            task_set_definition_id=row["task_set_definition_id"],
+            root_node_id=row["root_node_id"],
+            status=TaskSetInstanceStatus(row["status"]),
+            task_instances=task_instances,
+            total_tasks=len(task_instances),
+            completed_tasks=completed_count,
+            available_tasks=0,  # Will be computed by progress evaluator
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    async def list_task_set_instances(
+        self,
+        workflow_id: str,
+        status: TaskSetInstanceStatus | None = None,
+        root_node_id: str | None = None,
+    ) -> list[TaskSetInstance]:
+        """List TaskSet instances for a workflow."""
+        db = await get_db()
+
+        where_clauses = ["workflow_id = ?"]
+        params: list[Any] = [workflow_id]
+
+        if status:
+            where_clauses.append("status = ?")
+            params.append(status.value)
+
+        if root_node_id:
+            where_clauses.append("root_node_id = ?")
+            params.append(root_node_id)
+
+        where_sql = " AND ".join(where_clauses)
+
+        cursor = await db.execute(
+            f"""
+            SELECT id FROM task_set_instances
+            WHERE {where_sql}
+            ORDER BY created_at DESC
+            """,
+            params,
+        )
+        rows = await cursor.fetchall()
+
+        instances = []
+        for row in rows:
+            instance = await self.get_task_set_instance(workflow_id, row["id"])
+            if instance:
+                instances.append(instance)
+
+        return instances
+
+    async def update_task_instance(
+        self,
+        task_set_instance_id: str,
+        task_definition_id: str,
+        status: TaskStatus | None = None,
+        output_node_id: str | None = None,
+        notes: str | None = None,
+        assignee_type: str | None = None,
+        assignee_id: str | None = None,
+        assigned_by: str | None = None,
+    ) -> TaskInstance | None:
+        """Update a task instance."""
+        db = await get_db()
+        now = _now()
+
+        # Get current task instance
+        cursor = await db.execute(
+            """
+            SELECT * FROM task_instances
+            WHERE task_set_instance_id = ? AND task_definition_id = ?
+            """,
+            (task_set_instance_id, task_definition_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        # Build update
+        updates = ["updated_at = ?"]
+        params: list[Any] = [now]
+
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status.value)
+            if status == TaskStatus.IN_PROGRESS and row["started_at"] is None:
+                updates.append("started_at = ?")
+                params.append(now)
+            elif status == TaskStatus.COMPLETED:
+                updates.append("completed_at = ?")
+                params.append(now)
+
+        if output_node_id is not None:
+            updates.append("output_node_id = ?")
+            params.append(output_node_id)
+
+        if notes is not None:
+            updates.append("notes = ?")
+            params.append(notes)
+
+        if assignee_type is not None:
+            updates.append("assignee_type = ?")
+            params.append(assignee_type)
+            updates.append("assignee_id = ?")
+            params.append(assignee_id)
+            updates.append("assigned_at = ?")
+            params.append(now)
+            updates.append("assigned_by = ?")
+            params.append(assigned_by)
+
+        params.extend([task_set_instance_id, task_definition_id])
+
+        await db.execute(
+            f"""
+            UPDATE task_instances
+            SET {", ".join(updates)}
+            WHERE task_set_instance_id = ? AND task_definition_id = ?
+            """,
+            params,
+        )
+        await db.commit()
+
+        # Return updated instance
+        cursor = await db.execute(
+            """
+            SELECT id, task_set_instance_id, task_definition_id, status,
+                   assignee_type, assignee_id, assigned_at, assigned_by,
+                   started_at, completed_at, output_node_id, notes
+            FROM task_instances
+            WHERE task_set_instance_id = ? AND task_definition_id = ?
+            """,
+            (task_set_instance_id, task_definition_id),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        from app.models.task import AssigneeType
+        assignment = None
+        if row["assignee_type"]:
+            assignment = TaskAssignment(
+                assignee_type=AssigneeType(row["assignee_type"]),
+                assignee_id=row["assignee_id"],
+                assigned_at=row["assigned_at"],
+                assigned_by=row["assigned_by"],
+            )
+
+        return TaskInstance(
+            id=row["id"],
+            task_set_instance_id=row["task_set_instance_id"],
+            task_definition_id=row["task_definition_id"],
+            status=TaskStatus(row["status"]),
+            assignment=assignment,
+            started_at=row["started_at"],
+            completed_at=row["completed_at"],
+            output_node_id=row["output_node_id"],
+            notes=row["notes"],
+        )
+
+    async def update_task_set_instance_status(
+        self, workflow_id: str, instance_id: str, status: TaskSetInstanceStatus
+    ) -> bool:
+        """Update the status of a TaskSet instance."""
+        db = await get_db()
+        now = _now()
+
+        cursor = await db.execute(
+            """
+            UPDATE task_set_instances
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND workflow_id = ?
+            """,
+            (status.value, now, instance_id, workflow_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+    async def get_task_instance_by_id(
+        self, task_instance_id: str
+    ) -> TaskInstance | None:
+        """Get a task instance by its ID."""
+        db = await get_db()
+
+        cursor = await db.execute(
+            """
+            SELECT id, task_set_instance_id, task_definition_id, status,
+                   assignee_type, assignee_id, assigned_at, assigned_by,
+                   started_at, completed_at, output_node_id, notes
+            FROM task_instances
+            WHERE id = ?
+            """,
+            (task_instance_id,),
+        )
+        row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        from app.models.task import AssigneeType
+        assignment = None
+        if row["assignee_type"]:
+            assignment = TaskAssignment(
+                assignee_type=AssigneeType(row["assignee_type"]),
+                assignee_id=row["assignee_id"],
+                assigned_at=row["assigned_at"],
+                assigned_by=row["assigned_by"],
+            )
+
+        return TaskInstance(
+            id=row["id"],
+            task_set_instance_id=row["task_set_instance_id"],
+            task_definition_id=row["task_definition_id"],
+            status=TaskStatus(row["status"]),
+            assignment=assignment,
+            started_at=row["started_at"],
+            completed_at=row["completed_at"],
+            output_node_id=row["output_node_id"],
+            notes=row["notes"],
         )
 
 

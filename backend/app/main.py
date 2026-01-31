@@ -113,6 +113,7 @@ from app.api import (  # noqa: E402
     execute,
     files,
     references,
+    tasks,
     templates,
     workflows,
 )
@@ -124,4 +125,5 @@ app.include_router(workflows.router, prefix="/api/v1", tags=["workflows"])
 app.include_router(endpoints.router, prefix="/api/v1", tags=["endpoints"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(connectors.router, prefix="/api/v1", tags=["connectors"])
+app.include_router(tasks.router, prefix="/api/v1", tags=["tasks"])
 app.include_router(execute.router, tags=["execute"])
